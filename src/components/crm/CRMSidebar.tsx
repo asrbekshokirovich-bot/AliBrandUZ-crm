@@ -92,7 +92,6 @@ const menuSections: MenuSection[] = [
     icon: Settings,
     items: [
       { title: 'finance', url: '/crm/finance', icon: DollarSign },
-      { title: 'ai_analytics', url: '/crm/ai-analytics', icon: Brain, requiresManager: true },
 
       { title: 'investor_dashboard', url: '/crm/investor-dashboard', icon: Wallet },
       { title: 'users', url: '/crm/users', icon: Users, requiresManager: true },
@@ -210,12 +209,14 @@ export function CRMSidebar() {
       return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks'].includes(url);
     }
 
-    // Manager (Marketplace): Dashboard, Products, Marketplace (all), Shipments, Tasks, Store Orders, Ali AI
+    // Marketplace Manager: Dashboard, Products, Marketplace (all), Shipments, Tasks, Store Orders, Ali AI
     if (isMarketplaceManager) {
       return ['/crm/products', '/crm/shipments', '/crm/tasks', '/crm/store-orders', '/crm/ali-ai'].includes(url) || url.startsWith('/crm/marketplace');
     }
 
-    return false;
+    // Fallback: no specific role found → show all menus (access controlled by DB RLS)
+    return true;
+
   };
 
   return (

@@ -12,14 +12,17 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTelegramAlert } from '@/hooks/useTelegramAlert';
 import { useTranslation } from 'react-i18next';
+import { Sparkles } from 'lucide-react';
+import type { ScanResult } from '@/hooks/useReturnScanner';
 
 interface ClaimFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   claim?: any;
+  prefillData?: ScanResult;
 }
 
-export function ClaimFormDialog({ open, onOpenChange, claim }: ClaimFormDialogProps) {
+export function ClaimFormDialog({ open, onOpenChange, claim, prefillData }: ClaimFormDialogProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -74,7 +77,7 @@ export function ClaimFormDialog({ open, onOpenChange, claim }: ClaimFormDialogPr
     },
   });
 
-  // Reset form when claim changes
+  // Reset form when claim or prefillData changes
   useEffect(() => {
     if (claim) {
       setFormData({
@@ -85,6 +88,18 @@ export function ClaimFormDialog({ open, onOpenChange, claim }: ClaimFormDialogPr
         claim_amount: claim.claim_amount?.toString() || '',
         claim_currency: claim.claim_currency || 'USD',
       });
+    } else if (prefillData) {
+      // Pre-fill from AI scanner results
+      setFormData(prev => ({
+        ...prev,
+        defect_description: [
+          prefillData.reason_for_return,
+          prefillData.product_name ? `Mahsulot: ${prefillData.product_name}` : '',
+          prefillData.order_id ? `Buyurtma ID: ${prefillData.order_id}` : '',
+          prefillData.date ? `Sana: ${prefillData.date}` : '',
+        ].filter(Boolean).join('\n'),
+        claim_amount: prefillData.price || '',
+      }));
     } else {
       setFormData({
         box_id: '',
@@ -95,7 +110,7 @@ export function ClaimFormDialog({ open, onOpenChange, claim }: ClaimFormDialogPr
         claim_currency: 'USD',
       });
     }
-  }, [claim, open]);
+  }, [claim, open, prefillData]);
 
   // Create/Update mutation
   const mutation = useMutation({
@@ -161,6 +176,14 @@ export function ClaimFormDialog({ open, onOpenChange, claim }: ClaimFormDialogPr
             {claim ? t('cf_edit') : t('cf_create')}
           </DialogTitle>
         </DialogHeader>
+
+        {/* AI pre-fill banner */}
+        {prefillData && !claim && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
+            <Sparkles className="h-4 w-4 flex-shrink-0" />
+            <span>AI skaneridan ma'lumotlar avtomatik to'ldirildi</span>
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Box Selection */}

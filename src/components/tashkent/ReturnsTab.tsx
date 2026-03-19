@@ -9,7 +9,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { RotateCcw, Trash2, ChevronDown, ChevronUp, Package, Calendar, RefreshCw, Store, FileText, AlertTriangle } from 'lucide-react';
+import { RotateCcw, Trash2, ChevronDown, ChevronUp, Package, Calendar, RefreshCw, Store, FileText, AlertTriangle, ScanLine } from 'lucide-react';
+import { ReturnScannerDialog } from '@/components/claims/ReturnScannerDialog';
+import { ScanResultCard } from '@/components/claims/ScanResultCard';
+import type { ScanResult } from '@/hooks/useReturnScanner';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -227,6 +230,16 @@ export function ReturnsTab() {
   }, [resolvedReturns]);
 
   const [isSyncingYandex, setIsSyncingYandex] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannedDocs, setScannedDocs] = useState<Array<{ id: string; result: ScanResult; file?: File }>>([]);
+
+  const handleScannerResult = (data: ScanResult, file?: File) => {
+    setScannedDocs(prev => [
+      { id: crypto.randomUUID(), result: data, file },
+      ...prev,
+    ]);
+    setIsScannerOpen(false);
+  };
 
   // Sync from Uzum nakladnoy API and FBO defects
   const handleSync = async () => {
@@ -544,6 +557,11 @@ export function ReturnsTab() {
 
   return (
     <div className="space-y-6">
+      <ReturnScannerDialog
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onResult={handleScannerResult}
+      />
       {/* Header toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -566,6 +584,16 @@ export function ReturnsTab() {
         >
           <RefreshCw className={cn('h-4 w-4', isSyncingYandex && 'animate-spin')} />
           {isSyncingYandex ? 'Yandex yuklanmoqda...' : 'Yandex vozvradlarini yuklash'}
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setIsScannerOpen(true)}
+          className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+        >
+          <ScanLine className="h-4 w-4" />
+          Hujjatni skanerlash
         </Button>
 
         {/* Month filter */}
@@ -629,6 +657,21 @@ export function ReturnsTab() {
           </span>
         </div>
       </div>
+
+      {/* Scanned document cards */}
+      {scannedDocs.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-foreground">Skanerlangan hujjatlar ({scannedDocs.length})</p>
+          {scannedDocs.map(doc => (
+            <ScanResultCard
+              key={doc.id}
+              result={doc.result}
+              file={doc.file}
+              onDismiss={() => setScannedDocs(prev => prev.filter(d => d.id !== doc.id))}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Main Items List (Flat) */}
       <div className="space-y-4">

@@ -1,4 +1,4 @@
-project_id = "qnbxnldkzuoydqgzagvu"
+project_id = "tcozucevusrecxmfyigl"
 
 [functions.exchange-rates]
 verify_jwt = false
@@ -175,4 +175,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.uzum-supply-invoices]
+verify_jwt = false
+
+[functions.scan-return-document]
 verify_jwt = false

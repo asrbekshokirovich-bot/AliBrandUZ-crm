@@ -874,6 +874,7 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
                   p_shipping_cost: box.shippingCost,
                   p_volume_m3: box.volumeM3 || 0,
                   p_usd_to_uzs: usdToUzs,
+                  p_packaging_fee: 0,
                 } as any);
                 
                 if (distError) {

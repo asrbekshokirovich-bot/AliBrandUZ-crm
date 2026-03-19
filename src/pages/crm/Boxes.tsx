@@ -72,6 +72,15 @@ export default function Boxes() {
   const [customRates, setCustomRates] = useState<Record<string, { uzsRate: number; cnyToUzs: number }>>({});
   // Track which box's cost sheet is open
   const [costSheetBoxId, setCostSheetBoxId] = useState<string | null>(null);
+  
+  // Custom box costs edit state
+  const [editCostsDialogOpen, setEditCostsDialogOpen] = useState(false);
+  const [boxToEditCosts, setBoxToEditCosts] = useState<any>(null);
+  const [editCostsForm, setEditCostsForm] = useState({
+    shippingCost: '0',
+    packagingFee: '0',
+    volumeM3: '0'
+  });
   const [formData, setFormData] = useState({
     trackCodes: [] as string[],
     pendingTrackCode: '', // Current input value (not yet added to list)
@@ -251,6 +260,45 @@ export default function Boxes() {
     onError: (error: any) => {
       toast({ title: t('vf_error'), description: error.message, variant: 'destructive' });
     },
+  });
+
+  const editBoxCostsMutation = useMutation({
+    mutationFn: async ({ boxId, shippingCost, packagingFee, volumeM3 }: { boxId: string, shippingCost: number | null, packagingFee: number | null, volumeM3: number | null }) => {
+      // Direct updates to box
+      const { error: updateError } = await supabase
+        .from('boxes')
+        .update({
+          shipping_cost: shippingCost,
+          packaging_fee: packagingFee,
+          volume_m3: volumeM3
+        })
+        .eq('id', boxId);
+        
+      if (updateError) throw updateError;
+      
+      // Auto distribute if shipping cost exists
+      if (shippingCost && shippingCost > 0) {
+        const uzsRate = customRates[boxId]?.uzsRate ?? (exchangeRates?.UZS || 12850);
+        
+        const { error: distError } = await supabase.rpc('auto_distribute_box_shipping_cost', {
+          p_box_id: boxId,
+          p_shipping_cost: shippingCost,
+          p_volume_m3: volumeM3 || 0,
+          p_usd_to_uzs: uzsRate,
+          p_packaging_fee: packagingFee || 0,
+        });
+        
+        if (distError) throw distError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boxes'] });
+      toast({ title: "Xarajatlar saqlandi", description: "Quti xarajatlari muvaffaqiyatli saqlandi va proporsional taqsimlandi" });
+      setEditCostsDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Xato", description: error.message, variant: 'destructive' });
+    }
   });
 
   const printQRCode = useMemo(() => (box: any) => {
@@ -1402,6 +1450,24 @@ export default function Boxes() {
                     <Printer className="h-4 w-4" />
                     <span className="text-xs sm:text-sm">{t('box_print')}</span>
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1.5 min-h-[40px]"
+                    onClick={() => {
+                      setBoxToEditCosts(box);
+                      setEditCostsForm({
+                        shippingCost: box.shipping_cost?.toString() || '0',
+                        packagingFee: box.packaging_fee?.toString() || '0',
+                        volumeM3: box.volume_m3?.toString() || '0'
+                      });
+                      setEditCostsDialogOpen(true);
+                      setQuickActionsOpen(false);
+                    }}
+                  >
+                    <Calculator className="h-4 w-4" />
+                    <span className="text-xs sm:text-sm">Xarajatlar</span>
+                  </Button>
                   {canDelete && (
                     <Button 
                       variant="outline" 
@@ -1581,6 +1647,23 @@ export default function Boxes() {
                 <Printer className="h-5 w-5" />
                 {t('box_print_qr')}
               </Button>
+              <Button
+                variant="outline"
+                className="w-full h-12 justify-start gap-3"
+                onClick={() => {
+                  setBoxToEditCosts(quickActionsBox);
+                  setEditCostsForm({
+                    shippingCost: quickActionsBox.shipping_cost?.toString() || '0',
+                    packagingFee: quickActionsBox.packaging_fee?.toString() || '0',
+                    volumeM3: quickActionsBox.volume_m3?.toString() || '0'
+                  });
+                  setEditCostsDialogOpen(true);
+                  setQuickActionsOpen(false);
+                }}
+              >
+                <Calculator className="h-5 w-5" />
+                Xarajatlar
+              </Button>
               {canDelete && (
                 <Button
                   variant="outline"
@@ -1608,6 +1691,65 @@ export default function Boxes() {
           <ScanLine className="h-6 w-6" />
         </Button>
       )}
+
+      {/* Edit Box Costs Dialog */}
+      <Dialog open={editCostsDialogOpen} onOpenChange={setEditCostsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Quti xarajatlarini tahrirlash</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Yo'l haqqi (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editCostsForm.shippingCost}
+                onChange={(e) => setEditCostsForm({ ...editCostsForm, shippingCost: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Qadoqlash xarajati (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editCostsForm.packagingFee}
+                onChange={(e) => setEditCostsForm({ ...editCostsForm, packagingFee: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Hajm (m³)</label>
+              <Input
+                type="number"
+                step="0.001"
+                min="0"
+                value={editCostsForm.volumeM3}
+                onChange={(e) => setEditCostsForm({ ...editCostsForm, volumeM3: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditCostsDialogOpen(false)}>Bekor qilish</Button>
+            <Button 
+              onClick={() => {
+                if (boxToEditCosts) {
+                  editBoxCostsMutation.mutate({
+                    boxId: boxToEditCosts.id,
+                    shippingCost: parseFloat(editCostsForm.shippingCost) || null,
+                    packagingFee: parseFloat(editCostsForm.packagingFee) || null,
+                    volumeM3: parseFloat(editCostsForm.volumeM3) || null
+                  });
+                }
+              }}
+              disabled={editBoxCostsMutation.isPending}
+            >
+              Saqlash va taqsimlash
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

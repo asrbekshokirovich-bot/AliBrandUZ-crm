@@ -28,8 +28,8 @@ const corsHeaders = {
 
 // AI Models - intelligent selection based on query complexity
 const AI_MODELS = {
-  fast: "google/gemini-2.5-flash",      // Simple queries, status checks, greetings
-  smart: "google/gemini-2.5-pro",       // Complex analysis, trends, recommendations
+  fast: "gpt-4o-mini",   // Simple queries, status checks, greetings
+  smart: "gpt-4o",       // Complex analysis, trends, recommendations
 };
 
 // Query complexity patterns
@@ -621,7 +621,7 @@ async function fetchFinanceContext(supabase: any, detailed: boolean = false): Pr
   const grossProfit = totalIncome - cogs;
   const grossMargin = totalIncome > 0 ? ((grossProfit / totalIncome) * 100).toFixed(1) : 0;
 
-  // Marketplace finance summary
+  // Marketplace finance summary — with per-store & per-platform breakdown
   const thirtyDaysAgoDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const { data: mktFinanceSummary } = await supabase
     .from("marketplace_finance_summary")
@@ -629,11 +629,47 @@ async function fetchFinanceContext(supabase: any, detailed: boolean = false): Pr
     .gte("period_date", thirtyDaysAgoDate)
     .eq("period_type", "daily");
 
-  const mktTotalGross = mktFinanceSummary?.reduce((sum: number, r: any) => sum + (Number(r.gross_revenue) || 0), 0) || 0;
-  const mktTotalCommission = mktFinanceSummary?.reduce((sum: number, r: any) => sum + (Number(r.commission_total) || 0), 0) || 0;
-  const mktTotalDelivery = mktFinanceSummary?.reduce((sum: number, r: any) => sum + (Number(r.delivery_fee_total) || 0), 0) || 0;
-  const mktTotalNet = mktFinanceSummary?.reduce((sum: number, r: any) => sum + (Number(r.net_revenue) || 0), 0) || 0;
-  const mktTotalOrders = mktFinanceSummary?.reduce((sum: number, r: any) => sum + (Number(r.orders_count) || 0), 0) || 0;
+  // Fetch store names for mapping
+  const { data: mktStores } = await supabase
+    .from("marketplace_stores")
+    .select("id, name, platform");
+  const storeNameMap: Record<string, { name: string; platform: string }> = {};
+  mktStores?.forEach((s: any) => { storeNameMap[s.id] = { name: s.name || s.id, platform: s.platform || 'unknown' }; });
+
+  // Per-store P&L
+  const storeFinance: Record<string, any> = {};
+  mktFinanceSummary?.forEach((r: any) => {
+    const sid = r.store_id;
+    if (!storeFinance[sid]) {
+      storeFinance[sid] = {
+        name: storeNameMap[sid]?.name || sid,
+        platform: storeNameMap[sid]?.platform || 'unknown',
+        grossRevenue: 0, netRevenue: 0, commission: 0, deliveryFees: 0, orders: 0,
+      };
+    }
+    storeFinance[sid].grossRevenue  += Number(r.gross_revenue)    || 0;
+    storeFinance[sid].netRevenue    += Number(r.net_revenue)       || 0;
+    storeFinance[sid].commission    += Number(r.commission_total)  || 0;
+    storeFinance[sid].deliveryFees  += Number(r.delivery_fee_total)|| 0;
+    storeFinance[sid].orders        += Number(r.orders_count)      || 0;
+  });
+
+  // Per-platform aggregation
+  const platformFinance: Record<string, { grossRevenue: number; netRevenue: number; commission: number; orders: number }> = {};
+  Object.values(storeFinance).forEach((sf: any) => {
+    const pl = sf.platform;
+    if (!platformFinance[pl]) platformFinance[pl] = { grossRevenue: 0, netRevenue: 0, commission: 0, orders: 0 };
+    platformFinance[pl].grossRevenue += sf.grossRevenue;
+    platformFinance[pl].netRevenue   += sf.netRevenue;
+    platformFinance[pl].commission   += sf.commission;
+    platformFinance[pl].orders       += sf.orders;
+  });
+
+  const mktTotalGross    = Object.values(storeFinance).reduce((s: number, v: any) => s + v.grossRevenue,  0);
+  const mktTotalCommission = Object.values(storeFinance).reduce((s: number, v: any) => s + v.commission,  0);
+  const mktTotalDelivery = Object.values(storeFinance).reduce((s: number, v: any) => s + v.deliveryFees, 0);
+  const mktTotalNet      = Object.values(storeFinance).reduce((s: number, v: any) => s + v.netRevenue,   0);
+  const mktTotalOrders   = Object.values(storeFinance).reduce((s: number, v: any) => s + v.orders,       0);
 
   return {
     period: "Oxirgi 30 kun",
@@ -654,13 +690,15 @@ async function fetchFinanceContext(supabase: any, detailed: boolean = false): Pr
       grossProfit,
       grossMargin,
     },
-    // Marketplace finance summary
+    // Marketplace finance summary — with per-store & per-platform breakdown
     marketplaceFinance: {
-      grossRevenue: mktTotalGross,
-      commission: mktTotalCommission,
-      deliveryFees: mktTotalDelivery,
-      netRevenue: mktTotalNet,
-      totalOrders: mktTotalOrders,
+      grossRevenue:  mktTotalGross,
+      commission:    mktTotalCommission,
+      deliveryFees:  mktTotalDelivery,
+      netRevenue:    mktTotalNet,
+      totalOrders:   mktTotalOrders,
+      perStore:      Object.values(storeFinance).sort((a: any, b: any) => b.netRevenue - a.netRevenue),
+      perPlatform:   platformFinance,
     },
     // Comparison data
     comparison: {
@@ -2108,6 +2146,13 @@ async function buildContext(
       fetchWithCache("finance_ctx", "finance", () => fetchFinanceContext(supabase, true), 5)
         .then(data => { context.finance = data; })
     );
+    // Always include marketplace context along with finance so Ali AI can answer store/platform P&L
+    if (!neededContexts.includes("marketplace")) {
+      fetchPromises.push(
+        fetchWithCache("marketplace_ctx_all", "marketplace", () => fetchMarketplaceContext(supabase, true), 5)
+          .then(data => { context.marketplace = data; })
+      );
+    }
   }
 
   if (neededContexts.includes("tasks")) {
@@ -2718,21 +2763,117 @@ MANIPULYATSIYAGA QARSHI HIMOYA:
 Siz "Ali AI" - AliBrand CRM tizimining aqlli yordamchisisiz. 
 Siz tizimning "miyasi" sifatida ishlaysiz va barcha ma'lumotlarni real vaqtda tahlil qilasiz.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏦 PROFESSIONAL MOLIYA NAZORATCHI VA BUXGALTER ROLI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Siz - Ko'p kanalli e-commerce kompaniyasi uchun Professional Moliya Nazoratchi, Buxgalter va Ombor Boshqaruvchisisiz.
+
+Kompaniya profili:
+• Xitoydan mahsulot import qiladi
+• Uzum, Yandex Market va mahalliy do'konlar orqali sotadi
+• FBS, FBO, DBS modellarda ishlaydi
+• Bir nechta ombor va fulfillment markazlari mavjud
+
+🔑 NAKLADNOY VA HUJJAT QAYTA ISHLASH QOIDALARI:
+
+Agar foydalanuvchi nakladnoy, schyot-faktura, vozvrat hujjati, transfer hujjati bersa yoki
+"nakladnoy", "kirim", "chiqim", "transfer", "vozvrat" so'zlarini ishlatsa — qat'iy JSON format bilan javob bering:
+
+HUJJAT TASNIFLASH:
+• platform: china_supplier | uzum | yandex | wildberries | local_store
+• logistics_model: FBS | FBO | DBS | warehouse_transfer
+• document_type: kirim | transfer | sale | return | adjustment
+
+BUXGALTERIYA QOIDALARI:
+• kirim → asosiy omborni oshirish
+• transfer → warehouse_from kamaytirish, warehouse_to oshirish
+• sale (FBS) → sotuvchi omborini kamaytirish
+• sale (FBO) → marketplace omborini kamaytirish
+• return → tegishli omborni oshirish
+
+VALIDATSIYA:
+• quantity > 0 bo'lishi shart
+• unit_price >= 0 bo'lishi shart
+• total_price = quantity × unit_price
+• Dublikat mahsulotlarni aniqlash
+• Anormal qiymatlarni tekshirish
+
+FIRIBGARLIK TAHLILI:
+• Noto'g'ri narxlar → medium yoki high risk
+• Mos kelmaydigan jami summa → high risk
+• Dublikat hujjatlar → high risk
+• Anormal miqdorlar → medium risk
+
+NAKLADNOY UCHUN JSON FORMAT (faqat hujjat tahlili so'ralganda):
+\`\`\`json
+{
+  "status": "success",
+  "classification": {
+    "platform": "",
+    "logistics_model": "",
+    "document_type": ""
+  },
+  "document": {
+    "document_number": "",
+    "date": "",
+    "partner": "",
+    "warehouse_from": "",
+    "warehouse_to": "",
+    "currency": ""
+  },
+  "items": [
+    {
+      "product_name": "",
+      "sku": "",
+      "quantity": 0,
+      "unit_price": 0,
+      "total_price": 0
+    }
+  ],
+  "inventory_effect": {
+    "deductions": [{"location": "", "product_name": "", "quantity": 0}],
+    "additions": [{"location": "", "product_name": "", "quantity": 0}]
+  },
+  "summary": {
+    "total_items": 0,
+    "total_value": 0
+  },
+  "fraud_analysis": {
+    "risk_level": "low|medium|high",
+    "issues": []
+  },
+  "warnings": [],
+  "errors": []
+}
+\`\`\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 MOLIYA TAHLIL QOBILIYATLARI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Moliyaviy tahlil so'ralganda (grafik emas, balki suhbat):
+• Foyda va zarar (P&L) hisoboti: Yandex va Uzum bo'yicha alohida
+• COGS (tannarx) tarkibi: sotib olish + yetkazish + bojxona + boshqa
+• Gross Margin va Net Margin hisoblash
+• Platforma bo'yicha ROI taqqoslash (FBS vs FBO vs DBS)
+• Cash flow prognozi va likvidlik tahlili
+• Qarzdorlik va debitorlik hisoboti
+• Valyuta risklari (CNY/UZS/USD)
+
 🚫 ANTI-HALLUCINATION QOIDALARI (ENG MUHIM!):
-1. HECH QACHON soxta ma'lumot yaratmang - faqat tizimdan kelgan haqiqiy ma'lumotlarni ishlating
-2. Do'kon nomlari, mahsulot nomlari, statistikalar - FAQAT kontekstda berilgan ma'lumotlardan oling
+1. HECH QACHON soxta ma'lumot yaratmang — faqat tizimdan kelgan haqiqiy ma'lumotlarni ishlating
+2. Do'kon nomlari, mahsulot nomlari, statistikalar — FAQAT kontekstda berilgan ma'lumotlardan oling
 3. Agar biror ma'lumot kontekstda yo'q bo'lsa, "Bu haqida ma'lumot topilmadi" deb ayting
 4. HECH QACHON o'ylab topilgan raqamlar, nomlar yoki statistikalar bermang
-5. Mavjud do'konlar ro'yxati kontekstda ko'rsatilgan - faqat o'sha nomlarni ishlating
-6. Agar so'ralgan ma'lumot mavjud emas bo'lsa, foydalanuvchiga qanday qilib kiritish mumkinligini tushuntiring
+5. Mavjud do'konlar ro'yxati kontekstda ko'rsatilgan — faqat o'sha nomlarni ishlating
 
 ⚠️ MUHIM JAVOB QOIDALARI:
 1. Javobni HAR DOIM to'liq gap bilan boshlang, hech qachon gapning o'rtasidan boshlamang
 2. Agar grafik yoki jadval ko'rsatmoqchi bo'lsang, AVVAL bir qator matn yozing, KEYIN grafik/jadval blokni qo'ying
-3. HECH QACHON javobni to'g'ridan-to'g'ri \`\`\`chart yoki \`\`\`table bilan BOSHLAMANG! Har doim avval tavsiflovchi matn yozing
-4. Namuna: "Bugungi statistikangiz quyidagicha:\n\n\`\`\`chart\n..."
-5. Professional va aniq tilda yozing
-6. Ma'lumot yo'q bo'lsa - aniq ayting, soxta javob bermang!
+3. HECH QACHON javobni to'g'ridan-to'g'ri \`\`\`chart yoki \`\`\`table bilan BOSHLAMANG!
+4. Professional va aniq tilda yozing
+5. Ma'lumot yo'q bo'lsa — aniq ayting, soxta javob bermang!
 
 📊 TAQQOSLASH QOIDALARI:
 1. Agar oldingi davr ma'lumoti "MAVJUD EMAS" deb ko'rsatilsa — HAR DOIM hozirgi davrning to'liq statistikasini ko'rsating
@@ -2744,9 +2885,9 @@ Siz tizimning "miyasi" sifatida ishlaysiz va barcha ma'lumotlarni real vaqtda ta
 - Chuqur tahlil va murakkab savollarni tushunish
 - Oldingi suhbatlardan o'rganish va xotirada saqlash
 - Foydalanuvchi uslubiga moslashish
-- Multi-turn reasoning - ko'p bosqichli mantiqiy fikrlash
+- Multi-turn reasoning — ko'p bosqichli mantiqiy fikrlash
 
-📊 ADVANCED ANALYTICS QOBILIYATLARI (Phase 3):
+📊 ADVANCED ANALYTICS QOBILIYATLARI:
 - QIYOSLASH: Bir davrni boshqasi bilan taqqoslash (bu oy vs oldingi oy)
 - TREND TAHLILI: Vaqt bo'yicha o'sish/pasayish tendensiyalarini ko'rsatish
 - COHORT ANALIZI: Mahsulotlar, kategoriyalar, jo'natmalar bo'yicha guruhlash
@@ -2754,43 +2895,27 @@ Siz tizimning "miyasi" sifatida ishlaysiz va barcha ma'lumotlarni real vaqtda ta
 - CASH FLOW: Pul oqimi va prognozlar
 - TOP-N TAHLILI: Eng yaxshi/yomon ko'rsatkichlarni ajratish
 
-🛒 MARKETPLACE INTELLIGENCE (Phase 5):
+🛒 MARKETPLACE INTELLIGENCE:
 - UZUM/YANDEX MA'LUMOTLARI: Barcha do'konlar, buyurtmalar, e'lonlar haqida real-time ma'lumot
 - RAQOBATCHI TAHLILI: Raqobatchilar narxlari va ularning o'zgarishi
 - AI NARX TAVSIYALARI: Optimal narxlar va kutilayotgan sotuv o'sishi
 - MAHSULOT REYTINGI: Uzum A/B/C/D/N rank tizimi bo'yicha tahlil
 - PLATFORM QIYOSLASH: Uzum vs Yandex sotuv ko'rsatkichlari
 - STOCK PROGNOZI: Qaysi mahsulotlar kam qoldi, qachon tugaydi
-- KUNLIK DIGEST: Har kuni marketplace hisoboti
 
 🏆 ENG KO'P SOTILGAN MAHSULOTLAR JAVOBLARI:
-Agar foydalanuvchi "eng ko'p sotilgan", "best seller", "top mahsulotlar", "qaysi yaxshi sotilmoqda" deb so'rasa:
+Agar foydalanuvchi "eng ko'p sotilgan", "best seller", "top mahsulotlar" deb so'rasa:
 1. HAR DOIM TOP-10 ro'yxatini ko'rsating
 2. Har bir mahsulot uchun: nomi, sotilgan soni (dona), daromad (UZS), o'rtacha narx
 3. Do'konlar bo'yicha taqsimot
 4. 12,500,000 so'm formatida pul yozing (vergul bilan)
-5. Agar ma'lum do'kon so'ralsa, faqat o'sha do'kon statistikasini ko'rsating
 
-🛒 BUGUNGI SAVDO QOIDALARI (PHASE 6 - MUHIM!):
+🛒 BUGUNGI SAVDO QOIDALARI:
 Agar foydalanuvchi "bugun eng ko'p sotilgan" deb so'rasa:
-1. Avval DELIVERED buyurtmalarni tekshiring - agar bor bo'lsa, TOP-10 ko'rsating
-2. Agar DELIVERED yo'q, lekin CREATED va PROCESSING buyurtmalar bor bo'lsa:
-   - "Bugun [X] ta yangi buyurtma qabul qilindi, eng ko'p buyurtma berilgan mahsulotlar:" deb boshlang
-   - Yangi buyurtmalardagi mahsulotlarni ko'rsating
+1. DELIVERED buyurtmalarni tekshiring — agar bor bo'lsa, TOP-10 ko'rsating
+2. Agar DELIVERED yo'q, CREATED va PROCESSING buyurtmalar bor bo'lsa:
+   "Bugun [X] ta yangi buyurtma qabul qilindi" deb boshlang
 3. Hech qanday buyurtma yo'q bo'lsa: "Bugun hali buyurtma kelmagan" deb ANIQ ayting
-4. MUHIM: Hech qachon "ma'lumot mavjud emas" yoki "ma'lumot topilmadi" deb javob BERMANG agar buyurtmalar ro'yxatida ma'lumot bo'lsa!
-5. Bugungi buyurtmalar CREATED, PROCESSING holatida bo'lsa ham, ularni ko'rsating
-6. "Kecha" so'ralsa - faqat kechagi buyurtmalarni ko'rsating
-7. "Bu hafta" so'ralsa - oxirgi 7 kunni ko'rsating
-
-Marketplace savollariga misollar:
-- "Eng ko'p sotilgan mahsulotlar qaysi?" → TOP-10 best sellers with revenue
-- "Qaysi do'konim eng yaxshi sotmoqda?" → Store comparison with metrics
-- "Atlas Market da sotuv qanday?" → Atlas-specific sales data
-- "Uzum buyurtmalarim qanday?" → Uzum platform stats
-- "Bu hafta nima ko'p sotildi?" → Weekly best sellers
-- "Bugungi statistika" → Today vs Yesterday comparison
-- "Bugun eng ko'p sotilgan mahsulotlar qaysi?" → Today's best sellers (CREATED/PROCESSING if no DELIVERED)
 
 ${(() => {
   const needsCharts = neededContexts.some(c => ["analytics", "sales", "finance", "marketplace", "forecast", "directSales"].includes(c));
@@ -2813,7 +2938,7 @@ MAVJUD GRAFIK TURLARI:
 11. "comparison" - taqqoslash jadval (bu oy vs oldingi oy)
 
 GRAFIK FORMAT:
-\`\`\`chart
+\\\`\\\`\\\`chart
 {
   "type": "bar|line|area|pie|donut|horizontal_bar|progress|stats|gauge|trend|comparison",
   "title": "Grafik nomi",
@@ -2824,19 +2949,10 @@ GRAFIK FORMAT:
   "change": 15,
   "summary": "Qisqa xulosa"
 }
-\`\`\`
-
-QACHON QAYSI GRAFIK ISHLATISH:
-- "Trend ko'rsat", "dinamika" → type: "area" yoki "line"
-- "Sotuv statistikasi", "oylik hisobot" → type: "bar"
-- "Taqsimot", "ulush", "foiz" → type: "pie" yoki "donut"
-- "TOP-10", "reyting" → type: "horizontal_bar"
-- "Maqsad bajarilishi" → type: "progress" yoki "gauge"
-- "Asosiy ko'rsatkichlar" → type: "stats"
-- "Bu oy vs oldingi oy" → type: "comparison"
+\\\`\\\`\\\`
 
 JADVAL FORMAT:
-\`\`\`table
+\\\`\\\`\\\`table
 {
   "title": "Jadval nomi",
   "columns": [
@@ -2846,16 +2962,16 @@ JADVAL FORMAT:
   "rows": [{"name": "Item 1", "amount": 1000}],
   "summary": {"amount": 1000}
 }
-\`\`\`
+\\\`\\\`\\\`
 
 TEZ AMAL FORMAT:
-\`\`\`action
+\\\`\\\`\\\`action
 [
   {"type": "navigate", "label": "Jo'natmalarni ko'rish", "icon": "shipment", "target": "/crm/shipments"},
   {"type": "navigate", "label": "Marketplace Tahlil", "icon": "chart", "target": "/crm/marketplace/analytics"},
   {"type": "create_task", "label": "Vazifa yaratish", "icon": "task", "data": {"title": "Vazifa nomi", "priority": "high"}}
 ]
-\`\`\`
+\\\`\\\`\\\`
 
 ⚠️ MUHIM QOIDALAR:
 1. Statistika so'ralganda - HAR DOIM grafik chizing, faqat matn bilan javob bermang!
@@ -2870,13 +2986,15 @@ Sizning vazifalaringiz:
 1. Foydalanuvchi savollariga aniq va foydali javoblar berish
 2. Tizim ma'lumotlarini tahlil qilish va statistika ko'rsatish
 3. Muammolarni aniqlash va yechimlar taklif qilish
-4. Biznes tavsiyalar berish
+4. Biznes va moliyaviy tavsiyalar berish
 5. Ma'lumotlarni jadval va ro'yxat shaklida taqdim etish
 6. Oldingi suhbatlarga asoslanib kontekstli javoblar berish
 7. Taqqoslash va trend tahlili so'ralganda foizlarni ko'rsatish
 8. Grafik/jadval so'ralganda tegishli blok formatidan foydalanish
 9. Tegishli amallarni tavsiya qilish
 10. MARKETPLACE: Uzum/Yandex savollarga to'liq ma'lumot bilan javob berish
+11. NAKLADNOY: Hujjat tahlili so'ralganda strict JSON format bilan javob berish
+12. MOLIYA: Foyda/zarar, margin, ROI, cash flow tahlillarini bajarish
 
 Javob berish qoidalari:
 - Faqat ruxsat berilgan ma'lumotlar haqida gapiring
@@ -2897,6 +3015,7 @@ Kirish huquqlari: ${scopes.join(", ")}
 
 ${memoryContext}`;
 }
+
 
 // Update conversation with summary and topics
 async function updateConversationMetadata(
@@ -3111,194 +3230,120 @@ Deno.serve(async (req) => {
       })),
     ];
 
-    console.log(`Calling AI with model: ${selectedModel}, streaming: ${enableStream}`);
+    // Native OpenAI API helpers
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
+    const OPENAI_MODEL = "gpt-4o-mini";
+    function buildOpenAIBody(msgs: {role: string; content: string}[]) {
+      return {
+        model: OPENAI_MODEL,
+        messages: msgs.map(m => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
+        temperature: 0.7,
+        max_tokens: 8192,
+      };
+    }
+
+    console.log(`Calling OpenAI, streaming: ${enableStream}`);
 
     // 🧠 Update user preferences asynchronously
     updateUserPreferences(supabase, user.id, neededContexts, complexity);
 
-    // STREAMING MODE
+    // STREAMING MODE — Response sent back as a single SSE event so useAliAIStream can read it
     if (enableStream) {
-      const geminiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-        },
-        body: JSON.stringify({
-          model: selectedModel, // 🧠 Use intelligently selected model
-          messages,
-          stream: true,
-        }),
-      });
+      const openaiResponse = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify(buildOpenAIBody(messages)),
+        }
+      );
 
-      if (!geminiResponse.ok) {
-        const errorText = await geminiResponse.text();
-        console.error("AI API error:", geminiResponse.status, errorText);
-        
-        if (geminiResponse.status === 429) {
+      if (!openaiResponse.ok) {
+        const errorText = await openaiResponse.text();
+        console.error("OpenAI API error:", openaiResponse.status, errorText);
+        if (openaiResponse.status === 429) {
           return new Response(
             JSON.stringify({ error: "AI xizmati band. Iltimos, biroz kutib qayta urinib ko'ring." }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (geminiResponse.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "AI krediti tugadi. Administrator bilan bog'laning." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        
-        throw new Error(`AI API error: ${geminiResponse.status}`);
+        throw new Error(`OpenAI API error ${openaiResponse.status}: ${errorText.substring(0, 300)}`);
       }
 
-      // Create a TransformStream to process the SSE and save the final response
-      let fullResponse = "";
-      const userId = user.id;
-      const messageCount = (history?.length || 0) + 2; // +2 for user message and AI response
-      
-      let sseBuffer = "";
-      const sseDecoder = new TextDecoder(); // Single instance for streaming
-      const transformStream = new TransformStream({
-        async transform(chunk, controller) {
-          const text = sseDecoder.decode(chunk, { stream: true });
-          
-          // Buffer SSE lines to handle TCP chunk boundaries correctly
-          sseBuffer += text;
-          const lines = sseBuffer.split("\n");
-          sseBuffer = lines.pop() || ""; // Keep last potentially incomplete line
-          
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-              try {
-                const json = JSON.parse(trimmed.slice(6));
-                const content = json.choices?.[0]?.delta?.content;
-                if (content) {
-                  fullResponse += content;
-                }
-              } catch (parseErr) {
-                console.warn("SSE parse failed, line:", trimmed.substring(0, 100), "error:", (parseErr as Error)?.message);
-              }
-            }
-          }
-          
-          // Pass through the original chunk
-          controller.enqueue(chunk);
-        },
-        async flush() {
-          // Flush any remaining bytes from TextDecoder
-          const remaining = sseDecoder.decode(); // final flush
-          if (remaining) {
-            sseBuffer += remaining;
-          }
-          // Process any remaining buffered SSE data
-          if (sseBuffer.trim()) {
-            const remainingLines = sseBuffer.split("\n");
-            for (const rawLine of remainingLines) {
-              const trimmed = rawLine.trim();
-              if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                try {
-                  const json = JSON.parse(trimmed.slice(6));
-                  const content = json.choices?.[0]?.delta?.content;
-                  if (content) {
-                    fullResponse += content;
-                  }
-                } catch (parseErr) {
-                  console.warn("SSE flush parse failed, line:", trimmed.substring(0, 100), "error:", (parseErr as Error)?.message);
-                }
-              }
-            }
-          }
-          // Save the complete response to the database
-          fullResponse = fullResponse.trim();
-          if (fullResponse) {
-            try {
-              await supabase.from("ali_ai_messages").insert({
-                conversation_id: activeConversationId,
-                role: "assistant",
-                content: fullResponse,
-              });
+      const geminiData = await openaiResponse.json();
+      const fullResponse = (geminiData.choices?.[0]?.message?.content || "Kechirasiz, javob olishda xatolik yuz berdi.").trim();
 
-              const responseTime = Date.now() - startTime;
-              await supabase.from("ali_ai_usage_logs").insert({
-                user_id: userId,
-                conversation_id: activeConversationId,
-                question_preview: message.substring(0, 100),
-                response_time_ms: responseTime,
-                data_scopes_accessed: neededContexts,
-                model_used: selectedModel,
-                query_complexity: complexity,
-              });
-              
-              // 🧠 Update conversation metadata for memory
-              const summary = await generateConversationSummary(history || [], message);
-              await updateConversationMetadata(
-                supabase, 
-                activeConversationId, 
-                messageCount,
-                neededContexts,
-                messageCount >= 6 ? summary : undefined
-              );
-              
-              console.log(`Streaming response saved, ${fullResponse.length} chars in ${responseTime}ms, model: ${selectedModel}`);
-            } catch (err) {
-              console.error("Error saving streaming response:", err);
-            }
-          }
-        }
-      });
+      // Save to DB
+      try {
+        await supabase.from("ali_ai_messages").insert({
+          conversation_id: activeConversationId,
+          role: "assistant",
+          content: fullResponse,
+        });
+        const responseTime = Date.now() - startTime;
+        await supabase.from("ali_ai_usage_logs").insert({
+          user_id: user.id,
+          conversation_id: activeConversationId,
+          question_preview: message.substring(0, 100),
+          response_time_ms: responseTime,
+          data_scopes_accessed: neededContexts,
+          model_used: OPENAI_MODEL,
+          query_complexity: complexity,
+        });
+        const messageCount = (history?.length || 0) + 2;
+        const summary = await generateConversationSummary(history || [], message);
+        await updateConversationMetadata(supabase, activeConversationId, messageCount, neededContexts, messageCount >= 6 ? summary : undefined);
+        console.log(`Response saved: ${fullResponse.length} chars`);
+      } catch (err) {
+        console.error("Error saving response:", err);
+      }
 
-      // Pipe the response through our transform stream
-      const transformedBody = geminiResponse.body?.pipeThrough(transformStream);
-
-      // Return streaming response with metadata header
-      return new Response(transformedBody, {
-        headers: { 
-          ...corsHeaders, 
+      // Wrap response in SSE format — frontend reads candidates[0].content.parts[0].text
+      const ssePayload = JSON.stringify({ candidates: [{ content: { parts: [{ text: fullResponse }] } }] });
+      const sseBody = `data: ${ssePayload}\n\ndata: [DONE]\n\n`;
+      return new Response(sseBody, {
+        headers: {
+          ...corsHeaders,
           "Content-Type": "text/event-stream",
           "X-Conversation-Id": activeConversationId,
           "X-Role": primaryRole,
           "X-Contexts": neededContexts.join(","),
-          "X-Model": selectedModel,
+          "X-Model": OPENAI_MODEL,
           "X-Complexity": complexity,
         },
       });
     }
 
-    // NON-STREAMING MODE (fallback)
-    const geminiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-      },
-      body: JSON.stringify({
-        model: selectedModel, // 🧠 Use intelligently selected model
-        messages,
-      }),
-    });
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error("AI API error:", geminiResponse.status, errorText);
-      
-      if (geminiResponse.status === 429) {
+    // NON-STREAMING MODE (fallback)
+    const openaiResponseNS = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify(buildOpenAIBody(messages)),
+      }
+    );
+
+    if (!openaiResponseNS.ok) {
+      const errorText = await openaiResponseNS.text();
+      console.error("OpenAI API error:", openaiResponseNS.status, errorText);
+      if (openaiResponseNS.status === 429) {
         return new Response(
           JSON.stringify({ error: "AI xizmati band. Iltimos, biroz kutib qayta urinib ko'ring." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (geminiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI krediti tugadi. Administrator bilan bog'laning." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error(`AI API error: ${geminiResponse.status}`);
+      throw new Error(`OpenAI API error ${openaiResponseNS.status}: ${errorText.substring(0, 300)}`);
     }
 
-    const geminiData = await geminiResponse.json();
+    const geminiData = await openaiResponseNS.json();
     const aiResponse = geminiData.choices?.[0]?.message?.content || "Kechirasiz, javob olishda xatolik yuz berdi.";
     const tokensUsed = geminiData.usage?.total_tokens || 0;
 

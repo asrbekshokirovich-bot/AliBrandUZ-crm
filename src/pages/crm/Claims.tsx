@@ -11,13 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, Search, FileText, AlertTriangle, CheckCircle, XCircle, Clock, Send, Eye, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Search, FileText, AlertTriangle, CheckCircle, XCircle, Clock, Send, Eye, Calendar as CalendarIcon, ScanLine } from 'lucide-react';
 import { TableLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ClaimFormDialog } from '@/components/claims/ClaimFormDialog';
 import { ClaimDetailDialog } from '@/components/claims/ClaimDetailDialog';
+import { ReturnScannerDialog } from '@/components/claims/ReturnScannerDialog';
+import type { ScanResult } from '@/hooks/useReturnScanner';
 import { useTelegramAlert } from '@/hooks/useTelegramAlert';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +47,8 @@ export default function Claims() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerPrefill, setScannerPrefill] = useState<ScanResult | null>(null);
 
   const activeFiltersCount = [
     statusFilter !== 'all',
@@ -191,6 +195,13 @@ export default function Claims() {
     setIsFormOpen(true);
   };
 
+  const handleScannerResult = (data: ScanResult) => {
+    setScannerPrefill(data);
+    setSelectedClaim(null);
+    setIsScannerOpen(false);
+    setIsFormOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -199,10 +210,19 @@ export default function Claims() {
           <h1 className="text-2xl font-bold text-foreground">{t('claimsTitle')}</h1>
           <p className="text-muted-foreground">{t('claimsDescription')}</p>
         </div>
-        <Button onClick={() => { setSelectedClaim(null); setIsFormOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('newClaim')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsScannerOpen(true)}
+          >
+            <ScanLine className="h-4 w-4 mr-2" />
+            Hujjatni skanerlash
+          </Button>
+          <Button onClick={() => { setScannerPrefill(null); setSelectedClaim(null); setIsFormOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('newClaim')}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -492,10 +512,20 @@ export default function Claims() {
       </Card>
 
       {/* Dialogs */}
+      <ReturnScannerDialog
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onResult={handleScannerResult}
+      />
+
       <ClaimFormDialog
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) setScannerPrefill(null);
+        }}
         claim={selectedClaim}
+        prefillData={scannerPrefill ?? undefined}
       />
       
       <ClaimDetailDialog

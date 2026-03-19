@@ -132,7 +132,11 @@ export function useAliAIStream() {
 
           try {
             const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            // Support both native Gemini format and OpenAI format
+            const content = (
+              parsed.candidates?.[0]?.content?.parts?.[0]?.text ??
+              parsed.choices?.[0]?.delta?.content
+            ) as string | undefined;
             if (content) {
               const sanitized = sanitizeContent(content);
               if (sanitized) {
@@ -162,7 +166,10 @@ export function useAliAIStream() {
           if (jsonStr === '[DONE]') continue;
           try {
             const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            const content = (
+              parsed.candidates?.[0]?.content?.parts?.[0]?.text ??
+              parsed.choices?.[0]?.delta?.content
+            ) as string | undefined;
             if (content) {
               const sanitized = sanitizeContent(content);
               if (sanitized) {

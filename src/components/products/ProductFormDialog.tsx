@@ -645,9 +645,17 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
         // Agar multi-select variant orders mavjud bo'lsa
         if (selectedVariantOrders.length > 0) {
-          // Calculate total quantity for equal shipping distribution
+          // Calculate total quantity and weight for shipping distribution
           const totalQuantityForLink = selectedVariantOrders.reduce((sum, o) => sum + (typeof o.quantity === 'number' ? o.quantity : 1), 0);
           const totalShippingForLink = parseFloat(formData.shippingCostToChina) || 0;
+          
+          // Calculate total weight to enable proportional distribution
+          const totalWeightForLink = selectedVariantOrders.reduce((sum, o) => {
+            const qty = typeof o.quantity === 'number' ? o.quantity : 1;
+            const w = o.weight ? parseFloat(o.weight) : 0;
+            return sum + (w * qty);
+          }, 0);
+          
           const equalShippingForLink = totalShippingForLink > 0 && totalQuantityForLink > 0
             ? totalShippingForLink / totalQuantityForLink
             : 0;
@@ -686,7 +694,15 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             if (qty > 0) {
               const unitCost = order.price ? parseFloat(order.price) : priceValue;
               const unitCostUSD = unitCost !== null ? unitCost / currentRate : null;
-              const domesticShippingPerItem = equalShippingForLink;
+              
+              // By-weight distribution if possible
+              const itemWeight = order.weight ? parseFloat(order.weight) : 0;
+              let domesticShippingPerItem = equalShippingForLink;
+              
+              if (totalShippingForLink > 0 && totalWeightForLink > 0 && itemWeight > 0) {
+                domesticShippingPerItem = (itemWeight / totalWeightForLink) * totalShippingForLink;
+              }
+              
               const domesticShippingPerItemUSD = domesticShippingPerItem / currentRate;
               const finalCostUSD = (unitCostUSD || 0) + domesticShippingPerItemUSD;
 
@@ -751,6 +767,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             unit_cost_usd: unitCostUSD,
             domestic_shipping_cost: domesticShippingPerItem,
             final_cost_usd: finalCostUSD > 0 ? finalCostUSD : null,
+            weight_grams: formData.weight ? parseFloat(formData.weight) : null,
             exchange_rate_at_purchase: currentRate,
           }));
 
@@ -782,6 +799,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             unit_cost_usd: unitCostUSD,
             domestic_shipping_cost: domesticShippingPerItem,
             final_cost_usd: finalCostUSD > 0 ? finalCostUSD : null,
+            weight_grams: formData.weight ? parseFloat(formData.weight) : null,
             exchange_rate_at_purchase: currentRate,
           }));
 
@@ -913,6 +931,13 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           const equalShippingPerItemEdit = totalShippingCNY > 0 && totalQuantityAllVariants > 0
             ? totalShippingCNY / totalQuantityAllVariants
             : 0;
+            
+          const totalWeightAllVariants = variants.reduce((sum, v) => {
+            if (!v.is_active) return sum;
+            const w = v.weight ? parseFloat(v.weight) : 0;
+            const qty = parseInt(v.stock_quantity) || 0;
+            return sum + (w * qty);
+          }, 0);
 
           // Create a map from SKU to original variant index for individual shipping lookup
           const skuToOriginalIndexEdit = new Map<string, number>();
@@ -932,7 +957,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
               const originalIndex = skuToOriginalIndexEdit.get(v.sku) ?? 0;
               shippingForVariant = parseFloat(individualShippingCosts[originalIndex] || "0");
             } else {
-              shippingForVariant = equalShippingPerItemEdit;
+              const originalIndex = skuToOriginalIndexEdit.get(v.sku) ?? 0;
+              const originalVariant = variants[originalIndex];
+              const itemWeight = originalVariant?.weight ? parseFloat(originalVariant.weight) : 0;
+              if (totalShippingCNY > 0 && totalWeightAllVariants > 0 && itemWeight > 0) {
+                 shippingForVariant = (itemWeight / totalWeightAllVariants) * totalShippingCNY;
+              } else {
+                 shippingForVariant = equalShippingPerItemEdit;
+              }
             }
 
             await syncFreeItems({
@@ -1035,6 +1067,13 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           const equalShippingPerItem = totalShippingCNY > 0 && totalQuantityAcrossVariants > 0
             ? totalShippingCNY / totalQuantityAcrossVariants
             : 0;
+            
+          const totalWeightAcrossVariants = variants.reduce((sum, v) => {
+            if (!v.is_active) return sum;
+            const w = v.weight ? parseFloat(v.weight) : 0;
+            const qty = parseInt(v.stock_quantity) || 0;
+            return sum + (w * qty);
+          }, 0);
 
           const itemsToCreate: any[] = [];
 
@@ -1059,7 +1098,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
               const originalIndex = skuToOriginalIndex.get(v.sku) ?? 0;
               domesticShippingPerItem = parseFloat(individualShippingCosts[originalIndex] || "0");
             } else {
-              domesticShippingPerItem = equalShippingPerItem;
+              const originalIndex = skuToOriginalIndex.get(v.sku) ?? 0;
+              const originalVariant = variants[originalIndex];
+              const itemWeight = originalVariant?.weight ? parseFloat(originalVariant.weight) : 0;
+              if (totalShippingCNY > 0 && totalWeightAcrossVariants > 0 && itemWeight > 0) {
+                 domesticShippingPerItem = (itemWeight / totalWeightAcrossVariants) * totalShippingCNY;
+              } else {
+                 domesticShippingPerItem = equalShippingPerItem;
+              }
             }
 
             // Calculate final cost: unit cost + domestic shipping (both converted to USD)
@@ -1140,6 +1186,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             unit_cost_usd: unitCostUSD,
             domestic_shipping_cost: domesticShippingPerItem,
             final_cost_usd: finalCostUSD > 0 ? finalCostUSD : null,
+            weight_grams: formData.weight ? parseFloat(formData.weight) : null,
             exchange_rate_at_purchase: currentRate,
           }));
 
@@ -1773,7 +1820,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                       <Label className="text-sm font-bold text-foreground">Tan narxi</Label>
 
                       {selectedVariantOrders.length === 0 ? (
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-4 gap-4">
                           <div className="grid gap-2">
                             <Label htmlFor="link-quantity" className="text-xs text-muted-foreground">Miqdori *</Label>
                             <Input
@@ -1818,6 +1865,19 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                                 CNY
                               </span>
                             </div>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="link-weight" className="text-xs text-muted-foreground">Og'irlik (g)</Label>
+                            <Input
+                              id="link-weight"
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={formData.weight}
+                              onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                              placeholder="0"
+                              className="h-9"
+                            />
                           </div>
                         </div>
                       ) : (
@@ -1940,6 +2000,20 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                             value={formData.quantity}
                             onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                             placeholder="1"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="grid gap-1 w-20">
+                          <Label htmlFor="weight" className="text-[10px] text-muted-foreground">Og'irlik (g)</Label>
+                          <Input
+                            id="weight"
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={formData.weight}
+                            onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                            placeholder="0"
                             className="h-8 text-xs"
                           />
                         </div>
