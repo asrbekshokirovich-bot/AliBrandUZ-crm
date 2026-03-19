@@ -53,7 +53,8 @@ const crawler = new PlaywrightCrawler({
         try {
             const response = await axios.post(SUPABASE_WEBHOOK_URL, productData, {
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`
                 }
             });
             log.info(`✅ Successfully pushed to Supabase: ${response.status}`);

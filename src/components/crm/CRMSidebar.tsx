@@ -1,4 +1,4 @@
-import { Home, Package, Box, Truck, DollarSign, Users, Layers, Flag, FileText, AlertTriangle, CheckSquare, ArrowRightLeft, ChevronDown, Settings, LayoutDashboard, Brain, Wallet, Bot, Store, ShoppingCart, LineChart, ShoppingBag } from 'lucide-react';
+import { Home, Package, Box, Truck, DollarSign, Users, Layers, Flag, FileText, AlertTriangle, CheckSquare, ArrowRightLeft, ChevronDown, Settings, LayoutDashboard, Brain, Wallet, Bot, Store, ShoppingCart, LineChart, ShoppingBag, Sparkles } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -75,6 +75,7 @@ const menuSections: MenuSection[] = [
       { title: 'marketplace_orders', url: '/crm/marketplace/orders', icon: ShoppingCart },
       { title: 'marketplace_listings', url: '/crm/marketplace/listings', icon: Package },
       { title: 'marketplace_analytics', url: '/crm/marketplace/analytics', icon: Brain },
+      { title: 'AI Raqobatchilar', url: '/crm/competitor-analytics', icon: Sparkles },
       { title: 'marketplace_admin', url: '/crm/admin/marketplace', icon: Settings, requiresManager: true },
     ]
   },
@@ -165,9 +166,9 @@ export function CRMSidebar() {
     // Settings always visible
     if (url === '/crm/settings') return true;
 
-    // Rahbar (Owner): Dashboard, Finance, Investor Dashboard, Ali AI
+    // Rahbar (Owner): Dashboard, Finance, Investor Dashboard, Ali AI, Competitor Analytics
     if (isOwner && !isChiefManager) {
-      return ['/crm/finance', '/crm/investor-dashboard', '/crm/ali-ai'].includes(url);
+      return ['/crm/finance', '/crm/investor-dashboard', '/crm/ali-ai', '/crm/competitor-analytics'].includes(url) || url.startsWith('/crm/marketplace');
     }
 
     // Bosh Menejer: everything EXCEPT Finance
@@ -200,9 +201,9 @@ export function CRMSidebar() {
       return ['/crm/china-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks', '/crm/verification-reports'].includes(url);
     }
 
-    // Uz Manager: Dashboard, Tashkent Dashboard, Boxes, Shipments, Tasks, Ali AI
+    // Uz Manager: Dashboard, Tashkent Dashboard, Boxes, Shipments, Tasks, Ali AI, Competitor Analytics
     if (isUzManager) {
-      return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks', '/crm/ali-ai'].includes(url);
+      return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks', '/crm/ali-ai', '/crm/competitor-analytics'].includes(url);
     }
 
     // Uz Receiver: Dashboard, Tashkent Dashboard, Boxes, Shipments, Tasks
@@ -210,9 +211,9 @@ export function CRMSidebar() {
       return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks'].includes(url);
     }
 
-    // Manager (Marketplace): Dashboard, Products, Marketplace (all), Shipments, Tasks, Store Orders, Ali AI
+    // Manager (Marketplace): Dashboard, Products, Marketplace (all), Shipments, Tasks, Store Orders, Ali AI, Competitor Analytics
     if (isMarketplaceManager) {
-      return ['/crm/products', '/crm/shipments', '/crm/tasks', '/crm/store-orders', '/crm/ali-ai'].includes(url) || url.startsWith('/crm/marketplace');
+      return ['/crm/products', '/crm/shipments', '/crm/tasks', '/crm/store-orders', '/crm/ali-ai', '/crm/competitor-analytics'].includes(url) || url.startsWith('/crm/marketplace');
     }
 
     return false;

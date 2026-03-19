@@ -22,7 +22,10 @@ async function testIngestion() {
 
     try {
         const response = await axios.post(SUPABASE_WEBHOOK_URL!, productData, {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`
+            }
         });
         console.log(`✅ Success: ${response.status}`, response.data);
     } catch (error: any) {

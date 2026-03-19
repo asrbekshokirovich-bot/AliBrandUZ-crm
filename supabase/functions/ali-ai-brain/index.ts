@@ -26,10 +26,9 @@ const corsHeaders = {
   "Access-Control-Expose-Headers": "X-Conversation-Id, X-Role, X-Contexts, X-Model, X-Complexity",
 };
 
-// AI Models - intelligent selection based on query complexity
 const AI_MODELS = {
-  fast: "google/gemini-2.5-flash",      // Simple queries, status checks, greetings
-  smart: "google/gemini-2.5-pro",       // Complex analysis, trends, recommendations
+  fast: "gpt-4o-mini",      // Simple queries, status checks, greetings
+  smart: "gpt-4o",       // Complex analysis, trends, recommendations
 };
 
 // Query complexity patterns
@@ -2987,8 +2986,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-      if (!LOVABLE_API_KEY) {
+      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+      if (!OPENAI_API_KEY) {
         return new Response(
           JSON.stringify({ error: 'AI service not configured' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -3000,13 +2999,13 @@ Deno.serve(async (req) => {
         type: 'image_url',
         image_url: { url: `data:${imgMime};base64,${imageBase64}` },
       };
-      const AI_GATEWAY = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-      const AI_MODEL = 'google/gemini-2.5-flash';
+      const AI_GATEWAY = 'https://api.openai.com/v1/chat/completions';
+      const AI_MODEL = 'gpt-4o-mini';
 
       // Step 1: Clarity check
       const clarityRes = await fetch(AI_GATEWAY, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: AI_MODEL,
           messages: [{ role: 'user', content: [
@@ -3036,7 +3035,7 @@ Deno.serve(async (req) => {
       // Step 2: Extract items
       const extractRes = await fetch(AI_GATEWAY, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: AI_MODEL,
           messages: [{ role: 'user', content: [
@@ -3211,13 +3210,12 @@ Deno.serve(async (req) => {
     // 🧠 Update user preferences asynchronously
     updateUserPreferences(supabase, user.id, neededContexts, complexity);
 
-    // STREAMING MODE
     if (enableStream) {
-      const geminiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const geminiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+          "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
         },
         body: JSON.stringify({
           model: selectedModel, // 🧠 Use intelligently selected model
@@ -3361,11 +3359,11 @@ Deno.serve(async (req) => {
     }
 
     // NON-STREAMING MODE (fallback)
-    const geminiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const geminiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+        "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
       },
       body: JSON.stringify({
         model: selectedModel, // 🧠 Use intelligently selected model

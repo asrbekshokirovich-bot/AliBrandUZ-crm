@@ -67,6 +67,7 @@ const Verification = lazy(() => import("./pages/crm/Verification"));
 const MarketplaceOrders = lazy(() => import("./pages/crm/MarketplaceOrders"));
 const MarketplaceListings = lazy(() => import("./pages/crm/MarketplaceListings"));
 const MarketplaceAnalytics = lazy(() => import("./pages/crm/MarketplaceAnalytics"));
+const CompetitorAnalytics = lazy(() => import("./pages/crm/CompetitorAnalytics"));
 
 const TelegramSettings = lazy(() => import("./pages/crm/TelegramSettings"));
 
@@ -184,6 +185,7 @@ const App = () => (
                       <Route path="marketplace/orders" element={<MarketplaceOrders />} />
                       <Route path="marketplace/listings" element={<MarketplaceListings />} />
                       <Route path="marketplace/analytics" element={<MarketplaceAnalytics />} />
+                      <Route path="competitor-analytics" element={<CompetitorAnalytics />} />
 
                       <Route path="finance" element={<Finance />} />
                       <Route path="telegram-settings" element={<TelegramSettings />} />
