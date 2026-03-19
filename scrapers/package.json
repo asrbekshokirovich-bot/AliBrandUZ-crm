@@ -1,0 +1,23 @@
+{
+  "name": "alicargo-scrapers",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Apify actors for scraping Uzum and Yandex",
+  "scripts": {
+    "start:uzum": "node --experimental-specifier-resolution=node --loader ts-node/esm uzumScraper.ts",
+    "start:yandex": "node --experimental-specifier-resolution=node --loader ts-node/esm yandexScraper.ts"
+  },
+  "dependencies": {
+    "apify": "^3.2.0",
+    "axios": "^1.7.2",
+    "crawlee": "^3.11.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.5.3"
+  }
+}
