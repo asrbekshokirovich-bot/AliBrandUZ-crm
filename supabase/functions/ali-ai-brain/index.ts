@@ -2718,9 +2718,67 @@ function formatContextForAI(context: Record<string, any>): string {
   return formatted;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 🚢 LOGISTICS INTELLIGENCE ENGINE — Ali AI v2
+// ═══════════════════════════════════════════════════════════════
+
+function calculateVolumetricWeight(L: number, W: number, H: number, mode: "air" | "sea" = "air") {
+  const cbm = (L * W * H) / 1_000_000;
+  if (mode === "sea") {
+    return { formula: `${L}×${W}×${H} ÷ 1,000,000 = ${cbm.toFixed(4)} CBM`, cbm: parseFloat(cbm.toFixed(4)), mode: "Dengiz (Sea)" };
+  }
+  const airVW = (L * W * H) / 5000;
+  return { formula: `${L}×${W}×${H} ÷ 5000 = ${airVW.toFixed(2)} kg`, volumetricWeight: parseFloat(airVW.toFixed(2)), cbm: parseFloat(cbm.toFixed(4)), mode: "Havo (Air)" };
+}
+
+function checkChinaHolidays(date: Date = new Date()): string {
+  const m = date.getMonth() + 1, d = date.getDate();
+  if (m === 10 && d >= 1 && d <= 7)
+    return "⚠️ DIQQAT: Hozir Xitoy Oltin Haftasi (Oct 1-7). Fabrikalar va portlar yopiq — jo'natmalar 1-2 hafta kechikadi!";
+  if ((m === 1 && d >= 20) || (m === 2 && d <= 20))
+    return "⚠️ DIQQAT: Xitoy Qamari Yangi Yil mavsumi. Fabrikalar 2-4 hafta yopiq. Buyurtmalarni oldindan bering!";
+  if (m === 9 && d >= 25)
+    return "⚠️ Eslatma: Xitoy Oltin Haftasi (Oct 1-7) yaqinlashmoqda. Portlar gavjumlashadi, erta buyurtma bering.";
+  return "✅ Xitoyda hozir bayram yo'q — normal jo'natma vaqtlari.";
+}
+
+function getIncotermsInfo(term: string): string {
+  const t: Record<string, string> = {
+    EXW: "EXW (Ex Works): Xaridor BARCHA xarajatni to'laydi — fabrikadan olib ketishdan boshlab.",
+    FOB: "FOB (Free On Board): Sotuvchi Xitoy portiga yetkazadi va kemaga yuklaydi. Keyingi barcha xarajat xaridorga.",
+    DDP: "DDP (Delivered Duty Paid): Sotuvchi HAMMA narsani — bojxona, soliq, yetkazish — to'laydi. Xaridor uchun eng qulay.",
+    CIF: "CIF: Sotuvchi freight va sug'urtani to'laydi, bojxona va oxirgi yetkazish xaridorga.",
+    CFR: "CFR: Sotuvchi freight to'laydi, sug'urta va qolganlar xaridorda.",
+  };
+  return t[term.toUpperCase()] || `"${term}" Incoterms ma'lumotlari yo'q. Qo'llab-quvvatlanadi: EXW, FOB, DDP, CIF, CFR.`;
+}
+
+function buildLogisticsContext(): string {
+  return [
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "🚢 LOGISTIKA VA SAVDO INTELLIGENCE (REAL-TIME)",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    `XITOY BAYRAM HOLATI: ${checkChinaHolidays()}`,
+    "",
+    "VOLUMETRIK OG'IRLIK (foydalanuvchi so'raganda hisoblang):",
+    "• Havo (Air): L × W × H (sm) ÷ 5000 = kg. Misol: 60×40×30 = 14.4 kg",
+    "• Dengiz (Sea): L × W × H (sm) ÷ 1,000,000 = CBM. Misol: 60×40×30 = 0.072 CBM",
+    "• QOIDA: Toifiy va volumetrik og'irlik — kattaroqi narxlash uchun.",
+    "",
+    "INCOTERMS:",
+    "• EXW — Xaridor barcha xarajatni to'laydi (fabrikadan boshlab)",
+    "• FOB — Sotuvchi portga yetkazadi, keyingisi xaridorga",
+    "• DDP — Sotuvchi hamma narsani (boj, soliq, yetkazish) to'laydi",
+    "",
+    "XAVFSIZLIK: Foyda margini va ichki moliya ma'lumotlari KO'RSATILMASIN!",
+  ].join("\n");
+}
+
 // Enhanced system prompt with memory awareness and rich content support
 function getSystemPrompt(role: string, scopes: string[], userPrefs: any, memoryContext: string, neededContexts: string[] = []): string {
   const detailLevel = userPrefs?.preferred_detail_level || "normal";
+
   const favoriteTopics = userPrefs?.favorite_topics || [];
   
   let detailInstruction = "";
@@ -2764,16 +2822,21 @@ Siz "Ali AI" - AliBrand CRM tizimining aqlli yordamchisisiz.
 Siz tizimning "miyasi" sifatida ishlaysiz va barcha ma'lumotlarni real vaqtda tahlil qilasiz.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏦 PROFESSIONAL MOLIYA NAZORATCHI VA BUXGALTER ROLI
+🏦 SENIOR STAFF ENGINEER & LOGISTICS SPECIALIST ROLI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Siz - Ko'p kanalli e-commerce kompaniyasi uchun Professional Moliya Nazoratchi, Buxgalter va Ombor Boshqaruvchisisiz.
+Siz - AliBrand.uz uchun "Senior Staff Engineer & Logistics Specialist" siz.
+Siz Professional Moliya Nazoratchi, Buxgalter, Ombor Boshqaruvchisi va Logistika Mutaxassisisiz.
+Ton: Professional, aniq va obronali (authoritative). Hech qachon taxmin qilmang — faqat ma'lumotlar bazasidan olingan haqiqiy ma'lumotlarni bering.
 
 Kompaniya profili:
-• Xitoydan mahsulot import qiladi
+• Xitoydan global bozorlarga distribution platforma (AliBrand.uz)
 • Uzum, Yandex Market va mahalliy do'konlar orqali sotadi
 • FBS, FBO, DBS modellarda ishlaydi
 • Bir nechta ombor va fulfillment markazlari mavjud
+• B2B va B2C savdo modellari
+
+${buildLogisticsContext()}
 
 🔑 NAKLADNOY VA HUJJAT QAYTA ISHLASH QOIDALARI:
 

@@ -156,8 +156,8 @@ export default function Boxes() {
           .order('created_at', { ascending: false })
       );
     },
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 0,
+    gcTime: 2 * 60 * 1000,
   });
 
   // Real-time subscription for boxes
