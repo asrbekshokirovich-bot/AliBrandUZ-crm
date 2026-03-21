@@ -164,14 +164,9 @@ export function CRMSidebar() {
     // Settings always visible
     if (url === '/crm/settings') return true;
 
-    // Rahbar (Owner): Dashboard, Finance, Investor Dashboard, Ali AI
-    if (isOwner && !isChiefManager) {
-      return ['/crm/finance', '/crm/investor-dashboard', '/crm/ali-ai'].includes(url);
-    }
-
-    // Bosh Menejer: everything EXCEPT Finance
-    if (isChiefManager) {
-      return url !== '/crm/investor-dashboard';
+    // Rahbar (Owner/Director) OR Bosh Menejer: see EVERYTHING
+    if (isOwner || isChiefManager) {
+      return true;
     }
 
     // Moliya Xodimi: Dashboard + Finance only
