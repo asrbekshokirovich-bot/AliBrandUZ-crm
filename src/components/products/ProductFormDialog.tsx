@@ -146,8 +146,13 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
   const [newAttrValue, setNewAttrValue] = useState("");
 
   // Variant system - NESTED variant builder (rang → materiallar)
-  const [nestedVariants, setNestedVariants] = useState<NestedVariantItem[]>([]);
-  const [variants, setVariants] = useState<VariantData[]>([]);
+  // Default colors: qora va oq - yangi mahsulot yaratilganda avtomatik qo'shiladi
+  const DEFAULT_COLORS: NestedVariantItem[] = [
+    { rang: 'qora', materiallar: [] },
+    { rang: 'oq', materiallar: [] },
+  ];
+  const [nestedVariants, setNestedVariants] = useState<NestedVariantItem[]>(editingProduct ? [] : DEFAULT_COLORS);
+  const [variants, setVariants] = useState<VariantData[]>([]); 
   const [isLoadingExistingVariants, setIsLoadingExistingVariants] = useState(false);
   // Rang rasmlari: { rang: image_url }
   const [variantImages, setVariantImages] = useState<Record<string, string>>({});
