@@ -208,7 +208,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
     },
   });
 
-  // === TOSHKENT OMBORIDAGI MAHSULOTLARNI QIDIRISH ===
+  // === BARCHA OMBORLARDAGI MAHSULOTLARNI QIDIRISH ===
   const { data: tashkentProducts = [], isLoading: isSearchingTashkent } = useQuery({
     queryKey: ['tashkent-linkable-products', existingProductSearch],
     queryFn: async (): Promise<TashkentProduct[]> => {
@@ -220,7 +220,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           product_variants(id, sku, variant_attributes, stock_quantity)
         `)
         .eq('status', 'active')
-        .gt('tashkent_manual_stock', 0)
         .ilike('name', `%${existingProductSearch}%`)
         .limit(30);
 
@@ -1427,7 +1426,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Search className="h-4 w-4" />
-                      Toshkent omboridagi mahsulotni qidiring
+                      Barcha omborlardagi mahsulotni qidiring
                     </CardTitle>
                     <CardDescription>
                       Omborda mavjud mahsulotni toping va yangi buyurtmani unga bog'lang
