@@ -70,9 +70,7 @@ export function useStoreProducts(options?: {
       let query = supabase
         .from('products')
         .select('id, name, selling_price, cost_price, tashkent_manual_stock, main_image_url, store_description, store_category_id, has_variants, created_at', { count: usePagination ? 'exact' : undefined })
-        .gt('tashkent_manual_stock', 0)
-        .eq('status', 'active')
-        .neq('source', 'marketplace_auto');
+        .eq('status', 'active');
 
       if (categoryId) query = query.eq('store_category_id', categoryId);
       if (search) query = query.ilike('name', `%${search}%`);
@@ -146,7 +144,6 @@ export function useStoreProduct(productId: string | undefined) {
         .from('products')
         .select('id, name, selling_price, cost_price, tashkent_manual_stock, main_image_url, store_description, store_category_id, has_variants, created_at')
         .eq('id', productId)
-        .neq('source', 'marketplace_auto')
         .single();
       if (error) throw error;
 

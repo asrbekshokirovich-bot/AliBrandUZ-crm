@@ -22,7 +22,6 @@ export function useStoreCategoriesWithCounts() {
       const { data: products } = await supabase
         .from('products')
         .select('store_category_id')
-        .gt('tashkent_manual_stock', 0)
         .eq('status', 'active');
 
       const countMap = new Map<string, number>();
