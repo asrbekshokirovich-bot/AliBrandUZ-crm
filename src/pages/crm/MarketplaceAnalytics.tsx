@@ -291,14 +291,17 @@ export default function MarketplaceAnalytics() {
         revenueByStoreId[row.store_id] = (revenueByStoreId[row.store_id] || 0) + (row.gross_revenue || 0);
       }
     }
-    return uzumStores
-      .map(store => ({
-        storeId: store.id,
-        name: store.name,
-        value: revenueByStoreId[store.id] || 0,
-      }))
+    const result = uzumStores
+      .map(store => ({ storeId: store.id, name: store.name, value: revenueByStoreId[store.id] || 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [uzumStores, summary]);
+    // Fallback to listing counts when no revenue data
+    if (!result.some(d => d.value > 0)) {
+      const counts: Record<string, number> = {};
+      (listings || []).forEach(l => { if (uzumStoreIds.has(l.store_id)) counts[l.store_id] = (counts[l.store_id] || 0) + 1; });
+      return uzumStores.map(s => ({ storeId: s.id, name: s.name, value: counts[s.id] || 0 })).sort((a, b) => b.value - a.value);
+    }
+    return result;
+  }, [uzumStores, summary, listings]);
 
   const yandexChartData = useMemo(() => {
     const yandexStoreIds = new Set(yandexStores.map(s => s.id));
@@ -308,14 +311,21 @@ export default function MarketplaceAnalytics() {
         revenueByStoreId[row.store_id] = (revenueByStoreId[row.store_id] || 0) + (row.gross_revenue || 0);
       }
     }
-    return yandexStores
-      .map(store => ({
-        storeId: store.id,
-        name: store.name,
-        value: revenueByStoreId[store.id] || 0,
-      }))
+    const result = yandexStores
+      .map(store => ({ storeId: store.id, name: store.name, value: revenueByStoreId[store.id] || 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [yandexStores, summary]);
+    // Fallback to listing counts when no revenue data
+    if (!result.some(d => d.value > 0)) {
+      const counts: Record<string, number> = {};
+      (listings || []).forEach(l => { if (yandexStoreIds.has(l.store_id)) counts[l.store_id] = (counts[l.store_id] || 0) + 1; });
+      return yandexStores.map(s => ({ storeId: s.id, name: s.name, value: counts[s.id] || 0 })).sort((a, b) => b.value - a.value);
+    }
+    return result;
+  }, [yandexStores, summary, listings]);
+
+  // Track if we're showing revenue or listing counts
+  const uzumIsListingsMode = !summary.some(r => uzumStores.some(s => s.id === r.store_id) && (r.gross_revenue || 0) > 0);
+  const yandexIsListingsMode = !summary.some(r => yandexStores.some(s => s.id === r.store_id) && (r.gross_revenue || 0) > 0);
 
   // === Per-store revenue & orders map (from filtered platformSummary, for KPI cards) ===
   const storeRevenue = useMemo(() => {
@@ -678,7 +688,10 @@ export default function MarketplaceAnalytics() {
                     {(platformTab === 'all' || platformTab === 'uzum') && (
                       <div>
                         <h4 className="text-sm font-semibold text-purple-500 mb-2 text-center">🟣 Uzum ({uzumChartData.length} do'kon)</h4>
-                        {uzumChartData.length === 0 ? (
+                        {uzumIsListingsMode && uzumChartData.some(d => d.value > 0) && (
+                          <p className="text-xs text-center text-amber-500 mb-1">📦 Buyurtmalar yo'q — mahsulotlar soni ko'rsatilmoqda</p>
+                        )}
+                        {uzumChartData.length === 0 || !uzumChartData.some(d => d.value > 0) ? (
                           <p className="text-center text-muted-foreground py-8 text-sm">Ma'lumot yo'q</p>
                         ) : (
                           <>
@@ -716,7 +729,7 @@ export default function MarketplaceAnalytics() {
                                     />
                                   ))}
                                 </Pie>
-                                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                                <Tooltip formatter={(value: number) => uzumIsListingsMode ? [`${value} ta mahsulot`, ''] : [formatCurrency(value), '']} />
                               </RechartsPieChart>
                             </ResponsiveContainer>
                             {/* Uzum legend */}
@@ -737,7 +750,7 @@ export default function MarketplaceAnalytics() {
                                   >
                                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: UZUM_COLORS[index % UZUM_COLORS.length] }} />
                                     <span className="flex-1 truncate">{store.name}</span>
-                                    <span className="text-muted-foreground">{pct.toFixed(0)}%</span>
+                                    <span className="text-muted-foreground">{uzumIsListingsMode ? `${store.value} ta mahsulot` : `${pct.toFixed(0)}%`}</span>
                                   </div>
                                 );
                               })}
