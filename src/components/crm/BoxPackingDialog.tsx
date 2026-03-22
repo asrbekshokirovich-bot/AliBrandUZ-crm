@@ -108,6 +108,7 @@ export function BoxPackingDialog({ box, open, onOpenChange }: BoxPackingDialogPr
   };
 
   // Group available items by product and variant
+  // Also merges duplicate product records (same name+variant, different product_id)
   const groupedAvailable = useMemo(() => {
     if (!availableItems) return [];
     
@@ -116,19 +117,20 @@ export function BoxPackingDialog({ box, open, onOpenChange }: BoxPackingDialogPr
     availableItems.forEach(item => {
       const productId = item.product_id;
       const variantId = item.variant_id || null;
-      const hasVariants = item.products?.has_variants;
+      const variantAttrs = item.product_variants?.variant_attributes as Record<string, any> | null;
+      const productName = item.products?.name || t('bpk_unnamed');
+      const variantName = variantAttrs ? formatVariantAttributes(variantAttrs) : null;
       
-      // Create a unique key for product+variant combination
-      const groupKey = variantId ? `${productId}__${variantId}` : `${productId}__no_variant`;
+      // Key by name+variant to merge duplicate product records in DB
+      const groupKey = `name__${productName}__${variantName ?? 'no_variant'}`;
       
       if (!groups[groupKey]) {
-        const variantAttrs = item.product_variants?.variant_attributes as Record<string, any> | null;
         groups[groupKey] = {
           groupKey,
           productId,
           variantId,
-          productName: item.products?.name || t('bpk_unnamed'),
-          variantName: variantAttrs ? formatVariantAttributes(variantAttrs) : null,
+          productName,
+          variantName,
           category: item.products?.category,
           items: [],
           count: 0,
@@ -139,7 +141,6 @@ export function BoxPackingDialog({ box, open, onOpenChange }: BoxPackingDialogPr
     });
     
     return Object.values(groups).sort((a, b) => {
-      // Sort by product name, then variant
       if (a.productName !== b.productName) return a.productName.localeCompare(b.productName);
       if (!a.variantName) return -1;
       if (!b.variantName) return 1;
