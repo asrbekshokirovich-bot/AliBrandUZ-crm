@@ -55,7 +55,7 @@ export function useAliAIStream() {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ali-ai-brain`,
+        '/api/ceo-ai',
         {
           method: 'POST',
           headers: {
