@@ -100,7 +100,7 @@ serve(async (req) => {
       );
     }
 
-    const GEMINI_MODEL = "gemini-flash-latest";
+    const GEMINI_MODEL = "gemini-2.0-flash";
     const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
     let parts: unknown[];
@@ -149,7 +149,12 @@ serve(async (req) => {
 
     // Robust JSON extraction
     let jsonStr = rawContent.trim();
+    // Remove markdown code fences
     jsonStr = jsonStr.replace(/^```(?:json)?\s*/im, "").replace(/\s*```\s*$/m, "");
+    // If AI returned a JSON-stringified string (doubled escaping), unescape it
+    if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+      try { jsonStr = JSON.parse(jsonStr); } catch { /* keep as-is */ }
+    }
     const start = jsonStr.indexOf("{");
     const end = jsonStr.lastIndexOf("}");
     if (start !== -1 && end > start) {
