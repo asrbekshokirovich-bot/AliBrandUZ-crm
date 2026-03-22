@@ -211,6 +211,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       if (error) throw error;
       return data as Category[];
     },
+    enabled: open, // Only fetch when dialog is actually open
   });
 
   // === BARCHA OMBORLARDAGI MAHSULOTLARNI QIDIRISH ===

@@ -8,30 +8,47 @@ interface Props {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  autoRetry?: boolean;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  retried: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+
   public state: State = {
     hasError: false,
     error: null,
+    retried: false,
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
     this.props.onError?.(error, errorInfo);
+
+    // Auto-retry once after 700ms on first crash
+    // This silently fixes F5 race conditions where data isn't ready on initial render
+    if (!this.state.retried && this.props.autoRetry !== false) {
+      this.retryTimer = setTimeout(() => {
+        this.setState({ hasError: false, error: null, retried: true });
+      }, 700);
+    }
+  }
+
+  public componentWillUnmount() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, retried: false });
   };
 
   private handleGoHome = () => {
