@@ -8,14 +8,16 @@ interface Props {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
-  autoRetry?: boolean;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
-  retried: boolean;
+  retryCount: number;
 }
+
+const MAX_AUTO_RETRIES = 5;
+const RETRY_DELAY_MS = 2500; // Give enough time for Supabase queries to complete
 
 export class ErrorBoundary extends Component<Props, State> {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -23,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
-    retried: false,
+    retryCount: 0,
   };
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
@@ -34,12 +36,17 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught:', error, errorInfo);
     this.props.onError?.(error, errorInfo);
 
-    // Auto-retry once after 700ms on first crash
+    // Auto-retry up to MAX_AUTO_RETRIES times with delay
     // This silently fixes F5 race conditions where data isn't ready on initial render
-    if (!this.state.retried && this.props.autoRetry !== false) {
+    if (this.state.retryCount < MAX_AUTO_RETRIES) {
+      if (this.retryTimer) clearTimeout(this.retryTimer);
       this.retryTimer = setTimeout(() => {
-        this.setState({ hasError: false, error: null, retried: true });
-      }, 700);
+        this.setState(prev => ({
+          hasError: false,
+          error: null,
+          retryCount: prev.retryCount + 1,
+        }));
+      }, RETRY_DELAY_MS);
     }
   }
 
@@ -48,7 +55,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false, error: null, retried: false });
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.setState({ hasError: false, error: null, retryCount: 0 });
   };
 
   private handleGoHome = () => {
@@ -59,6 +67,18 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
+      }
+
+      // Show loading spinner while auto-retry is pending (within first few retries)
+      if (this.state.retryCount < MAX_AUTO_RETRIES) {
+        return (
+          <div className="min-h-[400px] flex items-center justify-center p-4">
+            <div className="text-center space-y-3">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+            </div>
+          </div>
+        );
       }
 
       return (
