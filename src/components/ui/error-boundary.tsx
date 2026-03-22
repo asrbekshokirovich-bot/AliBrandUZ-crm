@@ -13,22 +13,21 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
-  retryCount: number;
 }
 
-const MAX_AUTO_RETRIES = 5;
-const RETRY_DELAY_MS = 2500; // Give enough time for Supabase queries to complete
-
 export class ErrorBoundary extends Component<Props, State> {
+  private retryCount = 0;
+  private readonly MAX_RETRIES = 5;
+  private readonly RETRY_DELAY = 2500;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   public state: State = {
     hasError: false,
     error: null,
-    retryCount: 0,
   };
 
-  public static getDerivedStateFromError(error: Error): Partial<State> {
+  // Must return full State type (not Partial) to satisfy React types
+  public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
@@ -36,17 +35,15 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught:', error, errorInfo);
     this.props.onError?.(error, errorInfo);
 
-    // Auto-retry up to MAX_AUTO_RETRIES times with delay
-    // This silently fixes F5 race conditions where data isn't ready on initial render
-    if (this.state.retryCount < MAX_AUTO_RETRIES) {
+    this.retryCount++;
+
+    // Auto-retry up to MAX_RETRIES times with delay
+    // Shows spinner so user doesn't see error during retry
+    if (this.retryCount <= this.MAX_RETRIES) {
       if (this.retryTimer) clearTimeout(this.retryTimer);
       this.retryTimer = setTimeout(() => {
-        this.setState(prev => ({
-          hasError: false,
-          error: null,
-          retryCount: prev.retryCount + 1,
-        }));
-      }, RETRY_DELAY_MS);
+        this.setState({ hasError: false, error: null });
+      }, this.RETRY_DELAY);
     }
   }
 
@@ -56,7 +53,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private handleRetry = () => {
     if (this.retryTimer) clearTimeout(this.retryTimer);
-    this.setState({ hasError: false, error: null, retryCount: 0 });
+    this.retryCount = 0;
+    this.setState({ hasError: false, error: null });
   };
 
   private handleGoHome = () => {
@@ -69,8 +67,8 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      // Show loading spinner while auto-retry is pending (within first few retries)
-      if (this.state.retryCount < MAX_AUTO_RETRIES) {
+      // Show loading spinner while auto-retrying (not the error card)
+      if (this.retryCount <= this.MAX_RETRIES) {
         return (
           <div className="min-h-[400px] flex items-center justify-center p-4">
             <div className="text-center space-y-3">
@@ -81,6 +79,7 @@ export class ErrorBoundary extends Component<Props, State> {
         );
       }
 
+      // Only show error card after all retries exhausted
       return (
         <div className="min-h-[400px] flex items-center justify-center p-4">
           <Card className="w-full max-w-md">
@@ -100,18 +99,11 @@ export class ErrorBoundary extends Component<Props, State> {
                 </pre>
               )}
               <div className="flex gap-2">
-                <Button
-                  onClick={this.handleRetry}
-                  className="flex-1"
-                  variant="outline"
-                >
+                <Button onClick={this.handleRetry} className="flex-1" variant="outline">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Qayta urinish
                 </Button>
-                <Button
-                  onClick={this.handleGoHome}
-                  className="flex-1"
-                >
+                <Button onClick={this.handleGoHome} className="flex-1">
                   <Home className="h-4 w-4 mr-2" />
                   Bosh sahifa
                 </Button>
