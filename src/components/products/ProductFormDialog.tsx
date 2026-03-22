@@ -215,8 +215,8 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       const { data, error } = await supabase
         .from('products')
         .select(`
-          id, uuid, name, main_image_url, source,
-          tashkent_manual_stock, warehouse_price,
+          id, uuid, name, main_image_url,
+          tashkent_manual_stock,
           product_variants(id, sku, variant_attributes, stock_quantity)
         `)
         .eq('status', 'active')
