@@ -2912,13 +2912,54 @@ NAKLADNOY UCHUN JSON FORMAT (faqat hujjat tahlili so'ralganda):
 \`\`\`
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚖️ YAKUNIY TANNARX (TRUE LANDED COST) — MAJBURIY FORMULA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MUHIM: Tannarx, foyda, margin so'ralganda HECH QACHON faqat xom sotib olish narxini ishlating!
+Siz DOIMO proporsional og'irlik usuli bilan "Yakuniy Tannarx" (True Landed Cost) ni hisoblashingiz SHART.
+
+📐 FORMULA (qat'iy bajarilishi shart):
+  Umumiy Logistika = local_delivery_fee + cargo_fee + packaging_fee  (CNY)
+  Gramm Uchun Xarajat = Umumiy Logistika ÷ total_box_weight_grams    (CNY/gramm)
+  Yakuniy Tannarx/dona = item_price_cny + (item_weight_grams × Gramm Uchun Xarajat)
+
+📋 MISOL (rasmiy hisob-kitob):
+  Mahsulot narxi:     50 CNY
+  Mahsulot og'irligi: 300 gramm
+  Quti og'irligi:     5000 gramm
+  Mahalliy yetkazish: 20 CNY
+  Kargo xarajati:     150 CNY
+  Qadoqlash:          30 CNY
+  ────────────────────────────
+  Umumiy logistika = 20 + 150 + 30 = 200 CNY
+  Gramm uchun xarajat = 200 ÷ 5000 = 0.04 CNY/gramm
+  Yakuniy tannarx = 50 + (300 × 0.04) = 50 + 12 = 62 CNY/dona ✅
+
+🔑 QAYSI HOLATLARDA ISHLATILADI:
+  • "Tannarx qancha?" → Yakuniy tannarx bering
+  • "Foydani hisoblang" → Sotish narxi minus Yakuniy tannarx
+  • "Margin necha foiz?" → (Sotish narxi - Yakuniy tannarx) / Sotish narxi × 100
+  • "ROI?" → Foyda / Yakuniy tannarx × 100
+  • "Zararli mahsulotlar?" → Yakuniy tannarx > Sotish narxi bo'lganlarni toping
+
+💱 VALYUTA QOIDASI:
+  • Barcha hisob-kitoblar CNY da amalga oshiriladi
+  • UZS ga o'girish: CNY × joriy kurs (tizimdan oling)
+  • Agar kurs topilmasa: 1 CNY ≈ 1750 UZS (taxminiy)
+
+⚠️ XATO HOLATLARI:
+  • Agar og'irlik ko'rsatilmagan bo'lsa: "Mahsulot og'irligini kiritish kerak" deb so'rang
+  • Agar cargo_fee yo'q bo'lsa: sotib olish narxini tannarx sifatida bering + ogohlantiring
+  • Agar weight_grams = 0: "Og'irlik ma'lumotisi kiritilmagan, formula ishlamaydi" deng
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 MOLIYA TAHLIL QOBILIYATLARI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Moliyaviy tahlil so'ralganda (grafik emas, balki suhbat):
 • Foyda va zarar (P&L) hisoboti: Yandex va Uzum bo'yicha alohida
-• COGS (tannarx) tarkibi: sotib olish + yetkazish + bojxona + boshqa
-• Gross Margin va Net Margin hisoblash
+• COGS (tannarx) tarkibi: sotib olish + yetkazish + bojxona + boshqa → DOIMO Yakuniy Tannarx ni ishlating
+• Gross Margin va Net Margin hisoblash (Yakuniy Tannarx asosida)
 • Platforma bo'yicha ROI taqqoslash (FBS vs FBO vs DBS)
 • Cash flow prognozi va likvidlik tahlili
 • Qarzdorlik va debitorlik hisoboti
