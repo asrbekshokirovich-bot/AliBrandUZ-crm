@@ -10,7 +10,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://ybtfepdqzbgmtlsiisvp.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_wk3pW4CAxzc90nks94MRHw_meKO-VWe';
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 // ──────────────────────────────────────────────────────────
 // Supabase helper (server-side, service role key)
@@ -243,8 +243,8 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({ error: 'Message is required' }, { status: 400 });
   }
 
-  if (!OPENAI_API_KEY) {
-    return Response.json({ error: 'OPENAI_API_KEY not configured on server' }, { status: 500 });
+  if (!GEMINI_API_KEY) {
+    return Response.json({ error: 'GEMINI_API_KEY not configured on server' }, { status: 500 });
   }
 
   // Fetch context and build prompt
@@ -252,50 +252,49 @@ export default async function handler(req: Request): Promise<Response> {
   const systemPrompt = buildSystemPrompt(ctx);
 
   // Get previous messages for context
-  let previousMessages: Array<{ role: string; content: string }> = [];
+  let previousMessages: Array<{ role: string; parts: Array<{ text: string }> }> = [];
   if (conversationId) {
     const history = await supabaseGet(
       'ali_ai_messages',
       `conversation_id=eq.${conversationId}&order=created_at.asc&limit=20`
     );
     previousMessages = (history || []).map((m: Record<string, unknown>) => ({
-      role: m.role as string,
-      content: m.content as string,
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content as string }],
     }));
   }
 
-  // Call OpenAI with streaming
-  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      stream: true,
-      max_tokens: 2048,
-      temperature: 0.3,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...previousMessages.slice(-10), // last 10 messages
-        { role: 'user', content: message },
-      ],
-    }),
-  });
+  // Call Gemini 2.0 Flash with streaming
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [
+          ...previousMessages.slice(-10),
+          { role: 'user', parts: [{ text: message }] },
+        ],
+        generationConfig: {
+          maxOutputTokens: 2048,
+          temperature: 0.3,
+        },
+      }),
+    }
+  );
 
-  if (!openaiRes.ok) {
-    const err = await openaiRes.text();
-    return Response.json({ error: `OpenAI error: ${err}` }, { status: 502 });
+  if (!geminiRes.ok) {
+    const err = await geminiRes.text();
+    return Response.json({ error: `Gemini error: ${err}` }, { status: 502 });
   }
 
-  // Create a streaming response
   let fullResponse = '';
   let savedConvId = conversationId;
 
   const stream = new ReadableStream({
     async start(controller) {
-      const reader = openaiRes.body!.getReader();
+      const reader = geminiRes.body!.getReader();
       const decoder = new TextDecoder();
 
       try {
@@ -309,15 +308,17 @@ export default async function handler(req: Request): Promise<Response> {
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const data = line.slice(6).trim();
-            if (data === '[DONE]') continue;
+            if (!data || data === '[DONE]') continue;
 
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
+              const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
               if (content) {
                 fullResponse += content;
-                // Forward SSE chunk to client
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
+                // Forward SSE chunk to client in OpenAI-compatible format
+                controller.enqueue(new TextEncoder().encode(
+                  `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+                ));
               }
             } catch { /* skip malformed chunks */ }
           }
@@ -326,8 +327,7 @@ export default async function handler(req: Request): Promise<Response> {
         // Save conversation after complete response
         savedConvId = await saveConversation(user.id, conversationId, message, fullResponse);
 
-        // Send conversation ID
-        controller.enqueue(new TextEncoder().encode(`data: [DONE]\n\n`));
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
       } catch (err) {
         console.error('Stream error:', err);
       } finally {
