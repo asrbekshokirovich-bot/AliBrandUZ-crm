@@ -36,16 +36,24 @@ async function supabaseGet(table: string, query: string) {
 }
 
 // ──────────────────────────────────────────────────────────
-// Fetch business context from Supabase
+// Fetch business context from Supabase (enriched CEO data)
 // ──────────────────────────────────────────────────────────
 async function fetchBusinessContext() {
-  const [products, boxes, productItems] = await Promise.all([
+  const today = new Date().toISOString().split('T')[0];
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [products, boxes, productItems, todayOrders, weekFinance, tasks] = await Promise.all([
     supabaseGet('products', 'select=id,name,brand,sku,cost_price,purchase_currency,status,tashkent_manual_stock,weight&status=neq.archived&limit=50&order=updated_at.desc'),
-    supabaseGet('boxes', 'select=id,box_number,status,weight_kg,local_delivery_fee,cargo_fee,packaging_fee,shipping_cost&limit=20&order=created_at.desc'),
+    supabaseGet('boxes', 'select=id,box_number,status,weight_kg,local_delivery_fee,cargo_fee,packaging_fee,created_at&limit=20&order=created_at.desc'),
     supabaseGet('product_items', 'select=product_id,cost_price,weight_grams,landed_cost_per_unit,status,location,quantity&status=neq.sold&limit=100'),
+    supabaseGet('marketplace_orders', `select=platform,product_name,quantity,total_revenue,commission_fee&created_at=gte.${today}T00:00:00`),
+    supabaseGet('finance_transactions', `select=transaction_type,amount,description&created_at=gte.${weekAgo}&limit=100`),
+    supabaseGet('tasks', 'select=title,status,due_date,priority&status=in.(todo,in_progress)&limit=20'),
   ]);
 
-  // compute landed cost summary
+  const CNY_TO_UZS = 1750;
+
+  // ── Box logistics pre-computation ──
   const boxesWithCost = (boxes || []).map((b: Record<string, unknown>) => {
     const localFee = Number(b.local_delivery_fee) || 0;
     const cargoFee = Number(b.cargo_fee) || 0;
@@ -53,85 +61,147 @@ async function fetchBusinessContext() {
     const totalLogistics = localFee + cargoFee + packFee;
     const weightGrams = (Number(b.weight_kg) || 0) * 1000;
     const feePerGram = weightGrams > 0 ? totalLogistics / weightGrams : 0;
-    return { ...b, totalLogistics, feePerGram };
+    const daysInTransit = b.status === 'in_transit'
+      ? Math.floor((Date.now() - new Date(b.created_at as string).getTime()) / 86400000)
+      : 0;
+    return { ...b, totalLogistics, feePerGram, daysInTransit };
   });
 
-  return { products: products || [], boxes: boxesWithCost, productItems: productItems || [] };
+  // ── Landed cost per product (calculateLandedCost formula) ──
+  const bestBox = boxesWithCost.find((b: Record<string, unknown>) => (b.feePerGram as number) > 0);
+  const defaultFeePerGram = (bestBox?.feePerGram as number) || 0;
+
+  const productsWithAnalysis = (products || []).map((p: Record<string, unknown>) => {
+    const priceCny = Number(p.cost_price) || 0;
+    const weightGrams = (Number(p.weight) || 0) * 1000;
+    const logisticsShareCny = weightGrams * defaultFeePerGram;
+    const landedCostCny = priceCny + logisticsShareCny;
+    const landedCostUzs = Math.round(landedCostCny * CNY_TO_UZS);
+    const stock = Number(p.tashkent_manual_stock) ?? 0;
+    return {
+      name: p.name as string,
+      sku: p.sku as string,
+      priceCny,
+      weightGrams,
+      landedCostCny: Math.round(landedCostCny * 100) / 100,
+      landedCostUzs,
+      stock,
+      isLowStock: stock > 0 && stock < 5,
+      isOutOfStock: stock <= 0,
+    };
+  });
+
+  // ── Today's sales ──
+  const todaySales = todayOrders || [];
+  const todayRevenue   = todaySales.reduce((s: number, o: Record<string, unknown>) => s + (Number(o.total_revenue) || 0), 0);
+  const todayCommission = todaySales.reduce((s: number, o: Record<string, unknown>) => s + (Number(o.commission_fee) || 0), 0);
+
+  // ── Week finance ──
+  const wf = weekFinance || [];
+  const weekIncome  = wf.filter((t: Record<string, unknown>) => t.transaction_type === 'income').reduce((s: number, t: Record<string, unknown>) => s + Number(t.amount), 0);
+  const weekExpense = wf.filter((t: Record<string, unknown>) => t.transaction_type === 'expense').reduce((s: number, t: Record<string, unknown>) => s + Number(t.amount), 0);
+
+  // ── Auto-detect problems ──
+  const problems: string[] = [];
+  const outOfStock = productsWithAnalysis.filter((p) => p.isOutOfStock);
+  const lowStock = productsWithAnalysis.filter((p) => p.isLowStock);
+  const delayedBoxes = boxesWithCost.filter((b: Record<string, unknown>) => (b.daysInTransit as number) > 10);
+  const allTasks = tasks || [];
+  const overdueTasks = allTasks.filter((t: Record<string, unknown>) => t.due_date && new Date(t.due_date as string) < new Date());
+
+  if (outOfStock.length)   problems.push(`🔴 ${outOfStock.length} ta mahsulot TUGADI (${outOfStock.slice(0,3).map((p) => p.name).join(', ')})`);
+  if (lowStock.length)     problems.push(`⚠️ ${lowStock.length} ta mahsulot kam qoldi (<5 dona): ${lowStock.slice(0,3).map((p) => `${p.name} (${p.stock} dona)`).join(', ')}`);
+  if (delayedBoxes.length) problems.push(`🕐 ${delayedBoxes.length} ta quti 10+ kun yo'lda — kechikish ehtimoli bor`);
+  if (overdueTasks.length) problems.push(`📋 ${overdueTasks.length} ta vazifa muddati o'tib ketdi`);
+
+  return {
+    products: productsWithAnalysis,
+    boxes: boxesWithCost,
+    productItems: productItems || [],
+    todayStats: { count: todaySales.length, revenue: todayRevenue, commission: todayCommission },
+    weekFinance: { income: weekIncome, expense: weekExpense, net: weekIncome - weekExpense },
+    problems,
+    tasks: { total: allTasks.length, overdue: overdueTasks.length },
+    defaultFeePerGram,
+    CNY_TO_UZS,
+  };
 }
 
 // ──────────────────────────────────────────────────────────
-// Build the system prompt with True Landed Cost rules
+// Build CEO Intelligence System Prompt
 // ──────────────────────────────────────────────────────────
-function buildSystemPrompt(ctx: {
-  products: unknown[];
-  boxes: unknown[];
-  productItems: unknown[];
-}) {
-  const { products, boxes, productItems } = ctx;
+function buildSystemPrompt(ctx: ReturnType<typeof fetchBusinessContext> extends Promise<infer T> ? T : never) {
+  const { products, boxes, todayStats, weekFinance, problems, tasks, defaultFeePerGram, CNY_TO_UZS } = ctx;
 
-  return `Sen "Ali AI" — AliBrand CRM tizimining senior moliya va logistika yordamchisisisan.
-Tizim: Xitoydan Toshkentga import qilib, Uzum va Yandex Market orqali sotadigan kompaniya.
-Ton: Professional, aniq, ma'lumotlarga asoslangan. Hech qachon soxta raqam berma.
+  const problemsSection = problems.length > 0
+    ? problems.map((p) => `  • ${p}`).join('\n')
+    : '  • Hozircha aniq muammo aniqlanmadi';
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚖️ YAKUNIY TANNARX (TRUE LANDED COST) — MAJBURIY FORMULA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const topProducts = [...products]
+    .sort((a, b) => b.stock - a.stock)
+    .slice(0, 15)
+    .map((p) => `  • ${p.name} | SKU: ${p.sku || '-'} | Narx: ${p.priceCny} CNY | Tannarx: ${p.landedCostCny} CNY (${p.landedCostUzs.toLocaleString()} UZS) | Zaxira: ${p.stock} dona${p.isOutOfStock ? ' 🔴TUGADI' : p.isLowStock ? ' ⚠️KAM' : ''}`)
+    .join('\n');
 
-MUHIM: "tannarx", "cost", "foyda", "profit", "margin" so'ralganda — HECH QACHON
-faqat xom sotib olish narxini ishlatma! DOIMO proporsional og'irlik formulasini qo'lla:
+  const recentBoxes = (boxes as Array<Record<string, unknown>>).slice(0, 8)
+    .map((b) => `  • ${b.box_number || 'N/A'} | ${b.status} | ${b.weight_kg || 0} kg | Logistika: ${(b.totalLogistics as number) || 0} CNY | Fee/g: ${Number(b.feePerGram).toFixed(4)} CNY${(b.daysInTransit as number) > 10 ? ` | ⏰ ${b.daysInTransit} kun yo'lda` : ''}`)
+    .join('\n');
 
-📐 FORMULA:
-  Umumiy Logistika (CNY) = local_delivery_fee + cargo_fee + packaging_fee
-  Gramm Uchun Xarajat    = Umumiy Logistika ÷ total_box_weight_grams
-  Yakuniy Tannarx/dona   = item_price_cny + (item_weight_grams × Gramm Uchun Xarajat)
+  return `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
+Kompaniya: Xitoydan mahsulot import qilib, Uzum va Yandex Market orqali sotadi.
 
-📋 MISOL:
-  Mahsulot: 50 CNY, 300 gramm
-  Quti: 5000 gramm jami og'irlik
-  Logistika: 20 (mahalliy) + 150 (kargo) + 30 (qadoq) = 200 CNY jami
-  → feePerGram = 200 / 5000 = 0.04 CNY/gramm
-  → Yakuniy tannarx = 50 + (300 × 0.04) = 62 CNY ✅
+═══════════════════════════════════════════════
+📊 BUGUNGI HOLAT (Real-time, ${new Date().toLocaleDateString('uz-UZ')})
+═══════════════════════════════════════════════
+• Bugungi buyurtmalar: ${todayStats.count} ta
+• Bugungi daromad: ${todayStats.revenue.toLocaleString()} UZS
+• Bugungi komissiya: ${todayStats.commission.toLocaleString()} UZS
+• Sof daromad bugun: ~${(todayStats.revenue - todayStats.commission).toLocaleString()} UZS
 
-🔑 QOIDALAR:
-  • "Tannarx?" → Yakuniy tannarx bering
-  • "Foyda?" → Sotish narxi − Yakuniy tannarx
-  • "Margin?" → (Sotish − Yakuniy) / Sotish × 100%
-  • "ROI?" → Foyda / Yakuniy tannarx × 100%
-  • weight_grams = 0 bo'lsa → "Og'irlik kiritilmagan" deb ogohlantir
-  • cargo_fee yo'q bo'lsa → faqat xom narxni ber + ogohlantir
+• Haftalik kirim: ${weekFinance.income.toLocaleString()} UZS
+• Haftalik chiqim: ${weekFinance.expense.toLocaleString()} UZS
+• Haftalik sof: ${weekFinance.net.toLocaleString()} UZS
 
-💱 VALYUTA: Barcha hisob CNY da. O'girish: CNY × 1750 = UZS (taxminiy)
+• Vazifalar jami: ${tasks.total} ta | Muddati o'tgan: ${tasks.overdue} ta
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📦 JORIY MA'LUMOTLAR (Real-time)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+═══════════════════════════════════════════════
+🚨 ANIQLAB OLINGAN MUAMMOLAR
+═══════════════════════════════════════════════
+${problemsSection}
 
-MAHSULOTLAR (${products.length} ta):
-${products.slice(0, 20).map((p: unknown) => {
-  const prod = p as Record<string, unknown>;
-  return `• ${prod.name || 'N/A'} | SKU: ${prod.sku || '-'} | Narxi: ${prod.cost_price || 0} ${prod.purchase_currency || 'CNY'} | Zaxira: ${prod.tashkent_manual_stock || 0} dona | Vazn: ${prod.weight || 0} kg`;
-}).join('\n')}
+═══════════════════════════════════════════════
+📦 MAHSULOTLAR (${products.length} ta, tannarx hisoblangan)
+═══════════════════════════════════════════════
+${topProducts}
 
-QUTILLAR (so'nggi ${boxes.length} ta):
-${(boxes as Array<Record<string, unknown>>).slice(0, 10).map((b) => {
-  return `• ${b.box_number || 'N/A'} | ${b.status} | ${b.weight_kg || 0} kg | Kargo: ${b.cargo_fee || 0} CNY | Logistika jami: ${b.totalLogistics || 0} CNY | Fee/gramm: ${Number(b.feePerGram).toFixed(4)} CNY`;
-}).join('\n')}
+═══════════════════════════════════════════════
+📬 QUTILLAR (so'nggi ${boxes.length} ta)
+═══════════════════════════════════════════════
+${recentBoxes}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚫 ANTI-HALLUCINATION QOIDALARI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Faqat yuqorida berilgan haqiqiy ma'lumotlardan foydalaning
-2. Kontekstda yo'q ma'lumot so'ralganda: "Bu haqida ma'lumot topilmadi" deng
-3. HECH QACHON o'ylab topilgan raqam bermang
-4. "GPT", "OpenAI", "Claude" haqida so'ralganda: "Men Ali AI — AliBrand CRM yordamchisi" deng
-5. Javobni har doim to'liq gap bilan boshlang
+═══════════════════════════════════════════════
+⚖️ TANNARX FORMULASI (har doim ishlat)
+═══════════════════════════════════════════════
+fee_per_gram = ${defaultFeePerGram.toFixed(4)} CNY/gramm (joriy)
+Tannarx = item_narxi_CNY + (og'irlik_gramm × fee_per_gram)
+UZS = Tannarx_CNY × ${CNY_TO_UZS}
 
-📊 TAHLIL QOBILIYATLARI:
-- Foyda va zarar (P&L): Yakuniy tannarx asosida
-- Gross Margin, Net Margin, ROI hisoblash
-- Mahsulot profitabilligini taqqoslash
-- Zaxira holati va buyurtma tavsiyalari
-- Valyuta konvertatsiyasi (CNY/UZS/USD)
+═══════════════════════════════════════════════
+🧠 QOIDALAR
+═══════════════════════════════════════════════
+1. CEO INSIGHT FORMAT: Faqat raqam emas — sabab va tavsiya ham ber
+   ❌ "10 ta sotildi"
+   ✅ "10 ta sotildi. Sof foyda ~$X. [Mahsulot Y] margini past — narxni ko'rib chiq."
+
+2. MUAMMO ANIQLASH: Savol "Qanday muammo bor?" bo'lsa — yuqoridagi muammolar ro'yxatini batafsil tushuntir
+
+3. ZARAR ANIQLASH: "Qayerda zarar?" so'ralganda — landedCostUzs > sotish narxini solishtir, ⚠️ bilan belgi
+
+4. UMUMIY SAVOLLARGA: Har qanday mavzuda suhbatlasha olasan (texnologiya, strategiya, marketing, hayot bo'yicha savollar va h.k.) — biznes ma'lumotlari bo'lmasa logikaga asoslanib javob ber
+
+5. TIL: Savol qaysi tilda bo'lsa, shu tilda javob ber (o'zbek, rus, ingliz)
+
+6. "GPT", "OpenAI" haqida so'ralsa: "Men Ali AI — AliBrand ning ongli yordamchisi" de
 `;
 }
 
