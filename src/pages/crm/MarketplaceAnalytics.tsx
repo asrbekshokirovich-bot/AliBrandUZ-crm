@@ -112,7 +112,7 @@ export default function MarketplaceAnalytics() {
       const { count, error } = await supabase
         .from('marketplace_orders')
         .select('*', { count: 'exact', head: true })
-        .in('fulfillment_status', ['pending', 'CREATED']);
+        .in('status', ['CREATED', 'PENDING', 'PACKING', 'PENDING_DELIVERY']);
       if (error) throw error;
       return count || 0;
     },

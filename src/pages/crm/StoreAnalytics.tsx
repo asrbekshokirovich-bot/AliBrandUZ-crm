@@ -46,9 +46,9 @@ export default function StoreAnalytics() {
                 supabase.from('marketplace_orders')
                     .select('store_id, items, total_amount')
                     .in('store_id', storeIds)
-                    .eq('fulfillment_status', 'delivered')
-                    .gte('delivered_at', startDate)
-                    .lte('delivered_at', endDate)
+                    .in('status', ['DELIVERED', 'COMPLETED', 'PARTIALLY_DELIVERED'])
+                    .gte('ordered_at', startDate)
+                    .lte('ordered_at', endDate)
             );
 
             // Extract unique SKUs and tally quantities per store
