@@ -243,15 +243,21 @@ export default function MarketplaceAdmin() {
   // Per-store sync mutation
   const storeSyncMutation = useMutation({
     mutationFn: async ({ storeId, platform, syncType }: { storeId: string; platform: string; syncType: string }) => {
-      const functionName = platform === 'uzum' 
-        ? (syncType === 'stocks' ? 'uzum-stocks' : 'uzum-sync')
-        : (syncType === 'stocks' ? 'yandex-stocks' : 'yandex-sync');
-      
+      // Map sync types to actual Supabase edge function names
+      let functionName: string;
+      if (syncType === 'stocks') {
+        functionName = platform === 'uzum' ? 'uzum-stocks' : 'yandex-stocks';
+      } else if (syncType === 'orders') {
+        functionName = platform === 'uzum' ? 'uzum-orders' : 'yandex-orders';
+      } else {
+        // listings
+        functionName = platform === 'uzum' ? 'uzum-products' : 'yandex-products';
+      }
+
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: { 
-          store_id: storeId, 
-          sync_type: syncType,
-          action: syncType === 'stocks' ? 'sync' : undefined,
+          store_id: storeId,
+          ...(syncType === 'stocks' ? { action: 'sync' } : {}),
         },
       });
       if (error) throw error;
