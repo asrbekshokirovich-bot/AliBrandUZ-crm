@@ -188,7 +188,7 @@ async function verifyToken(token: string) {
 
     // Decode payload (base64url → base64 → JSON)
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '=='.slice((base64.length + 3) % 4);
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
     const payload = JSON.parse(atob(padded));
 
     // Supabase JWTs must have sub (user ID) and be non-expired
