@@ -278,6 +278,7 @@ export default async function handler(req: Request): Promise<Response> {
         generationConfig: {
           maxOutputTokens: 2048,
           temperature: 0.3,
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     }
@@ -313,7 +314,12 @@ export default async function handler(req: Request): Promise<Response> {
 
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              // Skip 'thinking' parts (Gemini 2.5 Flash internal reasoning)
+              const parts: Array<{ text?: string; thought?: boolean }> = parsed.candidates?.[0]?.content?.parts || [];
+              const content = parts
+                .filter((p) => !p.thought && p.text)
+                .map((p) => p.text)
+                .join('');
               if (content) {
                 fullResponse += content;
                 // Forward SSE chunk to client in OpenAI-compatible format
