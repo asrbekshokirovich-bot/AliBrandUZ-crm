@@ -98,21 +98,6 @@ export default function AliAI() {
 
   const { data: analyticsData, loading: analyticsLoading, activeView: analyticsView, fetchAnalytics, clearAnalytics } = useAIAnalytics();
 
-  // When a quick action button is clicked: show analytics panel AND send text to AI
-  const handleQuickAction = useCallback(async (question: string) => {
-    // Map question text to view type
-    const viewMap: Record<string, Parameters<typeof fetchAnalytics>[0]> = {
-      'Bugungi umumiy statistika qanday?': 'today',
-      'Qanday muammolar bor?':             'problems',
-      "Eng ko'p sotilgan TOP-10 mahsulot": 'top-products',
-      'Inventar holati':                   'inventory',
-      'Logistika':                         'logistics',
-    };
-    const view = viewMap[question];
-    if (view) void fetchAnalytics(view); // load structured data (non-blocking)
-    handleSendMessage(question);          // also send to AI for text analysis
-  }, [fetchAnalytics, handleSendMessage]);
-
   // Update active conversation when streaming creates a new one (only during active streaming)
   useEffect(() => {
     if (isStreaming && streamConversationId && streamConversationId !== activeConversationId) {
@@ -186,6 +171,20 @@ export default function AliAI() {
       },
     });
   }, [activeConversationId, streamMessage, queryClient]);
+
+  // Quick action: show analytics panel AND send text to AI simultaneously
+  const handleQuickAction = useCallback((question: string) => {
+    const viewMap: Record<string, Parameters<typeof fetchAnalytics>[0]> = {
+      'Bugungi umumiy statistika qanday?': 'today',
+      'Qanday muammolar bor?':             'problems',
+      "Eng ko'p sotilgan TOP-10 mahsulot": 'top-products',
+      'Inventar holati':                   'inventory',
+      'Logistika':                         'logistics',
+    };
+    const view = viewMap[question];
+    if (view) void fetchAnalytics(view);
+    void handleSendMessage(question);
+  }, [fetchAnalytics, handleSendMessage]);
 
   // Filter conversations based on search
   const filteredConversations = useMemo(() => {
