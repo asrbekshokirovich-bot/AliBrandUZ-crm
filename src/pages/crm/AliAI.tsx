@@ -152,10 +152,12 @@ export default function AliAI() {
         console.log('Stream started');
       },
       onComplete: (fullResponse, convId) => {
-        console.log('Stream complete:', fullResponse.length, 'chars');
+        console.log('Stream complete:', fullResponse.length, 'chars', 'convId:', convId);
         setPendingMessage(null);
         setLastAssistantResponse(fullResponse);
         setShowFollowUps(true);
+        // Ensure activeConversationId is always set (safety net in case useEffect timing is off)
+        if (convId) setActiveConversationId(convId);
         queryClient.invalidateQueries({ queryKey: ['ali-ai-messages', convId] });
         queryClient.invalidateQueries({ queryKey: ['ali-ai-conversations'] });
       },

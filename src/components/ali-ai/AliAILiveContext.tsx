@@ -169,10 +169,12 @@ export function AliAILiveContext({ userRoles, conversationTopics = [] }: AliAILi
       {items.map((item, idx) => (
         <Badge
           key={idx}
-          variant={item.isAlert ? "destructive" : "secondary"}
+          variant="outline"
           className={cn(
-            "text-[10px] h-5 px-1.5 flex-shrink-0 gap-0.5",
-            !item.isAlert && "bg-muted/80"
+            "text-[10px] h-5 px-1.5 flex-shrink-0 gap-0.5 border-0 text-white",
+            item.isAlert
+              ? "bg-red-700 hover:bg-red-600"
+              : "bg-neutral-900 hover:bg-neutral-800"
           )}
         >
           <item.icon className={cn("h-2.5 w-2.5", item.color)} />
