@@ -136,44 +136,43 @@ ${(boxes as Array<Record<string, unknown>>).slice(0, 10).map((b) => {
 }
 
 // ──────────────────────────────────────────────────────────
-// Save conversation to Supabase
+// Create conversation (before streaming — so ID is in header)
 // ──────────────────────────────────────────────────────────
-async function saveConversation(userId: string, conversationId: string | null, userMessage: string, assistantMessage: string) {
+async function createConversationIfNeeded(userId: string, conversationId: string | null, title: string): Promise<string | null> {
+  if (conversationId) return conversationId;
   try {
-    let convId = conversationId;
+    const newConv = await supabaseQuery('/ali_ai_conversations', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, title: title.slice(0, 60) + (title.length > 60 ? '...' : ''), is_active: true }),
+    });
+    return Array.isArray(newConv) ? newConv[0]?.id : newConv?.id || null;
+  } catch (err) {
+    console.error('Failed to create conversation:', err);
+    return null;
+  }
+}
 
-    if (!convId) {
-      // Create new conversation
-      const title = userMessage.slice(0, 60) + (userMessage.length > 60 ? '...' : '');
-      const newConv = await supabaseQuery('/ali_ai_conversations', {
+// ──────────────────────────────────────────────────────────
+// Save messages (after streaming is complete)
+// ──────────────────────────────────────────────────────────
+async function saveMessages(convId: string, userMessage: string, assistantMessage: string): Promise<void> {
+  try {
+    await Promise.all([
+      supabaseQuery('/ali_ai_messages', {
         method: 'POST',
-        body: JSON.stringify({ user_id: userId, title, is_active: true }),
-      });
-      convId = Array.isArray(newConv) ? newConv[0]?.id : newConv?.id;
-    } else {
-      // Update conversation updated_at
-      await supabaseQuery(`/ali_ai_conversations?id=eq.${convId}`, {
+        body: JSON.stringify({ conversation_id: convId, role: 'user', content: userMessage }),
+      }),
+      supabaseQuery('/ali_ai_messages', {
+        method: 'POST',
+        body: JSON.stringify({ conversation_id: convId, role: 'assistant', content: assistantMessage }),
+      }),
+      supabaseQuery(`/ali_ai_conversations?id=eq.${convId}`, {
         method: 'PATCH',
         body: JSON.stringify({ updated_at: new Date().toISOString() }),
-      });
-    }
-
-    // Save user message
-    await supabaseQuery('/ali_ai_messages', {
-      method: 'POST',
-      body: JSON.stringify({ conversation_id: convId, role: 'user', content: userMessage }),
-    });
-
-    // Save assistant message
-    await supabaseQuery('/ali_ai_messages', {
-      method: 'POST',
-      body: JSON.stringify({ conversation_id: convId, role: 'assistant', content: assistantMessage }),
-    });
-
-    return convId;
+      }),
+    ]);
   } catch (err) {
-    console.error('Failed to save conversation:', err);
-    return conversationId;
+    console.error('Failed to save messages:', err);
   }
 }
 
@@ -289,8 +288,10 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({ error: `Gemini error: ${err}` }, { status: 502 });
   }
 
+  // ── Create conversation BEFORE streaming so the ID is available for the header ──
+  const convId = await createConversationIfNeeded(user.id, conversationId, message);
+
   let fullResponse = '';
-  let savedConvId = conversationId;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -324,8 +325,10 @@ export default async function handler(req: Request): Promise<Response> {
           }
         }
 
-        // Save conversation after complete response
-        savedConvId = await saveConversation(user.id, conversationId, message, fullResponse);
+        // Save user+assistant messages AFTER streaming completes
+        if (convId && fullResponse) {
+          await saveMessages(convId, message, fullResponse);
+        }
 
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
       } catch (err) {
@@ -342,7 +345,7 @@ export default async function handler(req: Request): Promise<Response> {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
-      'X-Conversation-Id': savedConvId || '',
+      'X-Conversation-Id': convId || '',  // ← Now correctly set BEFORE headers are sent
     },
   });
 }
