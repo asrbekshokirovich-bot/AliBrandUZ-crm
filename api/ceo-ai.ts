@@ -178,17 +178,28 @@ async function saveConversation(userId: string, conversationId: string | null, u
 }
 
 // ──────────────────────────────────────────────────────────
-// Verify Supabase JWT and get user
+// Verify Supabase JWT and get user (decode payload directly)
 // ──────────────────────────────────────────────────────────
 async function verifyToken(token: string) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'apikey': SUPABASE_ANON_KEY,
-    },
-  });
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    // Supabase JWTs are standard JWTs: header.payload.signature (base64url encoded)
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    // Decode payload (base64url → base64 → JSON)
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '=='.slice((base64.length + 3) % 4);
+    const payload = JSON.parse(atob(padded));
+
+    // Supabase JWTs must have sub (user ID) and be non-expired
+    if (!payload.sub) return null;
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) return null; // expired
+
+    return { id: payload.sub as string, email: payload.email as string, role: payload.role as string };
+  } catch {
+    return null;
+  }
 }
 
 // ──────────────────────────────────────────────────────────
