@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAliAIStream } from '@/hooks/useAliAIStream';
+import { useAIAnalytics } from '@/hooks/useAIAnalytics';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ import {
   AliAIConversationTags,
   getSuggestedQuestions 
 } from '@/components/ali-ai';
+import { AliAIAnalyticsPanel } from '@/components/ali-ai/AliAIAnalyticsPanel';
 
 interface Message {
   id: string;
@@ -93,6 +95,23 @@ export default function AliAI() {
     error: streamError,
     conversationId: streamConversationId
   } = useAliAIStream();
+
+  const { data: analyticsData, loading: analyticsLoading, activeView: analyticsView, fetchAnalytics, clearAnalytics } = useAIAnalytics();
+
+  // When a quick action button is clicked: show analytics panel AND send text to AI
+  const handleQuickAction = useCallback(async (question: string) => {
+    // Map question text to view type
+    const viewMap: Record<string, Parameters<typeof fetchAnalytics>[0]> = {
+      'Bugungi umumiy statistika qanday?': 'today',
+      'Qanday muammolar bor?':             'problems',
+      "Eng ko'p sotilgan TOP-10 mahsulot": 'top-products',
+      'Inventar holati':                   'inventory',
+      'Logistika':                         'logistics',
+    };
+    const view = viewMap[question];
+    if (view) void fetchAnalytics(view); // load structured data (non-blocking)
+    handleSendMessage(question);          // also send to AI for text analysis
+  }, [fetchAnalytics, handleSendMessage]);
 
   // Update active conversation when streaming creates a new one (only during active streaming)
   useEffect(() => {
@@ -511,7 +530,7 @@ export default function AliAI() {
                           variant="outline"
                           size="sm"
                           className="whitespace-nowrap text-xs min-h-[40px]"
-                          onClick={() => handleSendMessage(q)}
+                          onClick={() => handleQuickAction(q)}
                         >
                           {q.length > 40 ? q.slice(0, 40) + '...' : q}
                         </Button>
@@ -521,7 +540,7 @@ export default function AliAI() {
                 ) : (
                   <AliAISuggestions 
                     suggestions={suggestedQuestions}
-                    onSelect={handleSendMessage}
+                    onSelect={handleQuickAction}
                   />
                 )}
               </div>
@@ -569,6 +588,13 @@ export default function AliAI() {
                   />
                 )}
                 
+                {/* Analytics Panel — shows when quick action button triggered */}
+                {analyticsData && analyticsView && !analyticsLoading && (
+                  <div className="flex justify-start">
+                    <AliAIAnalyticsPanel data={analyticsData} view={analyticsView} />
+                  </div>
+                )}
+
                 {/* Follow-up suggestions after response completes */}
                 {!isStreaming && showFollowUps && lastAssistantResponse && (
                   <AliAIFollowUpSuggestions
