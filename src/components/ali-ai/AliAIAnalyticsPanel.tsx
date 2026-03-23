@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { AlertTriangle, TrendingUp, TrendingDown, Package, Truck, CheckSquare, DollarSign, ShoppingCart } from 'lucide-react';
+import { AlertTriangle, TrendingUp, TrendingDown, Package, Truck, CheckSquare, DollarSign, ShoppingCart, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -11,72 +10,99 @@ interface Props {
   view: AnalyticsView;
 }
 
-const PLATFORM_COLORS: Record<string, string> = {
-  uzum: '#6C5CE7', yandex: '#FDCB6E', 'direct': '#00B894', boshqa: '#74B9FF',
-};
-
 function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
+  return String(Math.round(n));
 }
 
-// ── TODAY STATS ──────────────────────────────────────────
-function TodayView({ data }: { data: AnalyticsData }) {
-  const { today, weekly, platformBreakdown } = data;
-  const stats = [
-    { label: 'Buyurtmalar', value: today.orders,              icon: ShoppingCart, color: 'text-blue-500' },
-    { label: 'Daromad',     value: `${fmt(today.revenue)} UZS`,     icon: DollarSign,   color: 'text-green-500' },
-    { label: 'Komissiya',   value: `${fmt(today.commission)} UZS`,  icon: TrendingDown, color: 'text-orange-500' },
-    { label: 'Sof Foyda',   value: `${fmt(today.netProfit)} UZS`,   icon: TrendingUp,   color: today.netProfit >= 0 ? 'text-emerald-500' : 'text-red-500' },
-  ];
+// ── CSS Progress bar ────────────────
+function ProgressBar({ value, max, color = 'bg-primary' }: { value: number; max: number; color?: string }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        {stats.map((s, i) => (
-          <div key={i} className="bg-muted/40 rounded-lg p-2.5 flex items-center gap-2">
-            <s.icon className={cn('h-4 w-4 flex-shrink-0', s.color)} />
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground">{s.label}</p>
-              <p className="text-xs font-semibold truncate">{s.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      {weekly.trend.length > 0 && (
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">Haftalik daromad trendi</p>
-          <ResponsiveContainer width="100%" height={90}>
-            <BarChart data={weekly.trend} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(d) => d.slice(5)} />
-              <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => fmt(v)} />
-              <Tooltip formatter={(v: number) => [`${fmt(v)} UZS`, 'Daromad']} labelFormatter={(l) => l} />
-              <Bar dataKey="revenue" fill="#6C5CE7" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      {platformBreakdown.length > 0 && (
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">Platforma bo'yicha (hafta)</p>
-          <div className="flex gap-2 flex-wrap">
-            {platformBreakdown.map((p, i) => (
-              <div key={i} className="flex items-center gap-1 text-xs bg-muted/30 rounded px-2 py-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: PLATFORM_COLORS[p.platform.toLowerCase()] || '#B2BEC3' }} />
-                <span className="capitalize">{p.platform}:</span>
-                <span className="font-medium">{fmt(p.revenue)} UZS</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+      <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-// ── PROBLEMS ─────────────────────────────────────────────
+// ── Stat card ───────────────────────
+function StatCard({ label, value, sub, icon: Icon, iconColor }: { label: string; value: string | number; sub?: string; icon: React.ElementType; iconColor: string }) {
+  return (
+    <div className="bg-muted/40 rounded-lg p-2.5 flex items-start gap-2">
+      <Icon className={cn('h-4 w-4 flex-shrink-0 mt-0.5', iconColor)} />
+      <div className="min-w-0">
+        <p className="text-[10px] text-muted-foreground leading-none mb-0.5">{label}</p>
+        <p className="text-sm font-bold truncate">{value}</p>
+        {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── TODAY VIEW ──────────────────────
+function TodayView({ data }: { data: AnalyticsData }) {
+  const { today, weekly, platformBreakdown } = data;
+  const maxRev = Math.max(...(weekly.trend.map((d) => d.revenue)), 1);
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard label="Buyurtmalar" value={today.orders} icon={ShoppingCart} iconColor="text-blue-500" />
+        <StatCard label="Daromad" value={`${fmt(today.revenue)} UZS`} icon={DollarSign} iconColor="text-green-500" />
+        <StatCard label="Komissiya" value={`${fmt(today.commission)} UZS`} icon={TrendingDown} iconColor="text-orange-500" />
+        <StatCard
+          label="Sof Foyda"
+          value={`${fmt(today.netProfit)} UZS`}
+          icon={TrendingUp}
+          iconColor={today.netProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}
+        />
+      </div>
+
+      {/* Weekly trend bar chart (CSS) */}
+      {weekly.trend.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1.5">Haftalik daromad trendi</p>
+          <div className="flex items-end gap-1 h-14">
+            {weekly.trend.slice(-7).map((d, i) => {
+              const pct = maxRev > 0 ? (d.revenue / maxRev) * 100 : 0;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div className="w-full bg-primary/80 rounded-t-sm" style={{ height: `${Math.max(pct, 4)}%`, minHeight: 2 }} title={`${fmt(d.revenue)} UZS`} />
+                  <span className="text-[8px] text-muted-foreground">{d.date.slice(5)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Platform breakdown */}
+      {platformBreakdown.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Platforma bo'yicha</p>
+          <div className="flex gap-2 flex-wrap">
+            {platformBreakdown.map((p, i) => (
+              <span key={i} className="text-[10px] bg-muted/50 rounded px-2 py-0.5 font-medium">
+                {p.platform}: {fmt(p.revenue)} UZS ({p.orders} ta)
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="text-[10px] text-muted-foreground border-t pt-2">
+        Haftalik: kirim {fmt(weekly.income)} · chiqim {fmt(weekly.expense)} · sof {fmt(weekly.net)} UZS
+      </div>
+    </div>
+  );
+}
+
+// ── PROBLEMS VIEW ───────────────────
 function ProblemsView({ data }: { data: AnalyticsData }) {
   const { problems, inventory } = data;
+  const total = inventory.total || 1;
+
   return (
     <div className="space-y-2">
       {problems.length === 0 ? (
@@ -88,7 +114,7 @@ function ProblemsView({ data }: { data: AnalyticsData }) {
         problems.map((p, i) => (
           <div key={i} className={cn(
             'rounded-lg p-2.5 border-l-4 text-xs',
-            p.severity === 'critical' ? 'bg-red-50 border-red-500' : 'bg-amber-50 border-amber-400'
+            p.severity === 'critical' ? 'bg-red-50 border-red-500 dark:bg-red-950/30' : 'bg-amber-50 border-amber-400 dark:bg-amber-950/30'
           )}>
             <div className="flex items-center gap-1.5 mb-0.5">
               <AlertTriangle className={cn('h-3 w-3 flex-shrink-0', p.severity === 'critical' ? 'text-red-500' : 'text-amber-500')} />
@@ -99,69 +125,64 @@ function ProblemsView({ data }: { data: AnalyticsData }) {
           </div>
         ))
       )}
-      {/* Inventory donut */}
-      <div className="flex items-center gap-3 pt-1">
-        <PieChart width={70} height={70}>
-          <Pie data={[
-            { name: 'Yaxshi', value: inventory.healthy },
-            { name: 'Kam', value: inventory.lowStock },
-            { name: 'Tugadi', value: inventory.outOfStock },
-          ]} cx={32} cy={32} innerRadius={20} outerRadius={32} dataKey="value" stroke="none">
-            <Cell fill="#00B894" />
-            <Cell fill="#FDCB6E" />
-            <Cell fill="#D63031" />
-          </Pie>
-        </PieChart>
-        <div className="text-[10px] space-y-0.5">
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />{inventory.healthy} ta yaxshi</div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{inventory.lowStock} ta kam</div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{inventory.outOfStock} ta tugadi</div>
-        </div>
+
+      {/* Inventory breakdown bars */}
+      <div className="pt-1 space-y-1.5">
+        <p className="text-[10px] text-muted-foreground">Inventar holati</p>
+        {[
+          { label: 'Yaxshi', count: inventory.healthy, color: 'bg-emerald-500' },
+          { label: 'Kam (<5)', count: inventory.lowStock, color: 'bg-amber-400' },
+          { label: 'Tugadi', count: inventory.outOfStock, color: 'bg-red-500' },
+        ].map((row, i) => (
+          <div key={i} className="flex items-center gap-2 text-[10px]">
+            <span className="w-14 text-muted-foreground">{row.label}</span>
+            <div className="flex-1"><ProgressBar value={row.count} max={total} color={row.color} /></div>
+            <span className="w-8 text-right font-medium">{row.count}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── TOP PRODUCTS ─────────────────────────────────────────
+// ── TOP PRODUCTS VIEW ───────────────
 function TopProductsView({ data }: { data: AnalyticsData }) {
   const { topProducts } = data;
   if (!topProducts.length) return <p className="text-sm text-muted-foreground py-2">Bu hafta sotuv ma'lumoti yo'q.</p>;
+  const maxQty = Math.max(...topProducts.map((p) => p.qty), 1);
+
   return (
     <div className="space-y-1.5">
-      <ResponsiveContainer width="100%" height={110}>
-        <BarChart data={topProducts.slice(0, 8)} layout="vertical" margin={{ left: 0, right: 10, top: 0, bottom: 0 }}>
-          <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={(v) => fmt(v)} />
-          <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={90} tickFormatter={(n) => n.length > 14 ? n.slice(0, 14) + '…' : n} />
-          <Tooltip formatter={(v: number, name) => [name === 'qty' ? `${v} ta` : `${fmt(v)} UZS`, name === 'qty' ? 'Miqdor' : 'Daromad']} />
-          <Bar dataKey="qty" fill="#6C5CE7" radius={[0, 2, 2, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-      {topProducts.slice(0, 5).map((p, i) => (
-        <div key={i} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
-          <span className="flex items-center gap-1.5">
-            <span className="font-semibold text-muted-foreground w-4">{i + 1}.</span>
-            <span className="truncate max-w-[140px]">{p.name}</span>
-          </span>
-          <span className="font-medium">{p.qty} ta · {fmt(p.revenue)} UZS</span>
+      {topProducts.slice(0, 8).map((p, i) => (
+        <div key={i} className="space-y-0.5">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="flex items-center gap-1">
+              <span className="font-bold text-muted-foreground w-3">{i + 1}.</span>
+              <span className="truncate max-w-[160px]">{p.name}</span>
+            </span>
+            <span className="font-medium flex-shrink-0">{p.qty} ta · {fmt(p.revenue)} UZS</span>
+          </div>
+          <ProgressBar value={p.qty} max={maxQty} color={i === 0 ? 'bg-primary' : 'bg-primary/60'} />
         </div>
       ))}
     </div>
   );
 }
 
-// ── INVENTORY ────────────────────────────────────────────
+// ── INVENTORY VIEW ──────────────────
 function InventoryView({ data }: { data: AnalyticsData }) {
   const { inventory } = data;
   const issues = inventory.products.filter((p) => p.isLowStock || p.isOutOfStock);
-  const healthy = inventory.products.filter((p) => !p.isLowStock && !p.isOutOfStock).slice(0, 8);
+  const healthy = inventory.products.filter((p) => !p.isLowStock && !p.isOutOfStock).slice(0, 6);
+
   return (
     <div className="space-y-2">
       {issues.length > 0 && (
         <div>
-          <p className="text-[10px] text-red-500 font-medium mb-1">⚠️ Diqqat talab qiluvchi mahsulotlar</p>
+          <p className="text-[10px] text-red-500 font-semibold mb-1">⚠️ Diqqat talab qiluvchi</p>
           {issues.map((p, i) => (
             <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-dashed last:border-0">
-              <span className="truncate max-w-[150px]">{p.name}</span>
+              <span className="truncate max-w-[140px]">{p.name}</span>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <span className="text-muted-foreground">{p.landedCostUzs.toLocaleString()} UZS</span>
                 <Badge variant={p.isOutOfStock ? 'destructive' : 'outline'} className="text-[9px] h-4">
@@ -172,28 +193,39 @@ function InventoryView({ data }: { data: AnalyticsData }) {
           ))}
         </div>
       )}
-      <div>
-        <p className="text-[10px] text-muted-foreground mb-1">Ombordagi mahsulotlar (tannarx bilan)</p>
-        {healthy.map((p, i) => (
-          <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-dashed last:border-0">
-            <span className="truncate max-w-[150px]">{p.name}</span>
-            <span className="text-muted-foreground">{p.stock} dona · {p.landedCostUzs.toLocaleString()} UZS</span>
-          </div>
-        ))}
-      </div>
+      {healthy.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Ombordagi mahsulotlar</p>
+          {healthy.map((p, i) => (
+            <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-dashed last:border-0">
+              <span className="truncate max-w-[140px]">{p.name}</span>
+              <span className="text-muted-foreground flex-shrink-0">{p.stock} dona · {p.landedCostUzs.toLocaleString()} UZS</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── LOGISTICS ────────────────────────────────────────────
+// ── LOGISTICS VIEW ──────────────────
 function LogisticsView({ data }: { data: AnalyticsData }) {
   const { logistics } = data;
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="bg-muted/40 rounded p-2"><p className="text-lg font-bold">{logistics.total}</p><p className="text-[10px] text-muted-foreground">Quti jami</p></div>
-        <div className="bg-amber-50 rounded p-2"><p className="text-lg font-bold text-amber-600">{logistics.delayed}</p><p className="text-[10px] text-muted-foreground">Kechikkan</p></div>
-        <div className="bg-muted/40 rounded p-2"><p className="text-lg font-bold">{logistics.feePerGram.toFixed(4)}</p><p className="text-[10px] text-muted-foreground">CNY/gramm</p></div>
+        <div className="bg-muted/40 rounded p-2">
+          <p className="text-base font-bold">{logistics.total}</p>
+          <p className="text-[10px] text-muted-foreground">Quti jami</p>
+        </div>
+        <div className={cn('rounded p-2', logistics.delayed > 0 ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-muted/40')}>
+          <p className={cn('text-base font-bold', logistics.delayed > 0 ? 'text-amber-600' : '')}>{logistics.delayed}</p>
+          <p className="text-[10px] text-muted-foreground">Kechikkan</p>
+        </div>
+        <div className="bg-muted/40 rounded p-2">
+          <p className="text-base font-bold">{logistics.feePerGram.toFixed(4)}</p>
+          <p className="text-[10px] text-muted-foreground">CNY/gramm</p>
+        </div>
       </div>
       {(logistics.boxes as Array<Record<string, unknown>>).map((b, i) => (
         <div key={i} className="flex items-center justify-between text-xs bg-muted/20 rounded px-2 py-1.5">
@@ -201,8 +233,7 @@ function LogisticsView({ data }: { data: AnalyticsData }) {
             <Truck className="h-3 w-3 text-muted-foreground" />
             <span className="font-medium">{String(b.box_number || 'N/A')}</span>
             <Badge variant="outline" className={cn('text-[9px] h-4', (b.daysInTransit as number) > 10 ? 'border-amber-400 text-amber-600' : '')}>
-              {String(b.status)}
-              {(b.daysInTransit as number) > 0 && ` · ${b.daysInTransit as number}k`}
+              {String(b.status)}{(b.daysInTransit as number) > 0 ? ` · ${b.daysInTransit as number}k` : ''}
             </Badge>
           </div>
           <span className="text-muted-foreground">{Number(b.weight_kg) || 0} kg</span>
@@ -212,11 +243,11 @@ function LogisticsView({ data }: { data: AnalyticsData }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────
+// ── Main Panel ──────────────────────
 export function AliAIAnalyticsPanel({ data, view }: Props) {
-  const { title, icon: Icon } = useMemo(() => {
-    const map: Record<AnalyticsView, { title: string; icon: typeof TrendingUp }> = {
-      'today':        { title: 'Bugungi Statistika',      icon: TrendingUp },
+  const meta = useMemo(() => {
+    const map: Record<AnalyticsView, { title: string; icon: React.ElementType }> = {
+      'today':        { title: 'Bugungi Statistika',      icon: Activity },
       'problems':     { title: 'Muammolar Tahlili',        icon: AlertTriangle },
       'top-products': { title: 'TOP Mahsulotlar (Hafta)',  icon: ShoppingCart },
       'inventory':    { title: 'Inventar Holati',          icon: Package },
@@ -225,8 +256,10 @@ export function AliAIAnalyticsPanel({ data, view }: Props) {
     return map[view] || { title: 'Tahlil', icon: TrendingUp };
   }, [view]);
 
+  const { title, icon: Icon } = meta;
+
   return (
-    <div className="max-w-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="max-w-sm w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
       <Card className="border border-primary/20 shadow-sm">
         <CardHeader className="py-2 px-3 border-b bg-primary/5">
           <CardTitle className="flex items-center gap-1.5 text-sm">
