@@ -87,23 +87,49 @@ export default function MarketplaceAnalytics() {
     },
   });
 
-  // PRIMARY data source: marketplace_finance_summary (accurate financial KPIs)
+  // PRIMARY data source: aggregate from marketplace_orders directly (no VIEW needed)
   const { data: financeSummary, isLoading: financeLoading, refetch: refetchFinance } = useQuery({
     queryKey: ['mp-analytics-finance-summary'],
     queryFn: async () => {
-      const thirtyDaysAgo = subDays(new Date(), 30).toISOString().split('T')[0];
-      const today = new Date().toISOString().split('T')[0];
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
-        .from('marketplace_finance_summary')
-        .select('*')
-        .gte('period_date', thirtyDaysAgo)
-        .lte('period_date', today)
-        .eq('period_type', 'daily');
+        .from('marketplace_orders')
+        .select('store_id, ordered_at, total_price, commission, status')
+        .gte('ordered_at', thirtyDaysAgo);
       if (error) throw error;
-      return data || [];
+
+      // Aggregate by store + date (same structure as marketplace_finance_summary)
+      const map: Record<string, {
+        store_id: string; period_date: string; period_type: string;
+        orders_count: number; gross_revenue: number; commission_total: number;
+        delivered_count: number; cancelled_count: number; returned_count: number;
+      }> = {};
+
+      for (const order of data || []) {
+        const date = (order.ordered_at || '').slice(0, 10);
+        if (!date) continue;
+        const key = `${order.store_id}:${date}`;
+        if (!map[key]) {
+          map[key] = {
+            store_id: order.store_id, period_date: date, period_type: 'daily',
+            orders_count: 0, gross_revenue: 0, commission_total: 0,
+            delivered_count: 0, cancelled_count: 0, returned_count: 0,
+          };
+        }
+        const r = map[key];
+        r.orders_count++;
+        r.gross_revenue += order.total_price || 0;
+        r.commission_total += order.commission || 0;
+        const st = (order.status || '').toUpperCase();
+        if (['DELIVERED','COMPLETED','DONE','ARRIVED'].some(s => st.includes(s))) r.delivered_count++;
+        if (['CANCELLED','CANCELED','REJECTED'].some(s => st.includes(s))) r.cancelled_count++;
+        if (st.includes('RETURN')) r.returned_count++;
+      }
+      return Object.values(map);
     },
     staleTime: 60000,
   });
+
 
   // Lightweight: pending count only
   const { data: pendingCount } = useQuery({
