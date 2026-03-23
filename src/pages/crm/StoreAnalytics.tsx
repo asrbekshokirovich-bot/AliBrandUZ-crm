@@ -20,7 +20,7 @@ const num = (val: any) => {
 
 export default function StoreAnalytics() {
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const { cnyToUzs, usdToUzs, isRatesLoading } = useFinanceCurrency();
+    const { cnyToUzs, usdToUzs } = useFinanceCurrency();
 
     const today = new Date();
     const startDate = format(startOfMonth(today), 'yyyy-MM-dd');
@@ -29,7 +29,7 @@ export default function StoreAnalytics() {
 
     const { data: analyticsData, isLoading, error, refetch } = useQuery({
         queryKey: ['store-analytics-comprehensive', startDate, endDate, cnyToUzs, usdToUzs],
-        enabled: !isRatesLoading && cnyToUzs > 0,
+        enabled: cnyToUzs > 0,
         queryFn: async () => {
             const { data: storesList, error: storesError } = await supabase
                 .from('marketplace_stores')
@@ -265,7 +265,7 @@ export default function StoreAnalytics() {
                         </div>
                     )}
                     <div className="grid gap-4 md:gap-6 md:grid-cols-3">
-                        {isLoading || isRatesLoading ? (
+                        {isLoading ? (
                             Array(3).fill(0).map((_, i) => (
                                 <Card key={i} className="shadow-sm border-slate-200 dark:border-slate-800">
                                     <CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader>
