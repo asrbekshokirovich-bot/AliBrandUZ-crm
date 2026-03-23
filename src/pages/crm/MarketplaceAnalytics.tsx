@@ -304,46 +304,52 @@ export default function MarketplaceAnalytics() {
       .sort((a, b) => b.value - a.value);
   }, [platformTab, platformSummary, platformStores, baseStoreRevenue, stores]);
 
-  // === Uzum & Yandex separate chart data ===
-  const uzumChartData = useMemo(() => {
+  // === Uzum & Yandex separate chart data (clean: revenue first, listing counts as fallback) ===
+
+  // Revenue per store (from finance summary)
+  const uzumRevenueData = useMemo(() => {
     const uzumStoreIds = new Set(uzumStores.map(s => s.id));
-    const revenueByStoreId: Record<string, number> = {};
+    const rev: Record<string, number> = {};
     for (const row of summary) {
-      if (uzumStoreIds.has(row.store_id)) {
-        revenueByStoreId[row.store_id] = (revenueByStoreId[row.store_id] || 0) + (row.gross_revenue || 0);
-      }
+      if (uzumStoreIds.has(row.store_id))
+        rev[row.store_id] = (rev[row.store_id] || 0) + (row.gross_revenue || 0);
     }
-    const result = uzumStores
-      .map(store => ({ storeId: store.id, name: store.name, value: revenueByStoreId[store.id] || 0 }))
-      .sort((a, b) => b.value - a.value);
-    // Fallback to listing counts when no revenue data
-    if (!result.some(d => d.value > 0)) {
-      return uzumStores.map(s => ({ storeId: s.id, name: s.name, value: storeListingCounts?.[s.id] || 0 })).sort((a, b) => b.value - a.value);
-    }
-    return result;
-  }, [uzumStores, summary, storeListingCounts]);
+    return uzumStores.map(s => ({ storeId: s.id, name: s.name, value: rev[s.id] || 0 })).sort((a, b) => b.value - a.value);
+  }, [uzumStores, summary]);
 
-  const yandexChartData = useMemo(() => {
+  const yandexRevenueData = useMemo(() => {
     const yandexStoreIds = new Set(yandexStores.map(s => s.id));
-    const revenueByStoreId: Record<string, number> = {};
+    const rev: Record<string, number> = {};
     for (const row of summary) {
-      if (yandexStoreIds.has(row.store_id)) {
-        revenueByStoreId[row.store_id] = (revenueByStoreId[row.store_id] || 0) + (row.gross_revenue || 0);
-      }
+      if (yandexStoreIds.has(row.store_id))
+        rev[row.store_id] = (rev[row.store_id] || 0) + (row.gross_revenue || 0);
     }
-    const result = yandexStores
-      .map(store => ({ storeId: store.id, name: store.name, value: revenueByStoreId[store.id] || 0 }))
-      .sort((a, b) => b.value - a.value);
-    // Fallback to listing counts when no revenue data
-    if (!result.some(d => d.value > 0)) {
-      return yandexStores.map(s => ({ storeId: s.id, name: s.name, value: storeListingCounts?.[s.id] || 0 })).sort((a, b) => b.value - a.value);
-    }
-    return result;
-  }, [yandexStores, summary, storeListingCounts]);
+    return yandexStores.map(s => ({ storeId: s.id, name: s.name, value: rev[s.id] || 0 })).sort((a, b) => b.value - a.value);
+  }, [yandexStores, summary]);
 
-  // Track if we're showing revenue or listing counts
-  const uzumIsListingsMode = !summary.some(r => uzumStores.some(s => s.id === r.store_id) && (r.gross_revenue || 0) > 0);
-  const yandexIsListingsMode = !summary.some(r => yandexStores.some(s => s.id === r.store_id) && (r.gross_revenue || 0) > 0);
+  // Listing counts (from fast per-store COUNT queries)
+  const uzumListingData = useMemo(() =>
+    uzumStores.map(s => ({ storeId: s.id, name: s.name, value: storeListingCounts?.[s.id] || 0 }))
+      .sort((a, b) => b.value - a.value),
+    [uzumStores, storeListingCounts]);
+
+  const yandexListingData = useMemo(() =>
+    yandexStores.map(s => ({ storeId: s.id, name: s.name, value: storeListingCounts?.[s.id] || 0 }))
+      .sort((a, b) => b.value - a.value),
+    [yandexStores, storeListingCounts]);
+
+  // Use revenue if any store has revenue > 0, otherwise use listing counts
+  const uzumHasRevenue = uzumRevenueData.some(d => d.value > 0);
+  const yandexHasRevenue = yandexRevenueData.some(d => d.value > 0);
+
+  const uzumChartData = uzumHasRevenue ? uzumRevenueData : uzumListingData;
+  const yandexChartData = yandexHasRevenue ? yandexRevenueData : yandexListingData;
+
+  // True = show listing counts, False = show revenue percentages
+  const uzumIsListingsMode = !uzumHasRevenue;
+  const yandexIsListingsMode = !yandexHasRevenue;
+
+
 
   // === Per-store revenue & orders map (from filtered platformSummary, for KPI cards) ===
   const storeRevenue = useMemo(() => {
