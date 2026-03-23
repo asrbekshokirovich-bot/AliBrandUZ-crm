@@ -645,13 +645,37 @@ export default function MarketplaceAnalytics() {
               </CardHeader>
               <CardContent>
                 {financeLoading ? (
-                  <Skeleton className="h-[200px] w-full" />
+                  <Skeleton className="h-[220px] w-full" />
+                ) : trendData.length === 0 ? (
+                  <div className="h-[220px] flex flex-col items-center justify-center gap-4">
+                    <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-purple-500/10 border border-primary/10 shadow-sm">
+                      <TrendingUp className="h-6 w-6 text-primary/50" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="font-semibold text-sm text-foreground/80">Daromad ma'lumotlari yo'q</p>
+                      <p className="text-xs text-muted-foreground max-w-[220px]">Buyurtmalarni sinxronlang — grafik avtomatik paydo bo'ladi</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 w-full max-w-[260px]">
+                      <div className="text-center p-2 rounded-xl bg-purple-50 border border-purple-100">
+                        <p className="text-lg font-bold text-purple-600">{uzumStores.length}</p>
+                        <p className="text-[10px] text-purple-500 font-medium">Uzum</p>
+                      </div>
+                      <div className="text-center p-2 rounded-xl bg-primary/5 border border-primary/10">
+                        <p className="text-lg font-bold text-primary">{listingsCount?.activeCount || 0}</p>
+                        <p className="text-[10px] text-muted-foreground font-medium">Mahsulot</p>
+                      </div>
+                      <div className="text-center p-2 rounded-xl bg-amber-50 border border-amber-100">
+                        <p className="text-lg font-bold text-amber-600">{yandexStores.length}</p>
+                        <p className="text-[10px] text-amber-500 font-medium">Yandex</p>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={trendData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="date" className="text-xs" />
-                      <YAxis className="text-xs" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip
                         formatter={(value: number) => formatCurrency(value)}
                         labelFormatter={(label) => `${t('mpa_date_label')}: ${label}`}
@@ -660,8 +684,9 @@ export default function MarketplaceAnalytics() {
                         type="monotone"
                         dataKey="revenue"
                         stroke={platformTab === 'uzum' ? '#a855f7' : platformTab === 'yandex' ? '#eab308' : 'hsl(var(--primary))'}
+                        strokeWidth={2}
                         fill={platformTab === 'uzum' ? '#a855f7' : platformTab === 'yandex' ? '#eab308' : 'hsl(var(--primary))'}
-                        fillOpacity={0.3}
+                        fillOpacity={0.25}
                         name={t('mpa_revenue_label')}
                       />
                     </AreaChart>
@@ -692,71 +717,75 @@ export default function MarketplaceAnalytics() {
                           <p className="text-xs text-center text-amber-500 mb-1">📦 Buyurtmalar yo'q — mahsulotlar soni ko'rsatilmoqda</p>
                         )}
                         {uzumChartData.length === 0 || !uzumChartData.some(d => d.value > 0) ? (
-                          <p className="text-center text-muted-foreground py-8 text-sm">Ma'lumot yo'q</p>
-                        ) : (
+                          <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+                            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center"><PieChart className="h-5 w-5 text-purple-300" /></div>
+                            <p className="text-sm">Ma'lumot yo'q</p>
+                          </div>
+                        ) : (() => {
+                          const uzumTotal = uzumChartData.reduce((s, r) => s + r.value, 0);
+                          return (
                           <>
-                            <ResponsiveContainer width="100%" height={200}>
-                              <RechartsPieChart>
-                                <Pie
-                                  data={uzumChartData}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={isMobile ? 25 : 35}
-                                  outerRadius={isMobile ? 55 : 70}
-                                  paddingAngle={2}
-                                  dataKey="value"
-                                  label={isMobile ? false : ({ name, percent }) => percent > 0.03 ? `${name.slice(0, 10)} ${(percent * 100).toFixed(0)}%` : ''}
-                                  labelLine={!isMobile}
-                                  cursor="pointer"
-                                  onClick={(_, idx) => {
-                                    const store = uzumChartData[idx];
-                                    if (store) {
-                                      if (selectedStoreId === store.storeId) {
-                                        setSelectedStoreId(null);
-                                      } else {
-                                        setSelectedStoreId(store.storeId);
-                                        if (platformTab === 'all') setPlatformTab('uzum');
+                            <div className="relative">
+                              <ResponsiveContainer width="100%" height={200}>
+                                <RechartsPieChart>
+                                  <Pie
+                                    data={uzumChartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={isMobile ? 40 : 52}
+                                    outerRadius={isMobile ? 65 : 82}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    cursor="pointer"
+                                    onClick={(_, idx) => {
+                                      const store = uzumChartData[idx];
+                                      if (store) {
+                                        if (selectedStoreId === store.storeId) { setSelectedStoreId(null); }
+                                        else { setSelectedStoreId(store.storeId); if (platformTab === 'all') setPlatformTab('uzum'); }
                                       }
-                                    }
-                                  }}
-                                >
-                                  {uzumChartData.map((entry, index) => (
-                                    <Cell
-                                      key={`uzum-${index}`}
-                                      fill={UZUM_COLORS[index % UZUM_COLORS.length]}
-                                      stroke={selectedStoreId === entry.storeId ? '#fff' : 'transparent'}
-                                      strokeWidth={selectedStoreId === entry.storeId ? 3 : 0}
-                                    />
-                                  ))}
-                                </Pie>
-                                <Tooltip formatter={(value: number) => uzumIsListingsMode ? [`${value} ta mahsulot`, ''] : [formatCurrency(value), '']} />
-                              </RechartsPieChart>
-                            </ResponsiveContainer>
-                            {/* Uzum legend */}
-                            <div className="space-y-1 mt-2">
-                              {uzumChartData.map((store, index) => {
-                                const total = uzumChartData.reduce((s, r) => s + r.value, 0);
-                                const pct = total > 0 ? ((store.value / total) * 100) : 0;
-                                const isActive = selectedStoreId === store.storeId;
-                                const isDimmed = selectedStoreId && !isActive;
-                                return (
-                                  <div
-                                    key={store.storeId}
-                                    className={`flex items-center gap-2 text-xs cursor-pointer rounded px-1 py-0.5 transition-all ${isActive ? 'bg-purple-500/10 font-bold' : ''} ${isDimmed ? 'opacity-40' : ''}`}
-                                    onClick={() => {
-                                      setSelectedStoreId(isActive ? null : store.storeId);
-                                      if (!isActive && platformTab === 'all') setPlatformTab('uzum');
                                     }}
                                   >
-                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: UZUM_COLORS[index % UZUM_COLORS.length] }} />
-                                    <span className="flex-1 truncate">{store.name}</span>
-                                    <span className="text-muted-foreground">{uzumIsListingsMode ? `${store.value} ta mahsulot` : `${pct.toFixed(0)}%`}</span>
+                                    {uzumChartData.map((entry, index) => (
+                                      <Cell key={`uzum-${index}`} fill={UZUM_COLORS[index % UZUM_COLORS.length]}
+                                        stroke={selectedStoreId === entry.storeId ? '#fff' : 'transparent'}
+                                        strokeWidth={selectedStoreId === entry.storeId ? 3 : 0}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip formatter={(value: number) => uzumIsListingsMode ? [`${value} ta`, ''] : [formatCurrency(value), '']} />
+                                </RechartsPieChart>
+                              </ResponsiveContainer>
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="text-center">
+                                  <p className="text-xl font-bold text-foreground">{uzumTotal.toLocaleString()}</p>
+                                  <p className="text-[10px] text-muted-foreground">{uzumIsListingsMode ? 'mahsulot' : 'UZS'}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-2 mt-1">
+                              {uzumChartData.map((store, index) => {
+                                const pct = uzumTotal > 0 ? (store.value / uzumTotal) * 100 : 0;
+                                const isActive = selectedStoreId === store.storeId;
+                                const isDimmed = selectedStoreId && !isActive;
+                                const color = UZUM_COLORS[index % UZUM_COLORS.length];
+                                return (
+                                  <div key={store.storeId} className={`cursor-pointer transition-all ${isDimmed ? 'opacity-40' : ''}`}
+                                    onClick={() => { setSelectedStoreId(isActive ? null : store.storeId); if (!isActive && platformTab === 'all') setPlatformTab('uzum'); }}
+                                  >
+                                    <div className={`flex items-center gap-2 text-xs mb-0.5 ${isActive ? 'font-semibold' : ''}`}>
+                                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                                      <span className="flex-1 truncate text-foreground/80">{store.name}</span>
+                                      <span className="tabular-nums font-medium" style={{ color }}>{uzumIsListingsMode ? `${store.value}` : `${Math.round(pct)}%`}</span>
+                                    </div>
+                                    <div className="h-1.5 rounded-full bg-muted overflow-hidden ml-4">
+                                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 0)}%`, backgroundColor: color, opacity: 0.8 }} />
+                                    </div>
                                   </div>
                                 );
                               })}
                             </div>
                           </>
-                        )}
+                        );})()}
                       </div>
                     )}
 
@@ -764,72 +793,76 @@ export default function MarketplaceAnalytics() {
                     {(platformTab === 'all' || platformTab === 'yandex') && (
                       <div>
                         <h4 className="text-sm font-semibold text-yellow-500 mb-2 text-center">🟡 Yandex ({yandexChartData.length} do'kon)</h4>
-                        {yandexChartData.length === 0 ? (
-                          <p className="text-center text-muted-foreground py-8 text-sm">Ma'lumot yo'q</p>
-                        ) : (
+                        {yandexChartData.length === 0 || !yandexChartData.some(d => d.value > 0) ? (
+                          <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+                            <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center"><PieChart className="h-5 w-5 text-amber-300" /></div>
+                            <p className="text-sm">Ma'lumot yo'q</p>
+                          </div>
+                        ) : (() => {
+                          const yandexTotal = yandexChartData.reduce((s, r) => s + r.value, 0);
+                          return (
                           <>
-                            <ResponsiveContainer width="100%" height={200}>
-                              <RechartsPieChart>
-                                <Pie
-                                  data={yandexChartData}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={isMobile ? 25 : 35}
-                                  outerRadius={isMobile ? 55 : 70}
-                                  paddingAngle={2}
-                                  dataKey="value"
-                                  label={isMobile ? false : ({ name, percent }) => percent > 0.03 ? `${name.slice(0, 10)} ${(percent * 100).toFixed(0)}%` : ''}
-                                  labelLine={!isMobile}
-                                  cursor="pointer"
-                                  onClick={(_, idx) => {
-                                    const store = yandexChartData[idx];
-                                    if (store) {
-                                      if (selectedStoreId === store.storeId) {
-                                        setSelectedStoreId(null);
-                                      } else {
-                                        setSelectedStoreId(store.storeId);
-                                        if (platformTab === 'all') setPlatformTab('yandex');
+                            <div className="relative">
+                              <ResponsiveContainer width="100%" height={200}>
+                                <RechartsPieChart>
+                                  <Pie
+                                    data={yandexChartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={isMobile ? 40 : 52}
+                                    outerRadius={isMobile ? 65 : 82}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    cursor="pointer"
+                                    onClick={(_, idx) => {
+                                      const store = yandexChartData[idx];
+                                      if (store) {
+                                        if (selectedStoreId === store.storeId) { setSelectedStoreId(null); }
+                                        else { setSelectedStoreId(store.storeId); if (platformTab === 'all') setPlatformTab('yandex'); }
                                       }
-                                    }
-                                  }}
-                                >
-                                  {yandexChartData.map((entry, index) => (
-                                    <Cell
-                                      key={`yandex-${index}`}
-                                      fill={YANDEX_COLORS[index % YANDEX_COLORS.length]}
-                                      stroke={selectedStoreId === entry.storeId ? '#fff' : 'transparent'}
-                                      strokeWidth={selectedStoreId === entry.storeId ? 3 : 0}
-                                    />
-                                  ))}
-                                </Pie>
-                                <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                              </RechartsPieChart>
-                            </ResponsiveContainer>
-                            {/* Yandex legend */}
-                            <div className="space-y-1 mt-2">
-                              {yandexChartData.map((store, index) => {
-                                const total = yandexChartData.reduce((s, r) => s + r.value, 0);
-                                const pct = total > 0 ? ((store.value / total) * 100) : 0;
-                                const isActive = selectedStoreId === store.storeId;
-                                const isDimmed = selectedStoreId && !isActive;
-                                return (
-                                  <div
-                                    key={store.storeId}
-                                    className={`flex items-center gap-2 text-xs cursor-pointer rounded px-1 py-0.5 transition-all ${isActive ? 'bg-yellow-500/10 font-bold' : ''} ${isDimmed ? 'opacity-40' : ''}`}
-                                    onClick={() => {
-                                      setSelectedStoreId(isActive ? null : store.storeId);
-                                      if (!isActive && platformTab === 'all') setPlatformTab('yandex');
                                     }}
                                   >
-                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: YANDEX_COLORS[index % YANDEX_COLORS.length] }} />
-                                    <span className="flex-1 truncate">{store.name}</span>
-                                    <span className="text-muted-foreground">{pct.toFixed(0)}%</span>
+                                    {yandexChartData.map((entry, index) => (
+                                      <Cell key={`yandex-${index}`} fill={YANDEX_COLORS[index % YANDEX_COLORS.length]}
+                                        stroke={selectedStoreId === entry.storeId ? '#fff' : 'transparent'}
+                                        strokeWidth={selectedStoreId === entry.storeId ? 3 : 0}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip formatter={(value: number) => yandexIsListingsMode ? [`${value} ta`, ''] : [formatCurrency(value), '']} />
+                                </RechartsPieChart>
+                              </ResponsiveContainer>
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="text-center">
+                                  <p className="text-xl font-bold text-foreground">{yandexTotal.toLocaleString()}</p>
+                                  <p className="text-[10px] text-muted-foreground">{yandexIsListingsMode ? 'mahsulot' : 'UZS'}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-2 mt-1">
+                              {yandexChartData.map((store, index) => {
+                                const pct = yandexTotal > 0 ? (store.value / yandexTotal) * 100 : 0;
+                                const isActive = selectedStoreId === store.storeId;
+                                const isDimmed = selectedStoreId && !isActive;
+                                const color = YANDEX_COLORS[index % YANDEX_COLORS.length];
+                                return (
+                                  <div key={store.storeId} className={`cursor-pointer transition-all ${isDimmed ? 'opacity-40' : ''}`}
+                                    onClick={() => { setSelectedStoreId(isActive ? null : store.storeId); if (!isActive && platformTab === 'all') setPlatformTab('yandex'); }}
+                                  >
+                                    <div className={`flex items-center gap-2 text-xs mb-0.5 ${isActive ? 'font-semibold' : ''}`}>
+                                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                                      <span className="flex-1 truncate text-foreground/80">{store.name}</span>
+                                      <span className="tabular-nums font-medium" style={{ color }}>{yandexIsListingsMode ? `${store.value}` : `${Math.round(pct)}%`}</span>
+                                    </div>
+                                    <div className="h-1.5 rounded-full bg-muted overflow-hidden ml-4">
+                                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 0)}%`, backgroundColor: color, opacity: 0.8 }} />
+                                    </div>
                                   </div>
                                 );
                               })}
                             </div>
                           </>
-                        )}
+                        );})()}
                       </div>
                     )}
                   </div>
