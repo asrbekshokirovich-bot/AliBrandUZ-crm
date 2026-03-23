@@ -79,6 +79,7 @@ const InvestorDashboard = lazy(() => import("./pages/crm/InvestorDashboard"));
 const StoreAnalytics = lazy(() => import("./pages/crm/StoreAnalytics"));
 
 const AliAI = lazy(() => import("./pages/crm/AliAI"));
+const AliAIBrain = lazy(() => import("./pages/crm/AliAIBrain"));
 const Settings = lazy(() => import("./pages/crm/Settings"));
 const StoreOrders = lazy(() => import("./pages/crm/StoreOrders"));
 
@@ -197,6 +198,7 @@ const App = () => (
                       <Route path="analytics" element={<StoreAnalytics />} />
 
                       <Route path="ali-ai" element={<AliAI />} />
+                      <Route path="ali-brain" element={<AliAIBrain />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="store-orders" element={<StoreOrders />} />
                     </Route>
