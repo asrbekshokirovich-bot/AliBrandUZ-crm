@@ -151,6 +151,28 @@ export default function MarketplaceAnalytics() {
     },
   });
 
+  // Per-store listing counts (fast: N parallel COUNT queries, no join, no row-limit issues)
+  const { data: storeListingCounts } = useQuery({
+    queryKey: ['marketplace-store-listing-counts', stores?.map(s => s.id).join(',')],
+    enabled: !!stores?.length,
+    staleTime: 120000,
+    queryFn: async () => {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        (stores || []).map(async (store) => {
+          const { count } = await supabase
+            .from('marketplace_listings')
+            .select('*', { count: 'exact', head: true })
+            .eq('store_id', store.id)
+            .eq('status', 'active');
+          counts[store.id] = count || 0;
+        })
+      );
+      return counts;
+    },
+  });
+
+
   // === Platform store splits ===
   const uzumStores = useMemo(() => stores?.filter(s => s.platform === 'uzum') || [], [stores]);
   const yandexStores = useMemo(() => stores?.filter(s => s.platform === 'yandex') || [], [stores]);
@@ -296,12 +318,10 @@ export default function MarketplaceAnalytics() {
       .sort((a, b) => b.value - a.value);
     // Fallback to listing counts when no revenue data
     if (!result.some(d => d.value > 0)) {
-      const counts: Record<string, number> = {};
-      (listings || []).forEach(l => { if (uzumStoreIds.has(l.store_id)) counts[l.store_id] = (counts[l.store_id] || 0) + 1; });
-      return uzumStores.map(s => ({ storeId: s.id, name: s.name, value: counts[s.id] || 0 })).sort((a, b) => b.value - a.value);
+      return uzumStores.map(s => ({ storeId: s.id, name: s.name, value: storeListingCounts?.[s.id] || 0 })).sort((a, b) => b.value - a.value);
     }
     return result;
-  }, [uzumStores, summary, listings]);
+  }, [uzumStores, summary, storeListingCounts]);
 
   const yandexChartData = useMemo(() => {
     const yandexStoreIds = new Set(yandexStores.map(s => s.id));
@@ -316,12 +336,10 @@ export default function MarketplaceAnalytics() {
       .sort((a, b) => b.value - a.value);
     // Fallback to listing counts when no revenue data
     if (!result.some(d => d.value > 0)) {
-      const counts: Record<string, number> = {};
-      (listings || []).forEach(l => { if (yandexStoreIds.has(l.store_id)) counts[l.store_id] = (counts[l.store_id] || 0) + 1; });
-      return yandexStores.map(s => ({ storeId: s.id, name: s.name, value: counts[s.id] || 0 })).sort((a, b) => b.value - a.value);
+      return yandexStores.map(s => ({ storeId: s.id, name: s.name, value: storeListingCounts?.[s.id] || 0 })).sort((a, b) => b.value - a.value);
     }
     return result;
-  }, [yandexStores, summary, listings]);
+  }, [yandexStores, summary, storeListingCounts]);
 
   // Track if we're showing revenue or listing counts
   const uzumIsListingsMode = !summary.some(r => uzumStores.some(s => s.id === r.store_id) && (r.gross_revenue || 0) > 0);
