@@ -127,34 +127,66 @@ export default function Boxes() {
     staleTime: 60 * 60 * 1000, // Cache for 1 hour
   });
 
-  const { data: boxes, isLoading } = useQuery({
+  const { data: boxes, isLoading, isError, error: boxesQueryError } = useQuery({
     queryKey: ['boxes'],
     queryFn: async () => {
-      return await fetchAllRows(
-        supabase
-          .from('boxes')
-          .select(`
-            *,
-            box_track_codes(id, track_code, is_primary, source, created_at),
-            product_items(
-              id, 
-              item_uuid,
-              variant_id,
-              unit_cost,
-              unit_cost_currency,
-              unit_cost_usd,
-              domestic_shipping_cost,
-              international_shipping_cost,
-              final_cost_usd,
-              exchange_rate_at_purchase,
-              products(name, uuid, main_image_url),
-              product_variants(id, variant_attributes, cost_price, cost_price_currency),
-              verification_items(status, defect_type, notes)
-            ),
-            shipment_boxes(shipment:shipments(id, shipment_number, status))
-          `)
-          .order('created_at', { ascending: false })
-      );
+      // Try full query with box_track_codes first
+      try {
+        return await fetchAllRows(
+          supabase
+            .from('boxes')
+            .select(`
+              *,
+              box_track_codes(id, track_code, is_primary, source, created_at),
+              product_items(
+                id, 
+                item_uuid,
+                variant_id,
+                unit_cost,
+                unit_cost_currency,
+                unit_cost_usd,
+                domestic_shipping_cost,
+                international_shipping_cost,
+                final_cost_usd,
+                exchange_rate_at_purchase,
+                products(name, uuid, main_image_url),
+                product_variants(id, variant_attributes, cost_price, cost_price_currency),
+                verification_items(status, defect_type, notes)
+              ),
+              shipment_boxes(shipment:shipments(id, shipment_number, status))
+            `)
+            .order('created_at', { ascending: false })
+        );
+      } catch (fullQueryError: any) {
+        // Fallback: query without box_track_codes (migration may not be applied yet)
+        console.warn('[Boxes] Full query failed, falling back:', fullQueryError?.message);
+        const rows = await fetchAllRows(
+          supabase
+            .from('boxes')
+            .select(`
+              *,
+              product_items(
+                id, 
+                item_uuid,
+                variant_id,
+                unit_cost,
+                unit_cost_currency,
+                unit_cost_usd,
+                domestic_shipping_cost,
+                international_shipping_cost,
+                final_cost_usd,
+                exchange_rate_at_purchase,
+                products(name, uuid, main_image_url),
+                product_variants(id, variant_attributes, cost_price, cost_price_currency),
+                verification_items(status, defect_type, notes)
+              ),
+              shipment_boxes(shipment:shipments(id, shipment_number, status))
+            `)
+            .order('created_at', { ascending: false })
+        );
+        // Add empty box_track_codes array for compatibility
+        return rows.map((box: any) => ({ ...box, box_track_codes: [] }));
+      }
     },
     staleTime: 0,
     gcTime: 2 * 60 * 1000,
@@ -949,6 +981,15 @@ export default function Boxes() {
 
         {isLoading ? (
           <LoadingSkeleton count={6} />
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+            <Package className="h-12 w-12 text-destructive/50" />
+            <p className="text-destructive font-medium">Ma'lumotlarni yuklashda xatolik</p>
+            <p className="text-muted-foreground text-sm max-w-xs">{(boxesQueryError as any)?.message || 'Serverga ulanishda muammo yuz berdi. Iltimos, sahifani yangilang.'}</p>
+            <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['boxes'] })}>
+              Qayta urinish
+            </Button>
+          </div>
         ) : boxes && boxes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {boxes
