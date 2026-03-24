@@ -130,10 +130,10 @@ export default function Boxes() {
   const { data: boxes, isLoading, isError, error: boxesQueryError } = useQuery({
     queryKey: ['boxes'],
     queryFn: async () => {
-      // Try full query with box_track_codes first
+      // Use factory pattern: fetchAllRows needs a fresh builder per page
       try {
         return await fetchAllRows(
-          supabase
+          () => supabase
             .from('boxes')
             .select(`
               *,
@@ -161,7 +161,7 @@ export default function Boxes() {
         // Fallback: query without box_track_codes (migration may not be applied yet)
         console.warn('[Boxes] Full query failed, falling back:', fullQueryError?.message);
         const rows = await fetchAllRows(
-          supabase
+          () => supabase
             .from('boxes')
             .select(`
               *,
@@ -213,6 +213,7 @@ export default function Boxes() {
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
 
   const handlePackBox = (box: any) => {
     setSelectedBox(box);
@@ -276,23 +277,72 @@ export default function Boxes() {
           is_primary: index === 0,
         }));
         
-        await supabase
+        const { error: trackError } = await supabase
           .from('box_track_codes')
           .insert(trackCodeInserts);
+        
+        if (trackError) {
+          console.warn('[Boxes] box_track_codes insert failed:', trackError.message);
+          // Don't throw — box was created, track codes are optional
+        }
       }
       
       return data;
     },
+    onMutate: async () => {
+      // Cancel any in-flight refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['boxes'] });
+
+      // Snapshot previous value for rollback
+      const previousBoxes = queryClient.getQueryData(['boxes']);
+
+      // Build optimistic box entry using current form state
+      const allTrackCodes = [...formData.trackCodes];
+      const pendingTrimmed = formData.pendingTrackCode.trim();
+      if (pendingTrimmed && !allTrackCodes.includes(pendingTrimmed)) {
+        allTrackCodes.push(pendingTrimmed);
+      }
+
+      const optimisticBox = {
+        id: `optimistic-${Date.now()}`,
+        box_number: 'BOX-...',
+        store_number: allTrackCodes[0] || null,
+        location: formData.location,
+        notes: formData.notes,
+        status: 'packing',
+        created_at: new Date().toISOString(),
+        box_track_codes: allTrackCodes.map((code, i) => ({
+          id: `opt-tc-${i}`,
+          track_code: code,
+          is_primary: i === 0,
+          source: 'manual',
+          created_at: new Date().toISOString(),
+        })),
+        product_items: [],
+        shipment_boxes: [],
+      };
+
+      // Prepend to list so it appears at the top immediately
+      queryClient.setQueryData(['boxes'], (old: any[]) => [optimisticBox, ...(old || [])]);
+
+      return { previousBoxes };
+    },
     onSuccess: () => {
+      // Refetch from server to replace the optimistic entry with real data
       queryClient.invalidateQueries({ queryKey: ['boxes'] });
       toast({ title: t('box_created'), description: t('box_created_desc') });
       setOpen(false);
       setFormData({ trackCodes: [], pendingTrackCode: '', location: 'china', notes: '' });
     },
-    onError: (error: any) => {
+    onError: (error: any, _variables, context: any) => {
+      // Roll back the optimistic update on error
+      if (context?.previousBoxes !== undefined) {
+        queryClient.setQueryData(['boxes'], context.previousBoxes);
+      }
       toast({ title: t('vf_error'), description: error.message, variant: 'destructive' });
     },
   });
+
 
   const editBoxCostsMutation = useMutation({
     mutationFn: async ({ boxId, shippingCost, packagingFee, volumeM3 }: { boxId: string, shippingCost: number | null, packagingFee: number | null, volumeM3: number | null }) => {

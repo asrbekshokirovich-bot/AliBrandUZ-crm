@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { FileText, Upload, ChevronDown, ChevronRight, CheckCircle2, XCircle, Search, Loader2, Trash2, Undo2 } from 'lucide-react';
+import { FileText, Upload, ChevronDown, ChevronRight, CheckCircle2, XCircle, Search, Loader2, Trash2, Undo2, Store, AlertTriangle, WifiOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -33,6 +33,26 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
 
   // The effective marketplace: use prop if provided, otherwise use internal state
   const marketplace = propMarketplace ?? activeMarket;
+
+  // Fetch connected stores for the active marketplace
+  const { data: connectedStores = [], isLoading: storesLoading } = useQuery({
+    queryKey: ['marketplace-stores-for-nakladnoy', marketplace],
+    queryFn: async () => {
+      // Wildberries is not in marketplace_stores yet
+      if (marketplace === 'wildberries') return [];
+      try {
+        const { data, error } = await supabase
+          .from('marketplace_stores' as any)
+          .select('id, name, is_active, sync_status, last_sync_at')
+          .eq('platform', marketplace)
+          .order('name', { ascending: true });
+        if (error) return [];
+        return (data as any[]) ?? [];
+      } catch {
+        return [];
+      }
+    },
+  });
 
   // Fetch existing invoices - filter by marketplace
   const { data: invoices = [], isLoading } = useQuery({
@@ -569,6 +589,65 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
         </div>
       )}
 
+      {/* Stores info banner for selected marketplace */}
+      {marketplace === 'wildberries' ? (
+        <Card className="border-yellow-500/30 bg-yellow-500/5">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center gap-3">
+              <WifiOff className="h-5 w-5 text-yellow-500 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Wildberries do'koni ulanmagan</p>
+                <p className="text-xs text-muted-foreground">Wildberries hali tizimga integratsiya qilinmagan. Siz faqat PDF nakladnoylarni qo'lda yuklashingiz mumkin.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : storesLoading ? null : connectedStores.length === 0 ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {marketplace === 'uzum' ? 'Uzum Market' : 'Yandex Market'} do'koni topilmadi
+                </p>
+                <p className="text-xs text-muted-foreground">Bu platforma uchun hech qanday do'kon ulanmagan. Boshqaruv panelidan do'kon qo'shing.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-green-500/30 bg-green-500/5">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center gap-2 flex-wrap gap-y-1">
+              <Store className="h-4 w-4 text-green-600 shrink-0" />
+              <span className="text-sm font-medium text-foreground">
+                {marketplace === 'uzum' ? 'Uzum Market' : 'Yandex Market'} — {connectedStores.length} ta do'kon ulangan:
+              </span>
+              {connectedStores.map((store: any) => (
+                <Badge
+                  key={store.id}
+                  variant="outline"
+                  className={cn(
+                    "text-xs",
+                    store.is_active
+                      ? store.sync_status === 'success'
+                        ? 'border-green-500 text-green-600'
+                        : store.sync_status === 'error'
+                          ? 'border-red-500 text-red-600'
+                          : 'border-blue-500 text-blue-600'
+                      : 'opacity-50'
+                  )}
+                >
+                  {store.is_active ? <CheckCircle2 className="h-3 w-3 mr-1 inline" /> : <XCircle className="h-3 w-3 mr-1 inline" />}
+                  {store.name}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Upload Area */}
       <Card>
 
@@ -731,7 +810,10 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
         ) : filteredInvoices.length === 0 ? (
           <Card className="p-8 text-center">
             <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-            <p className="text-muted-foreground">Hali nakladnoy yuklanmagan</p>
+            <p className="text-muted-foreground font-medium">
+              {marketplace === 'uzum' ? 'Uzum Market' : marketplace === 'yandex' ? 'Yandex Market' : 'Wildberries'} uchun nakladnoy topilmadi
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">Yuqoridagi maydondan PDF nakladnoy yuklab qo'shing</p>
           </Card>
         ) : (
           filteredInvoices.map((inv: any) => (

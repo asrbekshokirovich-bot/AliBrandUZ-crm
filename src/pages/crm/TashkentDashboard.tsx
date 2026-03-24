@@ -595,6 +595,7 @@ export default function TashkentDashboard() {
           <HandoverInvoicesTab />
         </TabsContent>
 
+
         {/* Archive Tab */}
         <TabsContent value="archive" className="mt-6">
           <ArchivedProductsTab />
