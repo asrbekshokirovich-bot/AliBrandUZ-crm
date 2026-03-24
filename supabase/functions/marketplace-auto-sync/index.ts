@@ -166,14 +166,31 @@ Deno.serve(async (req) => {
       console.log(`[marketplace-auto-sync] Cleaned ${stuckLogs.length} stuck sync logs`);
     }
 
+    // Timeout wrapper: prevents hanging inner function calls
+    const INNER_TIMEOUT_MS = 40000; // 40s per inner function call
+    const GLOBAL_TIMEOUT_MS = 45000; // 45s total for all stores
+    // deno-lint-ignore no-explicit-any
+    const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`[timeout] ${label} exceeded ${ms}ms`)), ms)
+      );
+      return Promise.race([promise, timeout]);
+    };
+
     // Process each store with retry mechanism
-    const MAX_RETRIES = 2;
-    const RETRY_DELAY_MS = 2000;
+    const MAX_RETRIES = 1; // Reduced from 2 to save time
+    const RETRY_DELAY_MS = 1000;
     
     for (const store of stores) {
+      // Global time guard: stop if approaching Edge Function timeout
+      if (Date.now() - startTime > GLOBAL_TIMEOUT_MS) {
+        console.log(`[marketplace-auto-sync] Global timeout reached after ${Math.round((Date.now() - startTime) / 1000)}s, stopping`);
+        break;
+      }
+
       let retryCount = 0;
       let syncSuccess = false;
-      
+
       while (retryCount <= MAX_RETRIES && !syncSuccess) {
         const storeStartTime = Date.now();
         
@@ -212,9 +229,11 @@ Deno.serve(async (req) => {
               // Yandex: limit to 7 days
               orderBody.days = 7;
             }
-            const result = await supabase.functions.invoke(functionName, {
-              body: orderBody,
-            });
+            const result = await withTimeout(
+              supabase.functions.invoke(functionName, { body: orderBody }),
+              INNER_TIMEOUT_MS,
+              `${functionName} orders`
+            );
             data = result.data;
             error = result.error;
             
