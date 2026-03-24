@@ -2921,6 +2921,13 @@ const resources = {
       lai_no_analysis: 'Tahlil mavjud emas',
       lai_error: 'AI tahlil xatosi',
 
+      // NotificationBell
+      notif_title: 'Bildirishnomalar',
+      notif_disabled: 'O\'chirilgan',
+      notif_empty: 'Bildirishnomalar yo\'q',
+      notif_mark_read: 'Barchasini o\'qildi deb belgilash',
+      notif_sale_badge: 'Sotildi',
+
     },
   },
   ru: {
@@ -5839,6 +5846,13 @@ const resources = {
       lai_no_analysis: 'Анализ недоступен',
       lai_error: 'Ошибка AI анализа',
 
+      // NotificationBell
+      notif_title: 'Уведомления',
+      notif_disabled: 'Отключено',
+      notif_empty: 'Нет уведомлений',
+      notif_mark_read: 'Отметить все как прочитанные',
+      notif_sale_badge: 'Продано',
+
     },
   },
   en: {
@@ -8655,6 +8669,13 @@ const resources = {
       lai_retry: 'Retry',
       lai_no_analysis: 'No analysis available',
       lai_error: 'AI analysis error',
+
+      // NotificationBell
+      notif_title: 'Notifications',
+      notif_disabled: 'Disabled',
+      notif_empty: 'No notifications',
+      notif_mark_read: 'Mark all as read',
+      notif_sale_badge: 'Sold',
 
     },
   },
@@ -11569,6 +11590,13 @@ const resources = {
       lai_retry: '重试',
       lai_no_analysis: '暂无分析',
       lai_error: 'AI分析错误',
+
+      // NotificationBell
+      notif_title: '通知',
+      notif_disabled: '已停用',
+      notif_empty: '暂无通知',
+      notif_mark_read: '全部标为已读',
+      notif_sale_badge: '已售',
 
     },
   },
