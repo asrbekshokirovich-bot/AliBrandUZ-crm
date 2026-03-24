@@ -13,7 +13,13 @@ import { cn } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { parsePdfText, parseInvoiceData, type ParsedInvoice } from '@/lib/pdfInvoiceParser';
 
-export function HandoverInvoicesTab() {
+type MarketplaceType = 'uzum' | 'yandex' | 'wildberries';
+
+interface HandoverInvoicesTabProps {
+  marketplace?: MarketplaceType; // optional: if passed, skip the selector UI
+}
+
+export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverInvoicesTabProps = {}) {
   const queryClient = useQueryClient();
   const [isDragOver, setIsDragOver] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -22,21 +28,48 @@ export function HandoverInvoicesTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [undoConfirmId, setUndoConfirmId] = useState<string | null>(null);
+  // Self-contained marketplace selector (used when no prop is passed)
+  const [activeMarket, setActiveMarket] = useState<MarketplaceType>('uzum');
 
-  // Fetch existing invoices
+  // The effective marketplace: use prop if provided, otherwise use internal state
+  const marketplace = propMarketplace ?? activeMarket;
+
+  // Fetch existing invoices - filter by marketplace
   const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ['handover-invoices'],
+    queryKey: ['handover-invoices', marketplace],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('handover_invoices' as any)
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as any[];
+      try {
+        let query = supabase
+          .from('handover_invoices' as any)
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        // Filter by marketplace column if marketplace is specified
+        if (marketplace) {
+          query = (query as any).eq('marketplace', marketplace);
+        }
+
+        const { data, error } = await query;
+        // If the column doesn't exist yet, fall back to all invoices
+        if (error?.message?.includes('marketplace')) {
+          const { data: fallback, error: fallbackError } = await supabase
+            .from('handover_invoices' as any)
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (fallbackError) throw fallbackError;
+          return (fallback as any[]) ?? [];
+        }
+        if (error) throw error;
+        return (data as any[]) ?? [];
+      } catch (err: any) {
+        console.warn('[HandoverInvoicesTab] query error:', err?.message);
+        return [];
+      }
     },
   });
 
   // Fetch orders for expanded invoice
+
   const { data: expandedOrders = [] } = useQuery({
     queryKey: ['handover-invoice-orders', expandedId],
     queryFn: async () => {
@@ -122,6 +155,7 @@ export function HandoverInvoicesTab() {
           not_accepted_count: parsedData.notAcceptedOrders.length,
           pdf_url: pdfUrl,
           uploaded_by: user.id,
+          marketplace: marketplace ?? null,
         } as any)
         .select()
         .single();
@@ -303,6 +337,7 @@ export function HandoverInvoicesTab() {
       }
       setParsedData(null);
       setSelectedFile(null);
+      queryClient.invalidateQueries({ queryKey: ['handover-invoices', marketplace ?? 'all'] });
       queryClient.invalidateQueries({ queryKey: ['handover-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
@@ -475,8 +510,68 @@ export function HandoverInvoicesTab() {
 
   return (
     <div className="space-y-6">
+      {/* Marketplace selector — only shown when parent doesn't control it via prop */}
+      {!propMarketplace && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground font-medium mr-1">Platforma:</span>
+          <Button
+            variant={activeMarket === 'uzum' ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              "gap-2 transition-all",
+              activeMarket === 'uzum'
+                ? "bg-[#7B2FBE] hover:bg-[#6a26a8] text-white border-[#7B2FBE]"
+                : "hover:border-[#7B2FBE] hover:text-[#7B2FBE]"
+            )}
+            onClick={() => setActiveMarket('uzum')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="12" fill="#7B2FBE"/>
+              <text x="12" y="16" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold" fontFamily="Arial">U</text>
+            </svg>
+            Uzum Market
+          </Button>
+          <Button
+            variant={activeMarket === 'yandex' ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              "gap-2 transition-all",
+              activeMarket === 'yandex'
+                ? "bg-[#FC3F1D] hover:bg-[#e03518] text-white border-[#FC3F1D]"
+                : "hover:border-[#FC3F1D] hover:text-[#FC3F1D]"
+            )}
+            onClick={() => setActiveMarket('yandex')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="12" fill="#FC3F1D"/>
+              <text x="12" y="16" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial">Y</text>
+            </svg>
+            Yandex Market
+          </Button>
+          <Button
+            variant={activeMarket === 'wildberries' ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              "gap-2 transition-all",
+              activeMarket === 'wildberries'
+                ? "bg-[#A000DC] hover:bg-[#8800be] text-white border-[#A000DC]"
+                : "hover:border-[#A000DC] hover:text-[#A000DC]"
+            )}
+            onClick={() => setActiveMarket('wildberries')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="12" fill="#A000DC"/>
+              <text x="12" y="16" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial">W</text>
+            </svg>
+            Wildberries
+          </Button>
+          <div className="w-full border-t border-border mt-1" />
+        </div>
+      )}
+
       {/* Upload Area */}
       <Card>
+
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="h-5 w-5 text-primary" />
