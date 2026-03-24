@@ -2,49 +2,59 @@
 description: Review Ali AI prompts, cost, and response quality
 ---
 
-# /ai-review — Ali AI Brain Reviewer
+# /ai-review — Ali AI Quality Review
 
-You are an AI systems expert reviewing the Ali AI integration in alicargo-joy-main.
+Review the Ali AI system prompt, API usage, cost, and response quality.
 
 ## Review Areas
 
 ### 1. System Prompt Quality
-- [ ] Prompt is clear, specific, and role-defined
-- [ ] Output format specified (JSON / Uzbek text / chart data)
-- [ ] No sensitive internal data hard-coded in prompts
-- [ ] Prompt uses **proportional weight-based landed cost formula** correctly:
-  ```
-  item_landed_cost = (item_weight / total_weight) * total_logistics_cost
-  ```
+Check `supabase/functions/ali-ai/index.ts` or system prompt file:
+- [ ] Prompt is in Uzbek for Uzbek responses
+- [ ] Financial formulas are clearly defined (Proportional Weight-based Landed Cost)
+- [ ] Output format is strictly JSON when needed
+- [ ] Hallucination guards are in place ("Only use data provided")
+- [ ] Examples of correct vs incorrect outputs are included
 
-### 2. Cost Optimization
-- [ ] Model choice is appropriate:
-  - `gemini-flash` / `sonnet` for routine queries
-  - `opus` / `gemini-pro` only for deep analysis
-- [ ] `MAX_TOKENS` / `max_output_tokens` set to avoid runaway responses
-- [ ] No AI calls inside loops or on every keystroke
-- [ ] Streaming used for long responses (better UX, same cost)
+### 2. API Cost Review
+Gemini API pricing awareness:
+- [ ] Are large system prompts minimized?
+- [ ] Is conversation history trimmed (not sending entire history every time)?
+- [ ] Are file uploads (PDFs, images) compressed before sending?
+- [ ] Are responses cached where appropriate?
 
-### 3. Response Handling
-- [ ] AI responses validated before rendering to UI
-- [ ] JSON responses parsed with try/catch
-- [ ] Fallback UI shown when AI fails
-- [ ] Uzbek language responses are correctly formatted
+### 3. Response Quality Checklist
+Test with these standard queries:
+```
+"Bugungi statistika" → Should return today's boxes/revenue data
+"Qanday muammolar bor?" → Should return actual issues from DB
+"Box narxini hisobla" → Should use correct formula
+```
 
-### 4. CEO Analytics Queries
-Verify these specific queries trigger correct backend logic:
-- [ ] "Bugungi statistika" → real Supabase data, not mock
-- [ ] "Qanday muammolar bor?" → actionable insights with charts/tables
-- [ ] Financial summaries use correct formula (not hardcoded values)
+- [ ] Responses are in Uzbek
+- [ ] Numbers match actual database values
+- [ ] Charts/tables are rendered correctly in UI
+- [ ] Error states are handled gracefully
 
-### 5. Security
-- [ ] API keys in env vars only (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`)
-- [ ] User input sanitized before injecting into prompts
-- [ ] No prompt injection vectors (user can't override system role)
+### 4. Security Review
+- [ ] `GEMINI_API_KEY` is stored in Supabase secrets, not in code
+- [ ] User input is not injected directly into prompts without sanitization
+- [ ] Rate limiting is implemented
+
+### 5. Output Format
+```
+### AI Review Results
+
+Prompt Quality: [score /10]
+Cost Efficiency: [assessment]
+Response Accuracy: [test results]
+Issues Found: [list]
+Recommended Fixes: [list]
+```
 
 ## Usage
 ```
-/ai-review api/ai-analytics.ts
-/ai-review api/ceo-ai.ts
-/ai-review              ← review all AI-related files
+/ai-review
+/ai-review "why is Ali AI returning wrong financial totals?"
+/ai-review "optimize prompt to reduce token usage"
 ```

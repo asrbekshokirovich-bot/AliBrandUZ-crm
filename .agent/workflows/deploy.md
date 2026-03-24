@@ -2,60 +2,63 @@
 description: Deploy to Vercel and update Supabase Edge Functions
 ---
 
-# /deploy — Deployment Workflow
+# /deploy — Deploy to Production
 
-Deploy the alicargo-joy-main project to production (Vercel + Supabase).
+Deploy the alicargo-joy-main project to Vercel and sync Supabase Edge Functions.
 
 ## Pre-Deploy Checklist
-- [ ] `npm run build` passes with 0 errors
-- [ ] `npx tsc --noEmit` passes with 0 errors
-- [ ] All `.env` variables added to Vercel dashboard
-- [ ] Supabase migrations applied to production
-- [ ] No `console.log` with sensitive data
+- [ ] `npm run build` passes locally
+- [ ] `.env` values are set in Vercel dashboard
+- [ ] Supabase migrations are applied
+- [ ] New edge functions are deployed
 
-## Step 1: Deploy Supabase Edge Functions
-```powershell
-# Deploy all functions
-.\deploy-all-functions.ps1
+## Step 1: Build Check
+```bash
+npm run build
+```
+Fix any errors before proceeding.
 
-# Or deploy a single function
-npx supabase functions deploy ai-analytics
-npx supabase functions deploy ceo-ai
-npx supabase functions deploy scan-return-document
+## Step 2: Deploy Frontend to Vercel
+```bash
+# If Vercel CLI is installed:
+vercel --prod
+
+# Or push to main branch (auto-deploy if connected):
+git add .
+git commit -m "deploy: [description]"
+git push origin main
 ```
 
-## Step 2: Apply Migrations (if any)
+## Step 3: Deploy Supabase Edge Functions
+```bash
+# Deploy all functions:
+npx supabase functions deploy
+
+# Deploy a specific function:
+npx supabase functions deploy ali-ai
+npx supabase functions deploy process-invoice
+```
+
+## Step 4: Apply Database Migrations
 ```bash
 npx supabase db push
 ```
 
-## Step 3: Deploy to Vercel
-```bash
-# Deploy to production
-npx vercel --prod
+## Step 5: Verify
+- Open https://alibrand.uz
+- Check `/crm` loads correctly
+- Test AI chat works
+- Check Supabase logs for any errors
 
-# Or push to main branch (auto-deploys if GitHub connected)
-git push origin main
-```
-
-## Step 4: Verify Production
-- [ ] Visit `https://alibrand.uz` — page loads correctly
-- [ ] CRM at `https://alibrand.uz/crm` — no blank page
-- [ ] Ali AI responds in Uzbek
-- [ ] Test one critical flow end-to-end
-
-## Rollback (if something breaks)
-```bash
-# Revert to previous Vercel deployment
-npx vercel rollback
-
-# View deployment history
-npx vercel ls
-```
+## Environment Variables Required
+| Variable | Location |
+|---|---|
+| `VITE_SUPABASE_URL` | Vercel + `.env` |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Vercel + `.env` |
+| `GEMINI_API_KEY` | Supabase Edge Function secrets |
 
 ## Usage
 ```
-/deploy             ← full deploy checklist + execute
-/deploy supabase    ← Supabase Edge Functions only
-/deploy vercel      ← Vercel frontend only
+/deploy
+/deploy "after adding marketplace filter"
 ```

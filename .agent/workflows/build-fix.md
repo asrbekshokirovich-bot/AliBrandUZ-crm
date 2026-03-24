@@ -2,43 +2,45 @@
 description: Diagnose and fix build, TypeScript, or runtime errors
 ---
 
-# /build-fix — Build Error Resolver
+# /build-fix — Build Error Fixer
 
-You are a build error specialist for the alicargo-joy-main project (Vite + TypeScript + React).
+Systematically diagnose and fix build, TypeScript, or runtime errors.
 
-## Diagnostic Steps
+## Protocol
 
-### 1. Capture the Error
-```bash
-npm run build 2>&1
-# or for type errors only:
-npx tsc --noEmit
-```
+### 1. Read the Error
+Copy the full error output. Identify:
+- Error type: TypeScript / Vite / ESLint / Runtime?
+- File and line number
+- Full error message
 
-### 2. Classify the Error
+### 2. Common Error Patterns
 
-| Error Type | Common Cause | Fix Strategy |
+| Error | Likely Cause | Fix |
 |---|---|---|
-| TS2345 — Type mismatch | Wrong prop type | Update interface or cast |
-| TS2339 — Property not found | Missing field on type | Add to interface |
-| TS18047 — Possibly null | Null safety | Add `?.` or null guard |
-| Module not found | Missing import / wrong path | Fix import path |
-| Vite env error | Missing `.env` variable | Add to `.env` and `vite-env.d.ts` |
-| Supabase type error | Schema mismatch | Run `supabase gen types` |
+| `TS2345` Type mismatch | Wrong prop type or missing field | Check interface definition |
+| `TS2304` Cannot find name | Missing import or type | Add import or run `supabase gen types` |
+| `Module not found` | Wrong path or missing install | Check import path, run `npm install` |
+| `ReferenceError` | Using variable before declaration | Check hook call order |
+| `Cannot read properties of undefined` | Null/undefined data | Add optional chaining `?.` |
+| Vite build fails | ESM/CJS mismatch | Check `vite.config.ts` |
 
-### 3. Fix Protocol
-1. Fix **one error at a time**, starting from the top
-2. Re-run build/typecheck after each fix
-3. Never use `// @ts-ignore` without a comment explaining why
-4. If a Supabase type is wrong → regenerate types first
+### 3. Fix Process
+1. Read the error carefully
+2. Find the referenced file and line
+3. Apply the minimal fix
+4. Run `npm run build` or `npm run dev` to verify
+5. If types are stale: `npx supabase gen types typescript --local > src/integrations/supabase/types.ts`
 
-### 4. Regenerate Supabase Types (if DB schema changed)
+### 4. Verify
 ```bash
-npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/types/supabase.ts
+npm run build
+# Should output: ✓ built in Xs
 ```
 
 ## Usage
 ```
-/build-fix                     ← paste the error and I'll fix it
-/build-fix "TS2345 in CRMSidebar"
+/build-fix "TS2345: Argument of type 'string' is not assignable to parameter of type 'number'"
+/build-fix "Module not found: @/components/ui/button"
+/build-fix "Cannot read properties of undefined (reading 'map')"
 ```

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
-import { Bell, BellOff, Check, Package, Truck, AlertTriangle, X } from 'lucide-react';
+import { Bell, BellOff, Check, Package, Truck, AlertTriangle, X, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -36,6 +36,7 @@ const eventIcons: Record<string, React.ElementType> = {
   shipment_departed: Truck,
   box_arrived: Check,
   defect_found: AlertTriangle,
+  uzum_sale: ShoppingBag,
   default: Bell
 };
 
@@ -44,6 +45,7 @@ const eventColors: Record<string, string> = {
   shipment_departed: 'text-orange-500',
   box_arrived: 'text-green-500',
   defect_found: 'text-red-500',
+  uzum_sale: 'text-emerald-500',
   default: 'text-muted-foreground'
 };
 
@@ -206,44 +208,71 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="divide-y">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={cn(
-                    'p-3 hover:bg-muted/50 cursor-pointer transition-colors',
-                    !notification.read_at && 'bg-primary/5'
-                  )}
-                  onClick={() => handleNotificationClick(notification)}
-                >
-                  <div className="flex gap-3">
-                    <div className="mt-0.5">
-                      {getIcon(notification.event_type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        'text-sm',
-                        !notification.read_at && 'font-medium'
-                      )}>
-                        {notification.title}
-                      </p>
-                      {notification.body && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {notification.body}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(new Date(notification.sent_at), {
-                          addSuffix: true,
-                          locale: uz
-                        })}
-                      </p>
-                    </div>
-                    {!notification.read_at && (
-                      <div className="w-2 h-2 bg-primary rounded-full mt-2" />
+              {notifications.map((notification) => {
+                const isSale = notification.event_type === 'uzum_sale';
+                const meta = notification.metadata as Record<string, unknown> | undefined;
+                const platform = meta?.platform as string | undefined;
+                const qty = meta?.quantity as number | undefined;
+                const storeName = meta?.store_name as string | undefined;
+
+                return (
+                  <div
+                    key={notification.id}
+                    className={cn(
+                      'p-3 hover:bg-muted/50 cursor-pointer transition-colors',
+                      !notification.read_at && 'bg-primary/5',
+                      isSale && !notification.read_at && 'border-l-2 border-l-emerald-500'
                     )}
+                    onClick={() => handleNotificationClick(notification)}
+                  >
+                    <div className="flex gap-3">
+                      <div className={cn('mt-0.5 p-1.5 rounded-full', isSale && 'bg-emerald-500/10')}>
+                        {getIcon(notification.event_type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={cn(
+                            'text-sm',
+                            !notification.read_at && 'font-medium'
+                          )}>
+                            {isSale
+                              ? notification.title.replace('[Sale] ', '')
+                              : notification.title}
+                          </p>
+                          {isSale && platform && (
+                            <span className={cn(
+                              'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                              platform === 'uzum' ? 'bg-purple-500/15 text-purple-600' : 'bg-yellow-500/15 text-yellow-700'
+                            )}>
+                              {platform.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        {notification.body && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {notification.body}
+                          </p>
+                        )}
+                        {isSale && qty !== undefined && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs font-medium text-emerald-600">−{qty} dona zaxiradan</span>
+                            {storeName && <span className="text-xs text-muted-foreground">{storeName}</span>}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDistanceToNow(new Date(notification.sent_at), {
+                            addSuffix: true,
+                            locale: uz
+                          })}
+                        </p>
+                      </div>
+                      {!notification.read_at && (
+                        <div className="w-2 h-2 bg-primary rounded-full mt-2" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </ScrollArea>

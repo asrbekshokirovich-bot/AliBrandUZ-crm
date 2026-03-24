@@ -2,41 +2,55 @@
 description: Review Supabase schema, migrations, RLS policies, and query patterns
 ---
 
-# /db-review — Database & Supabase Reviewer
+# /db-review — Database Review
 
-You are a Supabase/PostgreSQL expert reviewing the alicargo-joy-main database layer.
+Review Supabase schema, migrations, RLS policies, and query patterns.
 
-## Review Scope
+## Review Areas
 
-### 1. Schema Quality
-- [ ] All tables have `created_at` and `updated_at` timestamps
-- [ ] Foreign keys defined with proper `ON DELETE` behavior
-- [ ] Indexes on frequently queried columns (e.g., `store_id`, `status`, `user_id`)
-- [ ] No redundant data across tables (normalize where practical)
+### 1. Schema Review
+- [ ] Tables have primary keys (`id uuid DEFAULT gen_random_uuid()`)
+- [ ] Foreign keys are correctly defined with `REFERENCES`
+- [ ] Timestamps: `created_at`, `updated_at` with defaults
+- [ ] Nullable vs NOT NULL columns are intentional
 
-### 2. Migration Safety
-- [ ] Migrations are additive (no destructive changes without backup plan)
-- [ ] Column renames done in 2 steps (add new → migrate data → drop old)
-- [ ] All migrations tested on local Supabase before production
+### 2. Migration Review
+Check files in `supabase/migrations/`:
+- [ ] Migrations are reversible (can be rolled back)
+- [ ] No data-destructive operations without a backup plan
+- [ ] Column renames use add+copy+drop pattern, not direct rename
+- [ ] Indexes added for frequently queried columns
 
-### 3. RLS Policies
-- [ ] RLS enabled on ALL tables
-- [ ] Policies tested for each user role (admin, store_manager, viewer)
-- [ ] No accidental public read access on sensitive tables (orders, boxes, financials)
+### 3. RLS Policy Review
+```sql
+-- Check existing policies
+SELECT tablename, policyname, cmd, qual 
+FROM pg_policies 
+WHERE schemaname = 'public';
+```
+- [ ] Every table has RLS enabled (`ALTER TABLE x ENABLE ROW LEVEL SECURITY`)
+- [ ] Users can only see their own data (filter by `auth.uid()`)
+- [ ] Operators can see their store's data
+- [ ] Admin can see all data
 
-### 4. Query Patterns in Code
-- [ ] No N+1: don't query inside loops — use `.in()` or join queries
-- [ ] Pagination implemented for large result sets
-- [ ] `.single()` only when exactly 1 row is guaranteed
-- [ ] All errors handled: `const { data, error } = await supabase...`
+### 4. Query Pattern Review
+In React hooks (`src/hooks/`):
+- [ ] Always handle `{ data, error }` from Supabase
+- [ ] Use `.select()` with specific columns, not `*` for large tables
+- [ ] Use `.order()` and `.limit()` for lists
+- [ ] Use `useQuery` pattern from `@tanstack/react-query` for caching
 
-### 5. Alicargo-Specific Logic
-- [ ] Landed cost formula (`proportional weight-based`) applied consistently in DB
-- [ ] Box status transitions are valid (pending → in_transit → delivered)
-- [ ] Store isolation: queries always filter by `store_id`
+### 5. alicargo-joy-main Key Tables
+| Table | Purpose |
+|---|---|
+| `boxes` | Individual shipping boxes |
+| `nakladnoy` | Marketplace invoices |
+| `stores` | Client stores |
+| `shipments` | Grouped box shipments |
 
 ## Usage
 ```
-/db-review supabase/migrations/
-/db-review              ← review all Supabase usage in src/ and api/
+/db-review "check RLS policies for boxes table"
+/db-review "review new migration for nakladnoy"
+/db-review "optimize slow query in useBoxes hook"
 ```

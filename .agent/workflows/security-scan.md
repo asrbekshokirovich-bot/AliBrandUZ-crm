@@ -2,56 +2,66 @@
 description: Security audit for API keys, RLS policies, and injection risks
 ---
 
-# /security-scan — Security Auditor
+# /security-scan — Security Audit
 
-You are a security auditor for the alicargo-joy-main project. Scan for vulnerabilities across 5 categories.
+Perform a security audit of the alicargo-joy-main codebase.
 
-## Scan Categories
+## Scan Areas
 
-### 🔑 1. Secrets Detection
-- [ ] No API keys in source code (search for `sk-`, `AIza`, `eyJ`)
-- [ ] All secrets in `.env` files only
-- [ ] `.env` is in `.gitignore`
-- [ ] No Supabase service_role key used client-side (only anon key)
-
+### 1. Exposed Secrets Check
+Search for hardcoded credentials:
 ```bash
-# Quick secret scan
-grep -r "sk-\|service_role\|AIza\|SECRET" src/ api/ --include="*.ts" --include="*.tsx"
+# Search for potential API keys
+grep -r "sk-" src/
+grep -r "AIza" src/
+grep -r "eyJ" src/ --include="*.ts" --include="*.tsx"
 ```
+- [ ] No API keys in source code
+- [ ] `.env` is in `.gitignore`
+- [ ] No secrets committed to git history
 
-### 🛡️ 2. Supabase RLS Audit
-- [ ] Every table has RLS enabled
-- [ ] Policies are restrictive by default (deny all, then allow)
-- [ ] No `select *` from sensitive tables without auth check
-- [ ] Admin functions use service role only in Edge Functions (server-side)
-
-### 🔒 3. API Route Security
-- [ ] All `/api/*` routes validate auth token before processing
-- [ ] Input is validated/sanitized (no raw SQL string interpolation)
-- [ ] Rate limiting on AI endpoints (prevent cost attacks)
-- [ ] CORS configured properly
-
-### 💉 4. Injection Risks
-- [ ] No `dangerouslySetInnerHTML` with unescaped user input
-- [ ] AI-generated content rendered as text, not HTML
-- [ ] No `eval()` usage
-
-### 🤖 5. AI / Prompt Injection
-- [ ] System prompts don't include raw user-supplied data without sanitization
-- [ ] AI responses not executed as code
-- [ ] Token limits set on all AI calls to prevent cost exhaustion
-
-## Output
+### 2. Supabase RLS Audit
+```sql
+-- Tables without RLS:
+SELECT tablename FROM pg_tables 
+WHERE schemaname = 'public'
+AND tablename NOT IN (
+  SELECT DISTINCT tablename FROM pg_policies
+);
 ```
-[CRITICAL] api/ai-analytics.ts:45 — Service role key exposed in client bundle
-[HIGH]     supabase/migrations — Table 'boxes' missing RLS policy
-[MEDIUM]   src/components/crm — dangerouslySetInnerHTML detected
-[LOW]      .env.example — Placeholder secret pattern detected
+- [ ] All tables have RLS enabled
+- [ ] Policies use `auth.uid()` — not open to all users
+- [ ] Service role key is never used in client-side code
+
+### 3. API Route Security
+Check `api/*.ts` files:
+- [ ] Authentication is verified before processing requests
+- [ ] Request body is validated (not trusted blindly)
+- [ ] Errors don't leak internal details to clients
+
+### 4. Client-Side Security
+Check `src/`:
+- [ ] Only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are exposed (these are safe)
+- [ ] No `SUPABASE_SERVICE_ROLE_KEY` in client code
+- [ ] No `GEMINI_API_KEY` in client code
+
+### 5. Injection Risks
+- [ ] User input is not used in raw SQL queries
+- [ ] File uploads have type and size validation
+- [ ] URL parameters are sanitized before use
+
+## Output Format
+```
+### Security Scan Results
+
+🔴 Critical: [issue]
+🟡 Warning: [issue]
+🟢 OK: [checked item]
 ```
 
 ## Usage
 ```
-/security-scan              ← full project scan
-/security-scan api/         ← scan API routes only
-/security-scan supabase/    ← scan Supabase config and migrations
+/security-scan
+/security-scan "check if GEMINI_API_KEY is exposed"
+/security-scan "audit RLS policies after new migration"
 ```

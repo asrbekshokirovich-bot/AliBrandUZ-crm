@@ -2,54 +2,85 @@
 description: Test-driven development workflow - write tests first
 ---
 
-# /tdd — Test-Driven Development Workflow
+# /tdd — Test-Driven Development
 
-You are enforcing TDD discipline on the alicargo-joy-main project.
+Write tests first, then implement. Red → Green → Refactor.
 
-## The TDD Loop
+## TDD Cycle
 
-### 🔴 RED — Write a Failing Test First
-1. Define the interface/contract of the function/component
-2. Write a test that describes the expected behavior
-3. Run it — confirm it FAILS (this is correct!)
-
+### 1. Write a Failing Test (Red)
 ```typescript
-// Example: testing a utility
-describe('calculateLandedCost', () => {
-  it('applies proportional weight-based formula', () => {
-    const result = calculateLandedCost({ weight: 10, totalCost: 100, totalWeight: 50 });
-    expect(result).toBe(20); // 10/50 * 100
+// src/__tests__/useBoxes.test.ts
+import { renderHook } from '@testing-library/react';
+import { useBoxes } from '../hooks/useBoxes';
+
+describe('useBoxes', () => {
+  it('should return boxes for a store', async () => {
+    const { result } = renderHook(() => useBoxes('store-id-123'));
+    // This will fail until implemented
+    expect(result.current.boxes).toBeDefined();
+    expect(result.current.isLoading).toBe(false);
   });
 });
 ```
 
-### 🟢 GREEN — Implement Minimal Code
-- Write the **minimum** code to make the test pass
-- No over-engineering, no premature optimization
-
-### 🔵 REFACTOR — Improve Without Breaking
-- Clean up code
-- Extract reusable utilities
-- Ensure all tests still pass
-
-## Coverage Target
-- Minimum **80% coverage** for all utility functions and hooks
-- 100% coverage for financial calculation logic (landed cost formulas)
-
-## Commands
+### 2. Run the Test (See it Fail)
 ```bash
-# Run tests
-npm run test
+npm test
+# Expected: FAIL src/__tests__/useBoxes.test.ts
+```
 
-# Run with coverage
-npm run test -- --coverage
+### 3. Write Minimal Implementation (Green)
+Write only enough code to make the test pass.
 
-# Watch mode during TDD
-npm run test -- --watch
+### 4. Run Tests Again
+```bash
+npm test
+# Expected: PASS
+```
+
+### 5. Refactor (Keep Tests Green)
+Clean up the implementation while tests stay passing.
+
+## Test Types for alicargo-joy-main
+
+### Unit Tests (utilities, calculations)
+```typescript
+// Test the landed cost formula
+describe('calculateLandedCost', () => {
+  it('should distribute cost proportionally by weight', () => {
+    const result = calculateLandedCost({
+      totalCost: 1000,
+      boxes: [{ weight: 10 }, { weight: 20 }]
+    });
+    expect(result[0].landedCost).toBe(333.33);
+    expect(result[1].landedCost).toBe(666.67);
+  });
+});
+```
+
+### Integration Tests (hooks + Supabase mock)
+```typescript
+// Mock Supabase for hook tests
+jest.mock('../integrations/supabase/client');
+```
+
+### E2E Tests (browser flows)
+- Use Playwright or Cypress for full flow testing
+
+## Setup
+```bash
+npm install -D vitest @testing-library/react @testing-library/jest-dom
+```
+
+Add to `vite.config.ts`:
+```typescript
+test: { environment: 'jsdom' }
 ```
 
 ## Usage
 ```
-/tdd "useReturnScanner hook - file upload logic"
-/tdd "calculateLandedCost - weight-based formula"
+/tdd "useBoxes hook returns filtered boxes by store"
+/tdd "calculateLandedCost distributes proportionally"
+/tdd "BoxCreator form validates required fields"
 ```

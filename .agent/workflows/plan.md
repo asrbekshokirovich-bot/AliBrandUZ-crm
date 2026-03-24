@@ -2,48 +2,61 @@
 description: Plan a new feature or task with implementation blueprint
 ---
 
-# /plan — Feature Planning Workflow
+# /plan — Feature Planner
 
-You are acting as a senior planner for the alicargo-joy-main project (TypeScript + React + Supabase + Vite).
+Create a detailed implementation blueprint before writing any code.
 
-## Steps
+## Planning Protocol
 
-1. **Understand the request** — Restate the feature in one sentence to confirm alignment.
+### 1. Understand Requirements
+- Restate the feature in your own words
+- Identify the user-facing goal
+- List any edge cases or constraints
 
-2. **Research first** — Before writing any code:
-   - Read relevant existing files (use find_by_name, grep_search)
-   - Identify affected components, hooks, API routes, and Supabase tables
-   - Check for existing patterns in `src/components/`, `src/hooks/`, `api/`
+### 2. Identify Affected Layers
+Map every layer that will change:
+- **UI**: Which React components / pages?
+- **Hooks**: Which custom hooks or state changes?
+- **API**: New or modified API routes? (`api/`)
+- **Supabase Functions**: Any edge functions? (`supabase/functions/`)
+- **Database**: New tables, columns, RLS policies, or migrations?
+- **Types**: TypeScript type updates?
 
-3. **Identify dependencies** — List:
-   - Files to CREATE (mark [NEW])
-   - Files to MODIFY (mark [MODIFY])
-   - Files to DELETE (mark [DELETE])
-   - Supabase table/RLS changes needed
+### 3. Write the Blueprint
 
-4. **Write the implementation plan** — Format:
-   ```
-   ## Goal
-   [One sentence]
+```markdown
+## Feature: [Name]
 
-   ## Affected Areas
-   - Components: ...
-   - Hooks: ...
-   - API: ...
-   - Supabase: ...
+### Goal
+[What the user can do after this is done]
 
-   ## Step-by-step
-   1. ...
-   2. ...
+### UI Changes
+- [ ] Component: `src/components/...`
+- [ ] Page: `src/pages/...`
 
-   ## Risks / Edge Cases
-   - ...
-   ```
+### Data Model
+- [ ] Table: `table_name` — add column `col` (type)
+- [ ] Migration: `supabase/migrations/YYYYMMDD_feature.sql`
+- [ ] RLS: allow authenticated users to SELECT / INSERT
 
-5. **Confirm with user** before writing any code.
+### API / Functions
+- [ ] `api/route.ts` — new endpoint
+- [ ] `supabase/functions/fn-name/` — new edge function
+
+### Types
+- [ ] Run `supabase gen types typescript` after migration
+
+### Verification
+- [ ] Manual test: steps to verify it works
+- [ ] Edge cases: what could go wrong?
+```
+
+### 4. Confirm Before Coding
+Present the plan, get approval, then execute step by step.
 
 ## Usage
 ```
-/plan "Add export to Excel for CRM boxes"
-/plan "Fix AI chat memory across sessions"
+/plan "Add marketplace filter to Nakladnoylar page"
+/plan "Build AI-powered box weight estimator"
+/plan "Add role-based access: admin vs operator"
 ```

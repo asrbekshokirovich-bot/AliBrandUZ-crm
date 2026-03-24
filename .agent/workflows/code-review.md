@@ -4,49 +4,54 @@ description: Review code for quality, security, and maintainability
 
 # /code-review — Code Quality Review
 
-You are a senior TypeScript/React code reviewer for the alicargo-joy-main project.
+Perform a comprehensive review of code changes for quality, security, and maintainability.
 
 ## Review Checklist
 
-### 1. TypeScript Safety
-- [ ] No `any` types without justification
-- [ ] All props interfaces defined
-- [ ] Null/undefined handled explicitly
-- [ ] Return types on all async functions
+### 1. Correctness
+- [ ] Does the code do what is described?
+- [ ] Are edge cases handled? (null, empty array, network failure)
+- [ ] Are loading and error states handled in UI?
 
-### 2. React Best Practices
-- [ ] No missing `useEffect` dependency arrays
-- [ ] No unnecessary re-renders (useMemo/useCallback where needed)
-- [ ] Keys on all list items
-- [ ] Error boundaries in place for risky components
+### 2. TypeScript Quality
+- [ ] No use of `any` type without justification
+- [ ] Props and return types are correctly typed
+- [ ] Supabase types match actual DB schema
 
-### 3. Supabase / Data Layer
-- [ ] No sensitive data exposed client-side
-- [ ] RLS policies respected (no direct admin queries from client)
-- [ ] All `.supabase` calls have `.error` handling
-- [ ] No N+1 query patterns
+### 3. Security
+- [ ] Are API keys used only on the server side? (never in client code)
+- [ ] Is user input sanitized before database insertion?
+- [ ] Are Supabase RLS policies enforced? (not just UI-level guards)
+- [ ] No hardcoded credentials or secrets
 
-### 4. Security
-- [ ] No hardcoded API keys or secrets
-- [ ] User input sanitized before DB writes
-- [ ] Environment variables used for all external URLs
+### 4. Performance
+- [ ] Are queries filtered with `.eq()` / `.in()` — not fetching all rows?
+- [ ] Are heavy computations memoized with `useMemo` / `useCallback`?
+- [ ] Are images optimized?
 
-### 5. Ali AI Specific
-- [ ] System prompts do not expose internal business logic unsafely
-- [ ] AI responses validated before rendering
-- [ ] Cost-aware: avoid unnecessary LLM calls in loops
+### 5. Code Style
+- [ ] Consistent naming (`camelCase` for variables, `PascalCase` for components)
+- [ ] No dead code or commented-out blocks
+- [ ] Functions are small and single-purpose
+- [ ] Complex logic has comments
+
+### 6. alicargo-joy-main Specifics
+- [ ] Uzbek text is in i18n files, not hardcoded
+- [ ] Supabase calls use the shared client from `src/integrations/supabase/client.ts`
+- [ ] Toast notifications used for user feedback
 
 ## Output Format
-For each issue found:
 ```
-[SEVERITY: HIGH/MEDIUM/LOW] Filename:Line
-Issue: ...
-Fix: ...
+### Review: [Component/File Name]
+
+✅ Good: [what was done well]
+⚠️ Warning: [potential issue]
+❌ Bug: [actual problem with fix suggestion]
 ```
 
 ## Usage
 ```
-/code-review src/components/crm/CRMSidebar.tsx
-/code-review api/ai-analytics.ts
-/code-review         ← reviews all recently changed files
+/code-review src/components/BoxCreator.tsx
+/code-review src/hooks/useBoxes.ts
+/code-review api/process-invoice.ts
 ```

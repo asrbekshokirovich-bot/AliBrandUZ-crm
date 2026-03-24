@@ -139,9 +139,27 @@ export default function Products() {
       )
       .subscribe();
 
+    // product_variants kuzatish - Uzumda sotilganda stock kamayganda avtomatik yangilanadi
+    const variantsChannel = supabase
+      .channel('product-variants-stock-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'product_variants'
+        },
+        () => {
+          // Variant stock o'zgarganda (masalan, sotilganda) produktlarni qayta yuklash
+          queryClient.invalidateQueries({ queryKey: ['pending-items-china'] });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(productsChannel);
       supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(variantsChannel);
     };
   }, [queryClient]);
 
