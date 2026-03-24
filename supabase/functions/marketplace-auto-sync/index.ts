@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       .from('marketplace_sync_logs')
       .update({
         status: 'error',
-        error_message: 'Auto-cleaned: stuck in running state for >1 hour',
+        error_details: 'Auto-cleaned: stuck in running state for >1 hour',
         completed_at: new Date().toISOString(),
       })
       .eq('status', 'running')
@@ -509,15 +509,13 @@ Deno.serve(async (req) => {
     const syncLogEntries = results.map(r => ({
       store_id: r.store_id,
       sync_type: normalizedSyncType,
+      direction: 'inbound',
       status: r.success ? "success" : "error",
-      records_processed: r.records_processed,
-      records_created: r.records_processed,
-      records_failed: r.success ? 0 : 1,
-      error_message: r.error || null,
-      error_details: { mode: isAutoSync ? "auto" : "manual", original_sync_type: syncType, duration_ms: r.duration_ms },
+      items_processed: r.records_processed,
+      items_failed: r.success ? 0 : 1,
+      error_details: r.error ? `${r.error} | mode:${isAutoSync ? 'auto' : 'manual'}` : null,
       started_at: new Date(startTime).toISOString(),
       completed_at: new Date().toISOString(),
-      duration_ms: r.duration_ms,
     }));
 
     const { error: logError } = syncLogEntries.length > 0
