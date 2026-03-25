@@ -698,7 +698,10 @@ export default function Products() {
                                 <>
                                   <span className="opacity-50">=</span>
                                   <span className="font-semibold text-foreground">
-                                    {currSymbol}{fmt(costCNY)} <span className="opacity-60">(CNY/dona)</span>
+                                    {currSymbol}{fmt(costCNY)}{' '}
+                                    <span className="opacity-60">
+                                      ({currency === 'UZS' ? 'so\'m' : currency === 'USD' ? 'USD' : 'CNY'}/dona)
+                                    </span>
                                     {tannarxUZS && (
                                       <span className="ml-1 text-primary">
                                         ≈ {new Intl.NumberFormat('uz-UZ').format(tannarxUZS)} so'm
@@ -733,17 +736,22 @@ export default function Products() {
                                 );
                               }
 
-                              const totalCNY = unitCostForJami * actualQty;
-                              const totalUZS = Math.round(totalCNY * rateToUzs);
+                              const totalAmt = unitCostForJami * actualQty;
+                              // UZS mahsulotlarda rateToUzs=1, shuning uchun totalUZS = totalAmt
+                              const totalUZS = Math.round(totalAmt * rateToUzs);
+                              const currCode = currency === 'UZS' ? 'so\'m' : currency === 'USD' ? 'USD' : 'CNY';
                               return (
                                 <div className="flex items-center flex-wrap gap-1 text-xs mt-1 pt-1 border-t border-border/30">
                                   <span className="opacity-60 font-medium">Jami ({actualQty.toLocaleString('en-US')} dona):</span>
                                   <span className="font-bold text-foreground">
-                                    {currSymbol}{totalCNY.toLocaleString('en-US', { maximumFractionDigits: 2 })} CNY
+                                    {currSymbol}{totalAmt.toLocaleString('en-US', { maximumFractionDigits: 2 })} {currCode}
                                   </span>
-                                  <span className="text-primary font-semibold">
-                                    ≈ {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
-                                  </span>
+                                  {/* UZS uchun so'm ni qayta ko'rsatish shart emas */}
+                                  {currency !== 'UZS' && (
+                                    <span className="text-primary font-semibold">
+                                      ≈ {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })()}
