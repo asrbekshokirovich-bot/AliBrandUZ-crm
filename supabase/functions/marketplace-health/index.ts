@@ -106,9 +106,9 @@ serve(async (req) => {
 
       try {
         if (store.platform === 'uzum') {
-          // Test Uzum API connection using the orders endpoint (lightweight call)
+          // Test Uzum API connection using the products endpoint (works for both FBS and FBO)
           const shopId = store.shop_id;
-          const url = `${UZUM_BASE_URL}/v2/fbs/orders?shopIds=${shopId}&page=0&size=1`;
+          const url = `${UZUM_BASE_URL}/v1/product/shop/${shopId}?page=0&size=1`;
           
           console.log(`[${i + 1}/${stores!.length}] Testing Uzum store ${store.name}`);
 
@@ -129,8 +129,8 @@ serve(async (req) => {
           if (response.ok) {
             try {
               const data = JSON.parse(responseText);
-              // Check if the response has the expected structure
-              if (data.payload !== undefined || data.orders !== undefined) {
+              // Check if the response has the expected structure (products payload)
+              if (data.payload !== undefined) {
                 results.push({
                   store_id: store.id,
                   store_name: store.name,

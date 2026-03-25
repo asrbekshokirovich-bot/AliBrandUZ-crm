@@ -74,7 +74,7 @@ export default function MarketplaceAdmin() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [healthCheckLoading, setHealthCheckLoading] = useState(false);
-  const [healthResults, setHealthResults] = useState<Record<string, boolean>>({});
+  const [healthResults, setHealthResults] = useState<Record<string, any>>({});
   const [forceSync, setForceSync] = useState<{ loading: boolean; type: string | null }>({ loading: false, type: null });
 
   const { data: stores, isLoading: storesLoading } = useQuery({
@@ -191,9 +191,9 @@ export default function MarketplaceAdmin() {
 
       if (error) throw error;
 
-      const results: Record<string, boolean> = {};
+      const results: Record<string, any> = {};
       for (const store of data.stores || []) {
-        results[store.store_id] = store.api_connected;
+        results[store.store_id] = store;
       }
       setHealthResults(results);
 
@@ -275,7 +275,7 @@ export default function MarketplaceAdmin() {
   });
 
   const StoreCard = ({ store }: { store: MarketplaceStore }) => {
-    const healthStatus = healthResults[store.id];
+    const healthData = healthResults[store.id];
     const isStoreSyncing = storeSyncMutation.isPending;
 
     return (
@@ -300,13 +300,20 @@ export default function MarketplaceAdmin() {
             <span className="text-muted-foreground">{t('mpadm_store_status')}</span>
             <div className="flex items-center gap-2">
               {getStatusBadge(store)}
-              {healthStatus !== undefined && (
-                healthStatus ? 
+              {healthData !== undefined && (
+                healthData.api_connected ? 
                   <CheckCircle2 className="h-4 w-4 text-green-500" /> :
                   <XCircle className="h-4 w-4 text-red-500" />
               )}
             </div>
           </div>
+
+          {healthData !== undefined && !healthData.api_connected && healthData.error && (
+            <div className="flex items-start gap-1 text-xs text-destructive bg-destructive/10 p-2 rounded-md border border-destructive/20 mt-2">
+              <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+              <span className="text-[11px] leading-tight">{healthData.error}</span>
+            </div>
+          )}
 
           {store.platform === 'uzum' && (
             <div className="text-xs text-muted-foreground space-y-1">
