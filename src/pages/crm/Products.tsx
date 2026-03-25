@@ -352,7 +352,43 @@ export default function Products() {
     return true;
   });
 
-  // Access denied check
+  // === UMUMIY INVENTAR QIYMATI ===
+  // Filtr qilingan mahsulotlar asosida jami CNY va UZS qiymati hisoblanadi
+  const inventarySummary = useMemo(() => {
+    if (!filteredProducts?.length) return null;
+    const safeCnyToUzs = cnyToUzs >= 500 ? cnyToUzs : 1750;
+    const safeUsdToUzs = usdToUzs >= 500 ? usdToUzs : 12800;
+
+    let totalCNY = 0;     // Xitoy tannarx yig'indisi (CNY)
+    let totalUZS = 0;     // So'm ekvivalenti
+    let totalQty = 0;     // Jami dona soni
+    let coveredCount = 0; // Narxi ma'lum mahsulotlar soni
+
+    for (const p of filteredProducts) {
+      const qty = p.quantity || 1;
+      // cost_price = yakuniy tannarx (purchase_currency da)
+      // price = sotib olish narxi (purchase_currency da)
+      const unitCost = (p.cost_price || p.price) as number | null;
+      const currency = p.purchase_currency || 'CNY';
+      totalQty += qty;
+
+      if (unitCost && unitCost > 0) {
+        coveredCount++;
+        const unitCostCNY = currency === 'USD'
+          ? unitCost * (safeUsdToUzs / safeCnyToUzs)
+          : currency === 'UZS'
+          ? unitCost / safeCnyToUzs
+          : unitCost; // CNY
+
+        totalCNY += unitCostCNY * qty;
+        totalUZS += unitCostCNY * safeCnyToUzs * qty;
+      }
+    }
+
+    return { totalCNY, totalUZS, totalQty, coveredCount, total: filteredProducts.length };
+  }, [filteredProducts, cnyToUzs, usdToUzs]);
+
+
   if (!roleLoading && !canAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -446,6 +482,31 @@ export default function Products() {
             />
           </div>
         </div>
+
+        {/* === UMUMIY INVENTAR YIG'INDISI === */}
+        {inventarySummary && inventarySummary.totalCNY > 0 && (
+          <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-lg bg-muted/50 border border-border/60 text-sm">
+            <span className="text-muted-foreground font-medium">
+              📦 {inventarySummary.total} mahsulot
+            </span>
+            <span className="text-muted-foreground opacity-40">|</span>
+            <span className="text-muted-foreground">
+              {inventarySummary.totalQty.toLocaleString('en-US')} dona
+            </span>
+            <span className="text-muted-foreground opacity-40">|</span>
+            <span className="font-semibold text-foreground">
+              Jami: ¥{inventarySummary.totalCNY.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            </span>
+            <span className="text-primary font-bold">
+              ≈ {new Intl.NumberFormat('uz-UZ').format(Math.round(inventarySummary.totalUZS))} so'm
+            </span>
+            {inventarySummary.coveredCount < inventarySummary.total && (
+              <span className="text-xs text-muted-foreground opacity-60">
+                ({inventarySummary.coveredCount}/{inventarySummary.total} narxi ma&apos;lum)
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Bulk selection toolbar */}
         {canEdit && selectedProducts.size > 0 && (
