@@ -28,12 +28,13 @@ export default function Products() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const { isChiefManager, isChinaManager, isChinaStaff, isMarketplaceManager, isSupport, isLoading: roleLoading } = useUserRole();
+  const { isAdmin, isOwner, isChiefManager, isChinaManager, isChinaStaff, isMarketplaceManager, isSupport, isLoading: roleLoading } = useUserRole();
   const { usdToUzs, cnyToUzs } = useFinanceCurrency();
 
-  // Role-based access control - China roles should NOT see products
-  const canAccess = isChiefManager || isMarketplaceManager || isSupport;
-  const canEdit = isChiefManager;
+  // Role-based access control
+  // roleLoading paytida canAccess ni false qilmaslik — bu products ko'rinmasligi muammosiga olib keladi
+  const canAccess = roleLoading ? true : (isAdmin || isOwner || isChiefManager || isMarketplaceManager || isSupport);
+  const canEdit = isAdmin || isOwner || isChiefManager;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
