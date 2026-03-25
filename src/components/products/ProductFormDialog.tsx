@@ -1221,7 +1221,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       // MUHIM: Avval pending-items-china ni yangilash va KUTISH
       await queryClient.invalidateQueries({ queryKey: ["pending-items-china"] });
       // Keyin products ni yangilash - pending-items allaqachon yangilangan
-      // queryClient.invalidateQueries({ queryKey: ["products"] }); // NOTE: disabled to avoid race conditions, letting queryKey dependency handle it.
+      queryClient.invalidateQueries({ queryKey: ["products"] }); // Restored explicitly to ensure immediate UI updates
       queryClient.invalidateQueries({ queryKey: ["product-items"] });
       queryClient.invalidateQueries({ queryKey: ["product-variants"] });
       queryClient.invalidateQueries({ queryKey: ["product-items-summary"] });
