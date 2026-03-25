@@ -77,8 +77,18 @@ export function useAIAnalytics(): UseAIAnalyticsReturn {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Server error' }));
+        let err;
+        try {
+          err = await res.json();
+        } catch {
+          err = { error: 'Server error' };
+        }
         throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        throw new Error("Local dev xatosi: Vercel apilarini ishlatish uchun 'vercel dev' qiling.");
       }
 
       const json = await res.json();

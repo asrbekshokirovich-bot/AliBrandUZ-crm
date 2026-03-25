@@ -72,8 +72,20 @@ export function useAliAIStream() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send message');
+        let errorMsg = 'Failed to send message';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {
+          errorMsg = `Server error ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMsg);
+      }
+
+      // Safeguard against Vite dev server returning index.html for API routes
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        throw new Error("Local dev xatosi: Siz 'npm run dev' ishlatyapsiz. Vercel APIt ishlamaydi. Vercel funksiyalarni ishlatish uchun 'vercel dev' komandasini ishlating yoki Vercel urlini ulang.");
       }
 
       // Get conversation ID from header
@@ -204,6 +216,7 @@ export function useAliAIStream() {
         isStreaming: false,
         error: errorMessage,
       }));
+      // Optional: keep the user message visible if it failed instantly
       options?.onError?.(errorMessage);
     }
   }, []);

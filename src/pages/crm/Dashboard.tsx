@@ -41,25 +41,27 @@ function DashboardContent() {
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      // All queries run in parallel for faster loading
+      const safeQuery = (promise: any) => promise.catch((e: any) => ({ data: null, error: e, count: 0 }));
+
+      // All queries run in parallel for faster loading, wrapped in safeQuery to prevent full crash
       const [products, boxes, shipments, financeBalance, recentProducts, recentBoxes, boxesByStatus, shipmentsInTransit] = await Promise.all([
-        supabase.from('products').select('*', { count: 'exact', head: true }),
-        supabase.from('boxes').select('*', { count: 'exact', head: true }),
-        supabase.from('shipments').select('*', { count: 'exact', head: true }),
-        supabase.rpc('get_finance_balance'),
-        supabase.from('products').select('id, name, created_at, status').order('created_at', { ascending: false }).limit(5),
-        supabase.from('boxes').select('id, box_number, created_at, status').order('created_at', { ascending: false }).limit(5),
-        supabase.from('boxes').select('status'),
-        supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'in_transit'),
+        safeQuery(supabase.from('products').select('*', { count: 'exact', head: true })),
+        safeQuery(supabase.from('boxes').select('*', { count: 'exact', head: true })),
+        safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true })),
+        safeQuery(supabase.rpc('get_finance_balance')),
+        safeQuery(supabase.from('products').select('id, name, created_at, status').order('created_at', { ascending: false }).limit(5)),
+        safeQuery(supabase.from('boxes').select('id, box_number, created_at, status').order('created_at', { ascending: false }).limit(5)),
+        safeQuery(supabase.from('boxes').select('status')),
+        safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'in_transit')),
       ]);
 
       const balanceData = (financeBalance.data as any) || { total_income: 0, total_expense: 0, balance: 0 };
       const totalIncome = Number(balanceData.total_income) || 0;
       const totalExpense = Number(balanceData.total_expense) || 0;
 
-      const packingBoxes = boxesByStatus.data?.filter(b => b.status === 'packing').length || 0;
-      const sealedBoxes = boxesByStatus.data?.filter(b => b.status === 'sealed').length || 0;
-      const inTransitBoxes = boxesByStatus.data?.filter(b => b.status === 'in_transit').length || 0;
+      const packingBoxes = (boxesByStatus.data || []).filter((b: any) => b.status === 'packing').length || 0;
+      const sealedBoxes = (boxesByStatus.data || []).filter((b: any) => b.status === 'sealed').length || 0;
+      const inTransitBoxes = (boxesByStatus.data || []).filter((b: any) => b.status === 'in_transit').length || 0;
 
       return {
         productsCount: products.count || 0,

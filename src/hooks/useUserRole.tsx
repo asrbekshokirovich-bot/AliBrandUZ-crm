@@ -13,7 +13,10 @@ export function useUserRole() {
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id);
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to fetch user roles:', error);
+        return [];
+      }
       return data.map(r => r.role);
     },
     enabled: !!user?.id,

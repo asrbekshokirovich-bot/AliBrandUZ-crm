@@ -10,10 +10,10 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_wk3pW4CAxzc90nks94MRHw_meKO-VWe';
 
 // ── Supabase REST helper ────────────────────────────────
-async function dbGet(table: string, query: string) {
+async function dbGet(table: string, query: string, userToken: string) {
   const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    headers: { apikey: key, Authorization: userToken ? `Bearer ${userToken}` : `Bearer ${key}`, 'Content-Type': 'application/json' },
   });
   if (!res.ok) return [];
   return res.json();
@@ -56,12 +56,12 @@ export default async function handler(req: Request): Promise<Response> {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [products, boxes, todayOrders, weekOrders, weekFinance, tasks] = await Promise.all([
-    dbGet('products', 'select=id,name,sku,cost_price,purchase_currency,tashkent_manual_stock,weight,status&status=neq.archived&limit=100&order=updated_at.desc'),
-    dbGet('boxes', 'select=id,box_number,status,weight_kg,local_delivery_fee,cargo_fee,packaging_fee,created_at&limit=30&order=created_at.desc'),
-    dbGet('marketplace_orders', `select=product_name,platform,quantity,total_revenue,commission_fee,created_at&created_at=gte.${today}T00:00:00`),
-    dbGet('marketplace_orders', `select=product_name,platform,quantity,total_revenue,commission_fee,created_at&created_at=gte.${weekAgo}`),
-    dbGet('finance_transactions', `select=transaction_type,amount,category,description,created_at&created_at=gte.${weekAgo}&limit=200`),
-    dbGet('tasks', 'select=id,title,status,due_date,priority&status=in.(todo,in_progress)&limit=50'),
+    dbGet('products', 'select=id,name,sku,cost_price,purchase_currency,tashkent_manual_stock,weight,status&status=neq.archived&limit=100&order=updated_at.desc', token),
+    dbGet('boxes', 'select=id,box_number,status,weight_kg,local_delivery_fee,cargo_fee,packaging_fee,created_at&limit=30&order=created_at.desc', token),
+    dbGet('marketplace_orders', `select=product_name,platform,quantity,total_revenue,commission_fee,created_at&created_at=gte.${today}T00:00:00`, token),
+    dbGet('marketplace_orders', `select=product_name,platform,quantity,total_revenue,commission_fee,created_at&created_at=gte.${weekAgo}`, token),
+    dbGet('finance_transactions', `select=transaction_type,amount,category,description,created_at&created_at=gte.${weekAgo}&limit=200`, token),
+    dbGet('tasks', 'select=id,title,status,due_date,priority&status=in.(todo,in_progress)&limit=50', token),
   ]);
 
   // ── Logistics cost calculation ────────────────────────

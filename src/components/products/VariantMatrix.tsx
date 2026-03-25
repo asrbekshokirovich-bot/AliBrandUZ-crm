@@ -166,7 +166,7 @@ export function VariantMatrix({
             <Badge variant="outline" className="text-xs">{variants.length}</Badge>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 border-r pr-3">
+            <div className="flex items-center gap-1.5">
               <Label className="text-[10px] text-muted-foreground whitespace-nowrap">Yo'l haqqi (CNY):</Label>
               <div className="relative">
                 <Input
@@ -184,19 +184,6 @@ export function VariantMatrix({
                   CNY
                 </span>
               </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-[10px] text-muted-foreground">Valyuta:</Label>
-              <Select value={currency} onValueChange={onCurrencyChange}>
-                <SelectTrigger className="w-18 h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CNY">CNY</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="UZS">UZS</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
         </div>
