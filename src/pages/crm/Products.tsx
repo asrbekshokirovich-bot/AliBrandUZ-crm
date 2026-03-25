@@ -708,22 +708,21 @@ export default function Products() {
                                 </>
                               )}
                             </div>
-                            {/* Mahsulot jami: dona*tannarx */}
+                            {/* Mahsulot jami: barcha dona * tannarx/dona */}
                             {(() => {
                               const unitCost = (costCNY || priceCNY) as number | null;
-                              if (!unitCost || qty <= 1) return null;
-                              const totalCNY = unitCost * qty;
+                              const actualQty = product.quantity as number | null;
+                              if (!unitCost || !actualQty || actualQty < 1) return null;
+                              const totalCNY = unitCost * actualQty;
                               const totalUZS = Math.round(totalCNY * rateToUzs);
                               return (
-                                <div className="flex items-center gap-1 text-xs mt-0.5">
-                                  <span className="opacity-50">Jami:</span>
-                                  <span className="font-semibold text-foreground">
+                                <div className="flex items-center flex-wrap gap-1 text-xs mt-1 pt-1 border-t border-border/30">
+                                  <span className="opacity-60 font-medium">Jami ({actualQty.toLocaleString('en-US')} dona):</span>
+                                  <span className="font-bold text-foreground">
                                     {currSymbol}{totalCNY.toLocaleString('en-US', { maximumFractionDigits: 2 })} CNY
                                   </span>
-                                  <span className="opacity-40">×</span>
-                                  <span className="opacity-60">{qty.toLocaleString('en-US')} dona</span>
-                                  <span className="text-primary font-medium">
-                                    ≈ {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
+                                  <span className="text-primary font-semibold">
+                                    \u2248 {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
                                   </span>
                                 </div>
                               );
