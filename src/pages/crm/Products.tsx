@@ -591,9 +591,13 @@ export default function Products() {
                         const qty = product.quantity || 1;
                         const currency = product.purchase_currency || 'CNY';
                         
+                        // Safety clamps: exchange rates must be realistic
+                        const safeCnyToUzs = cnyToUzs >= 100 ? cnyToUzs : 1750;
+                        const safeUsdToUzs = usdToUzs >= 100 ? usdToUzs : 12800;
+                        
                         // Valyuta kursini aniqlash
-                        const rateToUzs = currency === 'CNY' ? cnyToUzs
-                          : currency === 'USD' ? usdToUzs
+                        const rateToUzs = currency === 'CNY' ? safeCnyToUzs
+                          : currency === 'USD' ? safeUsdToUzs
                           : 1;
                         
                         // Yetkazish narxi 1 dona uchun

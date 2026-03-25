@@ -7,6 +7,8 @@ export type DisplayCurrency = 'UZS' | 'USD' | 'CNY';
 // Fallback rates (used until live rates load)
 const DEFAULT_USD_TO_UZS = 12800;
 const DEFAULT_CNY_TO_UZS = 1750;
+// Minimum valid CNY→UZS rate: anything below this means bad data
+const MIN_CNY_TO_UZS = 100;
 
 interface FinanceCurrencyContextValue {
   displayCurrency: DisplayCurrency;
@@ -63,10 +65,16 @@ export function FinanceCurrencyProvider({ children }: { children: ReactNode }) {
       const rates = rateData.rates as Record<string, number>;
       const uzs = rates.UZS || DEFAULT_USD_TO_UZS;
       const cnyDirectUzs = rates.CNY_TO_UZS;
+      // CNY field in exchange_rates is USD/CNY cross rate (e.g. 7.25), NOT CNY→UZS
+      // So we use: CNY→UZS = USD→UZS / (USD/CNY) = uzs / cny
+      // But CNY_TO_UZS direct is more reliable if available
       const cny = rates.CNY || 7.25;
+      const computedCnyRate = cnyDirectUzs || (uzs / cny);
+      // Safety guard: if computed rate is unrealistically low (bad DB data), use default
+      const safeCnyRate = computedCnyRate >= MIN_CNY_TO_UZS ? computedCnyRate : DEFAULT_CNY_TO_UZS;
       
       setDbUsdRate(uzs);
-      setDbCnyRate(cnyDirectUzs || (uzs / cny));
+      setDbCnyRate(safeCnyRate);
       setIsManualRate(rateData.is_manual === true);
       setRateSource(rateData.source || 'unknown');
     }
