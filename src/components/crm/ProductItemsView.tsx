@@ -68,8 +68,12 @@ const colorMap: Record<string, string> = {
   'white': '#ffffff',
   'qizil': '#ef4444',
   'red': '#ef4444',
-  'ko\'k': '#3b82f6',
+  // ko'k — apostrof bilan va apostrof siz (kok) ham qabul qilinadi
+  "ko'k": '#3b82f6',
+  'kok': '#3b82f6',
   'blue': '#3b82f6',
+  'moviy': '#06b6d4',
+  'cyan': '#06b6d4',
   'yashil': '#22c55e',
   'green': '#22c55e',
   'sariq': '#eab308',
@@ -83,7 +87,9 @@ const colorMap: Record<string, string> = {
   'brown': '#92400e',
   'binafsha': '#8b5cf6',
   'purple': '#8b5cf6',
-  'to\'q ko\'k': '#1e3a8a',
+  'violet': '#8b5cf6',
+  "to'q ko'k": '#1e3a8a',
+  'toq kok': '#1e3a8a',
   'navy': '#1e3a8a',
   'oltin': '#fbbf24',
   'gold': '#fbbf24',
@@ -91,6 +97,9 @@ const colorMap: Record<string, string> = {
   'silver': '#94a3b8',
   'bej': '#d4b896',
   'beige': '#d4b896',
+  'orange': '#f97316',
+  'to\'q sariq': '#f97316',
+  'bronza': '#b45309',
 };
 
 // Chart colors for pie chart
