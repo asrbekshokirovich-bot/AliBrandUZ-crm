@@ -469,13 +469,13 @@ export function TashkentWarehouseIndicators({
         .from('product_variants')
         .update({ cost_price: data.costPrice, cost_price_currency: data.costPriceCurrency })
         .eq('id', indicator.id);
-      if (error) { toast.error(t('inv_tash_cost_error')); throw error; }
+      if (error) { toast.error(t('inv_tash_cost_error', "Tannarxni saqlashda xatolik yuz berdi")); throw error; }
     } else {
       const { error } = await supabase
         .from('products')
         .update({ cost_price: data.costPrice })
         .eq('id', indicator.id);
-      if (error) { toast.error(t('inv_tash_cost_error')); throw error; }
+      if (error) { toast.error(t('inv_tash_cost_error', "Tannarxni saqlashda xatolik yuz berdi")); throw error; }
     }
 
     // 2. products jadvalida shipping_cost_to_china va quantity yangilash
@@ -489,11 +489,35 @@ export function TashkentWarehouseIndicators({
       })
       .eq('id', indicator.productId);
     if (productUpdateError) {
-      toast.error(t('inv_tash_cost_error'));
+      toast.error(t('inv_tash_cost_error', "Tannarxni saqlashda xatolik yuz berdi"));
       throw productUpdateError;
     }
 
-    toast.success(t('inv_tash_cost_updated'));
+    // 3. MANTIQIY QO'SHIMCHA: product_items larning unit_cost, domestic, va intl shippinglarini ham yangilash
+    // Aks holda avg_unit_cost_from_items eski xato narxni ko'rsataveradi!
+    const domesticPerUnit = data.productQty > 0 ? (data.totalShippingCny / data.productQty) : 0;
+    
+    let itemsQuery = supabase
+      .from('product_items')
+      .update({ 
+         unit_cost: data.costPrice, 
+         unit_cost_currency: data.costPriceCurrency,
+         domestic_shipping_cost: domesticPerUnit,
+         international_shipping_cost: data.intlShippingUsd
+      });
+      
+    if (indicator.isVariant) {
+      itemsQuery = itemsQuery.eq('variant_id', indicator.id);
+    } else {
+      itemsQuery = itemsQuery.eq('product_id', indicator.id).is('variant_id', null);
+    }
+    
+    const { error: itemsUpdateError } = await itemsQuery;
+    if (itemsUpdateError) {
+      console.error("Failed to update product_items cost:", itemsUpdateError);
+    }
+
+    toast.success(t('inv_tash_cost_updated', "Tannarx muvaffaqiyatli saqlandi"));
     await refetch();
   };
 

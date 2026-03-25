@@ -85,7 +85,7 @@ export default function Boxes() {
     trackCodes: [] as string[],
     pendingTrackCode: '', // Current input value (not yet added to list)
     location: 'china',
-    notes: '',
+    boxCount: 1, // Nechta quti yaratilsin
   });
 
   const handleRefresh = useCallback(async () => {
@@ -242,7 +242,6 @@ export default function Boxes() {
   const createBoxMutation = useMutation({
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      const boxNumber = generateBoxNumber();
       
       // Collect all track codes: list + pending input (if any)
       const allTrackCodes = [...formData.trackCodes];
@@ -253,41 +252,48 @@ export default function Boxes() {
       
       // Primary track code (first one in the list)
       const primaryTrackCode = allTrackCodes[0] || null;
+      const count = formData.boxCount || 1;
       
-      const { data, error } = await supabase
-        .from('boxes')
-        .insert({
-          box_number: boxNumber,
-          store_number: primaryTrackCode, // For backward compatibility
-          location: formData.location,
-          notes: formData.notes,
-          status: 'packing',
-        })
-        .select()
-        .single();
+      const createdBoxes = [];
       
-      if (error) throw error;
-      
-      // Add all track codes to junction table
-      if (allTrackCodes.length > 0) {
-        const trackCodeInserts = allTrackCodes.map((code, index) => ({
-          box_id: data.id,
-          track_code: code,
-          source: 'manual',
-          is_primary: index === 0,
-        }));
+      // Nechta quti bo'lsa shuncha marta yaratish (bir xil trek kodi, alohida BOX raqamlar)
+      for (let i = 0; i < count; i++) {
+        const boxNumber = generateBoxNumber();
         
-        const { error: trackError } = await supabase
-          .from('box_track_codes')
-          .insert(trackCodeInserts);
+        const { data, error } = await supabase
+          .from('boxes')
+          .insert({
+            box_number: boxNumber,
+            store_number: primaryTrackCode,
+            location: formData.location,
+            status: 'packing',
+          })
+          .select()
+          .single();
         
-        if (trackError) {
-          console.warn('[Boxes] box_track_codes insert failed:', trackError.message);
-          // Don't throw — box was created, track codes are optional
+        if (error) throw error;
+        createdBoxes.push(data);
+        
+        // Add track codes to junction table for each box
+        if (allTrackCodes.length > 0) {
+          const trackCodeInserts = allTrackCodes.map((code, index) => ({
+            box_id: data.id,
+            track_code: code,
+            source: 'manual',
+            is_primary: index === 0,
+          }));
+          
+          const { error: trackError } = await supabase
+            .from('box_track_codes')
+            .insert(trackCodeInserts);
+          
+          if (trackError) {
+            console.warn('[Boxes] box_track_codes insert failed:', trackError.message);
+          }
         }
       }
       
-      return data;
+      return createdBoxes;
     },
     onMutate: async () => {
       // Cancel any in-flight refetches so they don't overwrite our optimistic update
@@ -332,7 +338,7 @@ export default function Boxes() {
       queryClient.invalidateQueries({ queryKey: ['boxes'] });
       toast({ title: t('box_created'), description: t('box_created_desc') });
       setOpen(false);
-      setFormData({ trackCodes: [], pendingTrackCode: '', location: 'china', notes: '' });
+      setFormData({ trackCodes: [], pendingTrackCode: '', location: 'china', boxCount: 1 });
     },
     onError: (error: any, _variables, context: any) => {
       // Roll back the optimistic update on error
@@ -779,12 +785,24 @@ export default function Boxes() {
                          <SelectItem value="transit">{t('box_location_transit')}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Textarea
-                      placeholder={t('box_note_placeholder')}
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="bg-input border-border min-h-[80px]"
-                    />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Nechta Quti</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={formData.boxCount}
+                          onChange={(e) => setFormData({ ...formData, boxCount: Math.max(1, Math.min(100, parseInt(e.target.value) || 1)) })}
+                          className="bg-input border-border min-h-[44px] w-24 text-center text-lg font-bold"
+                        />
+                        <span className="text-sm text-muted-foreground flex-1">
+                          {formData.boxCount > 1
+                            ? `${formData.boxCount} ta quti yaratiladi (BOX-...-1, BOX-...-2, ...)`
+                            : 'Bitta quti yaratiladi'}
+                        </span>
+                      </div>
+                    </div>
                     <Button
                       onClick={() => createBoxMutation.mutate()}
                       disabled={createBoxMutation.isPending}
