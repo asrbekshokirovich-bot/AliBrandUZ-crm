@@ -584,48 +584,64 @@ export default function Products() {
                           : (product.quantity ? ` • Jami: ${product.quantity} ${t('pcs')}` : '')}
                         {product.weight && ` • ${product.weight}kg`}
                       </p>
-                      {(product.price || product.cost_price) && (
-                        <div className="flex items-center gap-2 text-xs mt-1 flex-wrap">
-                          {/* Narx: Sotib olish narxi CNY da */}
-                          {product.price && (
-                            <span className="text-muted-foreground">
-                              {t('prod_price_label')} ¥{product.price.toLocaleString()}
-                            </span>
-                          )}
+                      {(product.price || product.cost_price) && (() => {
+                        const priceCNY = product.price as number | null;
+                        const costCNY = product.cost_price as number | null;
+                        const totalShipping = product.shipping_cost_to_china as number | null;
+                        const qty = product.quantity || 1;
+                        const currency = product.purchase_currency || 'CNY';
+                        
+                        // Valyuta kursini aniqlash
+                        const rateToUzs = currency === 'CNY' ? cnyToUzs
+                          : currency === 'USD' ? usdToUzs
+                          : 1;
+                        
+                        // Yetkazish narxi 1 dona uchun
+                        const shippingPerUnit = totalShipping && qty > 0
+                          ? Math.round((totalShipping / qty) * 10000) / 10000
+                          : null;
+                        
+                        // Jami tannarx UZS da
+                        const tannarxUZS = costCNY
+                          ? Math.round(costCNY * rateToUzs)
+                          : priceCNY
+                          ? Math.round(priceCNY * rateToUzs)
+                          : null;
 
-                          {/* Tannarx: cost_price — bu allaqachon yakuniy tannarx (price + shipping/qty) CNY da */}
-                          {product.cost_price && product.cost_price !== product.price && (
-                            <>
-                              {product.price && <span className="text-muted-foreground">|</span>}
-                              <span className="text-muted-foreground font-medium">
-                                {(() => {
-                                  const costCNY = product.cost_price as number;
-                                  const currency = product.purchase_currency || 'CNY';
-                                  
-                                  if (currency === 'CNY') {
-                                    // CNY da saqlangan → ikki formatda ko'rsatish
-                                    const costUZS = Math.round(costCNY * cnyToUzs);
-                                    return `Tannarx: ¥${costCNY.toLocaleString()} (${new Intl.NumberFormat('uz-UZ').format(costUZS)} so'm)`;
-                                  }
-                                  if (currency === 'USD') {
-                                    const costUZS = Math.round(costCNY * usdToUzs);
-                                    return `Tannarx: $${costCNY.toLocaleString()} (${new Intl.NumberFormat('uz-UZ').format(costUZS)} so'm)`;
-                                  }
-                                  // UZS da saqlangan
-                                  return `Tannarx: ${new Intl.NumberFormat('uz-UZ').format(costCNY)} so'm`;
-                                })()}
-                              </span>
-                            </>
-                          )}
+                        const currSymbol = currency === 'CNY' ? '¥' : currency === 'USD' ? '$' : '';
+                        const fmt = (n: number) => n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 
-                          {/* Yetkazish: shipping_cost alohida faqat agar cost_price ichida EMAS bo'lsa */}
-                          {product.shipping_cost_to_china && !product.cost_price && (
-                            <span className="text-orange-600">
-                              + Yetkazish: ¥{product.shipping_cost_to_china.toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                        return (
+                          <div className="text-xs mt-1 text-muted-foreground space-y-0.5">
+                            {/* Formula: Narx + Yetkazish = Tannarx */}
+                            <div className="flex items-center flex-wrap gap-1">
+                              {priceCNY && (
+                                <span>{currSymbol}{fmt(priceCNY)} <span className="opacity-60">(Narx)</span></span>
+                              )}
+                              {shippingPerUnit && shippingPerUnit > 0 && (
+                                <>
+                                  <span className="opacity-50">+</span>
+                                  <span>¥{fmt(shippingPerUnit)} <span className="opacity-60">(Yetkazish/dona)</span></span>
+                                </>
+                              )}
+                              {costCNY && costCNY !== priceCNY && (
+                                <>
+                                  <span className="opacity-50">=</span>
+                                  <span className="font-semibold text-foreground">
+                                    {currSymbol}{fmt(costCNY)} <span className="opacity-60">(Tannarx)</span>
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            {/* So'm ekvivalenti */}
+                            {tannarxUZS && (
+                              <div className="text-primary font-medium">
+                                ≈ {new Intl.NumberFormat('uz-UZ').format(tannarxUZS)} so'm/dona
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <ProductItemsView productId={product.id} productUuid={product.uuid} hasVariants={product.has_variants} />
                     </div>
                   </div>
