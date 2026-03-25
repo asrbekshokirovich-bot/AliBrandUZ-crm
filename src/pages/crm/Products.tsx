@@ -495,10 +495,11 @@ export default function Products() {
             </span>
             <span className="text-muted-foreground opacity-40">|</span>
             <span className="font-semibold text-foreground">
-              Jami: ¥{inventarySummary.totalCNY.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              Jami: ¥{inventarySummary.totalCNY.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-xs opacity-60">CNY</span>
             </span>
+            <span className="opacity-40">/</span>
             <span className="text-primary font-bold">
-              ≈ {new Intl.NumberFormat('uz-UZ').format(Math.round(inventarySummary.totalUZS))} so'm
+              {new Intl.NumberFormat('uz-UZ').format(Math.round(inventarySummary.totalUZS))} so'm
             </span>
             {inventarySummary.coveredCount < inventarySummary.total && (
               <span className="text-xs text-muted-foreground opacity-60">
@@ -707,6 +708,26 @@ export default function Products() {
                                 </>
                               )}
                             </div>
+                            {/* Mahsulot jami: dona*tannarx */}
+                            {(() => {
+                              const unitCost = (costCNY || priceCNY) as number | null;
+                              if (!unitCost || qty <= 1) return null;
+                              const totalCNY = unitCost * qty;
+                              const totalUZS = Math.round(totalCNY * rateToUzs);
+                              return (
+                                <div className="flex items-center gap-1 text-xs mt-0.5">
+                                  <span className="opacity-50">Jami:</span>
+                                  <span className="font-semibold text-foreground">
+                                    {currSymbol}{totalCNY.toLocaleString('en-US', { maximumFractionDigits: 2 })} CNY
+                                  </span>
+                                  <span className="opacity-40">×</span>
+                                  <span className="opacity-60">{qty.toLocaleString('en-US')} dona</span>
+                                  <span className="text-primary font-medium">
+                                    ≈ {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })()}
