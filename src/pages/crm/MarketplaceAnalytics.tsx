@@ -94,8 +94,8 @@ export default function MarketplaceAnalytics() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from('marketplace_orders')
-        .select('store_id, ordered_at, total_price, commission, status')
-        .gte('ordered_at', thirtyDaysAgo);
+        .select('store_id, order_created_at, total_price, commission, status')
+        .gte('order_created_at', thirtyDaysAgo);
       if (error) throw error;
 
       // Aggregate by store + date (same structure as marketplace_finance_summary)
@@ -106,7 +106,7 @@ export default function MarketplaceAnalytics() {
       }> = {};
 
       for (const order of data || []) {
-        const date = (order.ordered_at || '').slice(0, 10);
+        const date = (order.order_created_at || '').slice(0, 10);
         if (!date) continue;
         const key = `${order.store_id}:${date}`;
         if (!map[key]) {

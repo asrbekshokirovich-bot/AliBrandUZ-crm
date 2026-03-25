@@ -384,7 +384,7 @@ serve(async (req) => {
               delivery_cost: deliveryCommission,
               currency: 'UZS',
               items: itemsData,
-              ordered_at: order.creationDate,
+              order_created_at: order.creationDate,
               last_synced_at: new Date().toISOString(),
             };
 

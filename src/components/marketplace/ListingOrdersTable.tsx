@@ -14,7 +14,7 @@ interface OrderItem {
 interface Order {
   id: string;
   external_order_id: string;
-  ordered_at: string | null;
+  order_created_at: string | null;
   status: string;
   fulfillment_status: string | null;
   total_amount: number | null;
@@ -124,7 +124,7 @@ export function ListingOrdersTable({ orders, isLoading, sku, currency }: Listing
               return (
                 <TableRow key={order.id}>
                   <TableCell className="text-sm">
-                    {order.ordered_at ? format(new Date(order.ordered_at), 'dd.MM.yy') : '-'}
+                    {order.order_created_at ? format(new Date(order.order_created_at), 'dd.MM.yy') : '-'}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{order.external_order_id.slice(-8)}</TableCell>
                   <TableCell>{getSkuQuantity(order.items)}</TableCell>

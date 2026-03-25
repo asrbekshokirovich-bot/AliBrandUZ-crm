@@ -2357,7 +2357,7 @@ export type Database = {
           last_synced_at: string | null
           notes: string | null
           order_number: string | null
-          ordered_at: string | null
+          order_created_at: string | null
           payment_status: string | null
           profit: number | null
           shipped_at: string | null
@@ -2394,7 +2394,7 @@ export type Database = {
           last_synced_at?: string | null
           notes?: string | null
           order_number?: string | null
-          ordered_at?: string | null
+          order_created_at?: string | null
           payment_status?: string | null
           profit?: number | null
           shipped_at?: string | null
@@ -2431,7 +2431,7 @@ export type Database = {
           last_synced_at?: string | null
           notes?: string | null
           order_number?: string | null
-          ordered_at?: string | null
+          order_created_at?: string | null
           payment_status?: string | null
           profit?: number | null
           shipped_at?: string | null
@@ -4760,7 +4760,7 @@ export type Database = {
           last_synced_at: string | null
           notes: string | null
           order_number: string | null
-          ordered_at: string | null
+          order_created_at: string | null
           payment_status: string | null
           profit: number | null
           shipped_at: string | null

@@ -1043,8 +1043,8 @@ async function fetchForecastContext(supabase: any): Promise<any> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: recentOrders } = await supabase
     .from("marketplace_orders")
-    .select("total_amount, ordered_at")
-    .gte("ordered_at", sevenDaysAgo);
+    .select("total_amount, order_created_at")
+    .gte("order_created_at", sevenDaysAgo);
 
   const weeklyRevenue = recentOrders?.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0) || 0;
   const dailyAvg = weeklyRevenue / 7;
@@ -1393,7 +1393,7 @@ async function fetchReturnsContext(supabase: any): Promise<any> {
   };
 }
 
-// PHASE 1: Fixed column names: ordered_at, stock, price, external_sku, status
+// PHASE 1: Fixed column names: order_created_at, stock, price, external_sku, status
 async function fetchMarketplaceContext(supabase: any, detailed: boolean = false, storeFilter?: string): Promise<any> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -1416,12 +1416,12 @@ async function fetchMarketplaceContext(supabase: any, detailed: boolean = false,
     }
   }
 
-  // Fetch recent orders - FIXED: use ordered_at instead of order_date
+  // Fetch recent orders - FIXED: use order_created_at instead of order_date
   let ordersQuery = supabase
     .from("marketplace_orders")
-    .select("id, external_order_id, status, total_amount, ordered_at, store_id, items")
-    .gte("ordered_at", thirtyDaysAgo)
-    .order("ordered_at", { ascending: false });
+    .select("id, external_order_id, status, total_amount, order_created_at, store_id, items")
+    .gte("order_created_at", thirtyDaysAgo)
+    .order("order_created_at", { ascending: false });
   
   if (storeIdFilter) {
     ordersQuery = ordersQuery.eq("store_id", storeIdFilter);
@@ -1532,8 +1532,8 @@ async function fetchMarketplaceContext(supabase: any, detailed: boolean = false,
   }, 0) || 0;
 
   // PHASE 4: Time-based comparisons (Today vs Yesterday)
-  const todayOrders = orders?.filter((o: any) => o.ordered_at?.startsWith(today)) || [];
-  const yesterdayOrders = orders?.filter((o: any) => o.ordered_at?.startsWith(yesterday)) || [];
+  const todayOrders = orders?.filter((o: any) => o.order_created_at?.startsWith(today)) || [];
+  const yesterdayOrders = orders?.filter((o: any) => o.order_created_at?.startsWith(yesterday)) || [];
   const todayRevenue = todayOrders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0);
   const yesterdayRevenue = yesterdayOrders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0);
   const revenueChange = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100).toFixed(1) : 0;
@@ -1566,7 +1566,7 @@ async function fetchMarketplaceContext(supabase: any, detailed: boolean = false,
         orderId: o.external_order_id,
         status: o.status,
         amount: o.total_amount,
-        date: o.ordered_at,
+        date: o.order_created_at,
       })) || [],
     },
     listings: {
@@ -1699,11 +1699,11 @@ async function fetchBestSellersContext(supabase: any, storeFilter?: string, user
   // Fetch orders with time period filter
   let ordersQuery = supabase
     .from("marketplace_orders")
-    .select("id, store_id, items, total_amount, ordered_at, status")
+    .select("id, store_id, items, total_amount, order_created_at, status")
     .in("status", statusesToQuery)
-    .gte("ordered_at", periodStart.toISOString())
-    .lt("ordered_at", periodEnd.toISOString())
-    .order("ordered_at", { ascending: false });
+    .gte("order_created_at", periodStart.toISOString())
+    .lt("order_created_at", periodEnd.toISOString())
+    .order("order_created_at", { ascending: false });
 
   if (storeIdFilter) {
     ordersQuery = ordersQuery.eq("store_id", storeIdFilter);
@@ -1832,10 +1832,10 @@ async function fetchBestSellersContext(supabase: any, storeFilter?: string, user
     // Get today's orders with any status to show what's pending
     const { data: todaysAllOrders } = await supabase
       .from("marketplace_orders")
-      .select("id, store_id, items, total_amount, ordered_at, status")
-      .gte("ordered_at", periodStart.toISOString())
-      .lt("ordered_at", periodEnd.toISOString())
-      .order("ordered_at", { ascending: false })
+      .select("id, store_id, items, total_amount, order_created_at, status")
+      .gte("order_created_at", periodStart.toISOString())
+      .lt("order_created_at", periodEnd.toISOString())
+      .order("order_created_at", { ascending: false })
       .limit(100);
     
     if (todaysAllOrders && todaysAllOrders.length > 0) {

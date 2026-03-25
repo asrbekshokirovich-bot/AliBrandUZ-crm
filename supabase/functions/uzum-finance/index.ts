@@ -640,7 +640,7 @@ serve(async (req: Request) => {
               // Preserve existing image from DB
               image: savedImages[String(i.productId)] || listingImageMap[String(i.productId)] || null,
             })),
-            ordered_at: orderedAt,
+            order_created_at: orderedAt,
             last_synced_at: new Date().toISOString(),
           };
           if (acceptedAt) row.accepted_at = acceptedAt;
@@ -944,7 +944,7 @@ serve(async (req: Request) => {
         .select('external_order_id')
         .eq('store_id', store_id)
         .eq('fulfillment_type', 'fbu')
-        .order('ordered_at', { ascending: false })
+        .order('order_created_at', { ascending: false })
         .limit(20);
       const knownFbuIds = new Set((knownFbuOrders || []).map((o: any) => o.external_order_id));
 

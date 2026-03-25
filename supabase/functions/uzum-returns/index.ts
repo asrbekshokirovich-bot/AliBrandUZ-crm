@@ -40,12 +40,12 @@ Deno.serve(async (req) => {
 
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    // Fetch orders using ordered_at (universal field)
+    // Fetch orders using order_created_at (universal field)
     const { data: orders } = await supabase
       .from("marketplace_orders")
       .select("*")
       .eq("store_id", store_id)
-      .gte("ordered_at", startDate);
+      .gte("order_created_at", startDate);
 
     // Fetch marketplace_returns resolution stats
     const { data: returnsData } = await supabase
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
             amount: Number(order.total_amount) || 0,
             currency: order.currency || 'UZS',
             return_reason: order.fulfillment_status || order.status || 'returned',
-            return_date: order.ordered_at || order.created_at || new Date().toISOString(),
+            return_date: order.order_created_at || order.created_at || new Date().toISOString(),
             resolution: 'pending',
           }];
         }
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
           amount: (Number(item.price) || Number(item.amount) || 0) * (item.quantity || item.count || 1),
           currency: order.currency || 'UZS',
           return_reason: order.fulfillment_status || order.status || 'returned',
-          return_date: order.ordered_at || order.created_at || new Date().toISOString(),
+          return_date: order.order_created_at || order.created_at || new Date().toISOString(),
           resolution: 'pending',
         }));
       });
@@ -214,7 +214,7 @@ function analyzeOrders(orders: any[], platform: string) {
   for (let i = 0; i < 7; i++) dayStats[i] = { orders: 0, returns: 0, cancels: 0 };
 
   orders.forEach(order => {
-    const d = new Date(order.ordered_at || order.order_date).getDay();
+    const d = new Date(order.order_created_at || order.order_date).getDay();
     dayStats[d].orders++;
     if (order[statusField] === "returned" || order.status === "RETURNED") dayStats[d].returns++;
     if (order[statusField] === "cancelled" || order.status === "CANCELLED") dayStats[d].cancels++;

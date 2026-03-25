@@ -120,12 +120,12 @@ export function ListingAnalyticsSheet({ listing, open, onOpenChange, onSelectLis
     ? ((listing.price - listing.cost_price) / listing.price * 100)
     : null;
 
-  // Revenue by day for chart (last 30 days) — use delivered_at when available, fallback to ordered_at
+  // Revenue by day for chart (last 30 days) — use delivered_at when available, fallback to order_created_at
   const revenueByDay: Record<string, number> = {};
   const last30 = Array.from({ length: 30 }, (_, i) => format(subDays(new Date(), 29 - i), 'yyyy-MM-dd'));
   last30.forEach(d => { revenueByDay[d] = 0; });
   deliveredOrders.forEach((o: any) => {
-    const dateStr = o.delivered_at || o.ordered_at;
+    const dateStr = o.delivered_at || o.order_created_at;
     if (dateStr) {
       const day = format(parseISO(dateStr), 'yyyy-MM-dd');
       if (revenueByDay[day] !== undefined) {

@@ -47,7 +47,7 @@ serve(async (req) => {
       const { count: deletedOrders } = await supabase
         .from('marketplace_orders')
         .delete()
-        .lt('ordered_at', startDate)
+        .lt('order_created_at', startDate)
         .select('*', { count: 'exact', head: true });
       console.log(`[full-resync] Deleted ${deletedOrders} old orders before ${startDate}`);
 

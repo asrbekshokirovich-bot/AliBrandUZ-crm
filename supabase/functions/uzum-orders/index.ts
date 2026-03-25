@@ -456,11 +456,11 @@ async function enrichOrderItemsWithListingData(
       .select('id, external_order_id, items')
       .eq('store_id', store_id)
       .range(offset, offset + batchSize - 1)
-      .order('ordered_at', { ascending: backfillAll });
+      .order('order_created_at', { ascending: backfillAll });
 
     if (!backfillAll) {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      query = query.gte('ordered_at', thirtyDaysAgo);
+      query = query.gte('order_created_at', thirtyDaysAgo);
     }
 
     const { data: batch, error: batchError } = await query;
@@ -642,7 +642,7 @@ function transformOrderToRecord(
         image: imageUrl,
       };
     }) || [],
-    ordered_at: unixToIso(order.dateCreated),
+    order_created_at: unixToIso(order.dateCreated),
     accepted_at: unixToIso(order.acceptedDate),
     cancelled_at: unixToIso(order.dateCancelled),
     cancellation_reason: order.cancelReason,
@@ -669,7 +669,7 @@ function transformOrderToRecord(
       return {};
     })()),
     // Set delivered_at when order is delivered (for delivery-date revenue recognition)
-    // Use API dates if available, fallback to ordered_at (NOT new Date() which would stamp sync time)
+    // Use API dates if available, fallback to order_created_at (NOT new Date() which would stamp sync time)
     ...(mapToFulfillmentStatus(order.status) === 'delivered'
       ? { delivered_at: unixToIso(order.acceptedDate) || unixToIso(order.completedDate) || unixToIso(order.dateCreated) || new Date().toISOString() }
       : {}),
@@ -1364,7 +1364,7 @@ serve(async (req) => {
         .select('external_order_id')
         .eq('store_id', store_id)
         .eq('fulfillment_type', 'fbu')
-        .order('ordered_at', { ascending: false })
+        .order('order_created_at', { ascending: false })
         .limit(probeLimit);
       
       const fbuOrderIds = (fbuOrders || [])
@@ -1456,11 +1456,11 @@ serve(async (req) => {
       // Find fbu orders within 90 days that came from Finance API (have financeStatus in items)
       const { data: fbuToProbe, error: probeQueryErr } = await supabase
         .from('marketplace_orders')
-        .select('external_order_id, ordered_at, items')
+        .select('external_order_id, order_created_at, items')
         .eq('store_id', store_id)
         .eq('fulfillment_type', 'fbu')
-        .gte('ordered_at', ninetyDaysAgo)
-        .order('ordered_at', { ascending: false })
+        .gte('order_created_at', ninetyDaysAgo)
+        .order('order_created_at', { ascending: false })
         .limit(reconcileLimit);
       
       if (probeQueryErr) throw new Error(`Reconcile query failed: ${probeQueryErr.message}`);
@@ -1566,7 +1566,7 @@ serve(async (req) => {
         .select('external_order_id, items')
         .eq('store_id', store_id)
         .eq('fulfillment_type', 'fbs')
-        .order('ordered_at', { ascending: false })
+        .order('order_created_at', { ascending: false })
         .limit(reverseLimit * 4); // fetch more to filter down
       
       if (fbsQueryErr) throw new Error(`reverse_reconcile query failed: ${fbsQueryErr.message}`);
@@ -1669,7 +1669,7 @@ serve(async (req) => {
         .select('external_order_id, items')
         .eq('store_id', store_id)
         .eq('fulfillment_type', 'fbu')
-        .order('ordered_at', { ascending: true })
+        .order('order_created_at', { ascending: true })
         .limit(probeSize);
       
       if (fbuBatchErr) throw new Error(`probe_fbu_for_fbs query failed: ${fbuBatchErr.message}`);

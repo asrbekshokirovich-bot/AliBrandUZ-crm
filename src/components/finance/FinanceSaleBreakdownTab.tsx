@@ -20,10 +20,10 @@ const PENDING_STATUSES = ['pending', 'shipped', 'processing', 'CREATED', 'PACKIN
 const COMPLETED_STATUSES = ['delivered', 'COMPLETED', 'DELIVERED'];
 const REJECTED_STATUSES = ['cancelled', 'canceled', 'returned', 'CANCELLED', 'CANCELED', 'RETURNED'];
 
-const STATUS_CONFIG: Record<StatusFilterType, { statuses: string[]; dateCol: 'delivered_at' | 'ordered_at'; label: string; color: string }> = {
+const STATUS_CONFIG: Record<StatusFilterType, { statuses: string[]; dateCol: 'delivered_at' | 'order_created_at'; label: string; color: string }> = {
   completed: { statuses: COMPLETED_STATUSES, dateCol: 'delivered_at', label: 'Qabul qilingan', color: 'bg-green-500/20 text-green-600 border-green-500/30' },
-  pending: { statuses: PENDING_STATUSES, dateCol: 'ordered_at', label: 'Kutilmoqda', color: 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' },
-  rejected: { statuses: REJECTED_STATUSES, dateCol: 'ordered_at', label: 'Rad etilgan', color: 'bg-red-500/20 text-red-600 border-red-500/30' },
+  pending: { statuses: PENDING_STATUSES, dateCol: 'order_created_at', label: 'Kutilmoqda', color: 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' },
+  rejected: { statuses: REJECTED_STATUSES, dateCol: 'order_created_at', label: 'Rad etilgan', color: 'bg-red-500/20 text-red-600 border-red-500/30' },
 };
 
 // Exchange rates are now fetched from the edge function via props
@@ -63,7 +63,7 @@ export function FinanceSaleBreakdownTab({ selectedMonth, selectedYear, usdToUzs:
       const data = await fetchAllRows(
         supabase
           .from('marketplace_orders')
-          .select('id, store_id, external_order_id, order_number, total_amount, commission, delivery_cost, items, currency, ordered_at, delivered_at, fulfillment_status, customer_name, marketplace_stores(name, platform)')
+          .select('id, store_id, external_order_id, order_number, total_amount, commission, delivery_cost, items, currency, order_created_at, delivered_at, fulfillment_status, customer_name, marketplace_stores(name, platform)')
           .in('fulfillment_status', filterConfig.statuses)
           .gte(filterConfig.dateCol, periodStart)
           .lte(filterConfig.dateCol, periodEnd)
@@ -196,7 +196,7 @@ export function FinanceSaleBreakdownTab({ selectedMonth, selectedYear, usdToUzs:
 
       return {
         id: order.id,
-        date: (order as any).delivered_at || order.ordered_at,
+        date: (order as any).delivered_at || order.order_created_at,
         orderNumber: order.order_number || order.external_order_id || '',
         productName: productNames.join(', ') || t('fin_sale_cost_unknown'),
         storeName, platform,

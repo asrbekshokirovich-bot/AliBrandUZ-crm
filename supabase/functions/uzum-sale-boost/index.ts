@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     
     const orders = await fetchAllRows(
-      supabase.from("marketplace_orders").select("*").eq("store_id", store_id).gte("ordered_at", thirtyDaysAgo)
+      supabase.from("marketplace_orders").select("*").eq("store_id", store_id).gte("order_created_at", thirtyDaysAgo)
     );
 
     // Fetch store listings

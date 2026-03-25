@@ -45,16 +45,16 @@ export function FinanceIncomeByStatus({ periodStart, periodEnd, onStatusClick }:
             .from('marketplace_orders')
             .select('total_amount, commission')
             .in('fulfillment_status', PENDING_STATUSES)
-            .gte('ordered_at', periodStart)
-            .lte('ordered_at', periodEnd)
+            .gte('order_created_at', periodStart)
+            .lte('order_created_at', periodEnd)
         ),
         fetchAllRows(
           supabase
             .from('marketplace_orders')
             .select('total_amount, commission')
             .in('fulfillment_status', REJECTED_STATUSES)
-            .gte('ordered_at', periodStart)
-            .lte('ordered_at', periodEnd)
+            .gte('order_created_at', periodStart)
+            .lte('order_created_at', periodEnd)
         ),
       ]);
 

@@ -47,8 +47,8 @@ export default function StoreAnalytics() {
                     .select('store_id, items, total_amount')
                     .in('store_id', storeIds)
                     .in('status', ['DELIVERED', 'COMPLETED', 'PARTIALLY_DELIVERED'])
-                    .gte('ordered_at', startDate)
-                    .lte('ordered_at', endDate)
+                    .gte('order_created_at', startDate)
+                    .lte('order_created_at', endDate)
             );
 
             // Extract unique SKUs and tally quantities per store

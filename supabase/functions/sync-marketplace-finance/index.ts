@@ -41,7 +41,7 @@ interface MarketplaceOrder {
   id: string;
   store_id: string;
   order_date: string;
-  ordered_at?: string;
+  order_created_at?: string;
   created_at?: string;
   delivered_at?: string;
   total_amount: number;
@@ -115,8 +115,8 @@ function getOrderDate(order: MarketplaceOrder): string {
   if (isDeliveredOrder(order) && order.delivered_at) {
     return order.delivered_at.split('T')[0];
   }
-  // For non-delivered orders (cancelled, returned, pending), use ordered_at
-  const raw = order.ordered_at || order.created_at || order.order_date;
+  // For non-delivered orders (cancelled, returned, pending), use order_created_at
+  const raw = order.order_created_at || order.created_at || order.order_date;
   if (!raw) return new Date().toISOString().split('T')[0];
   return raw.split('T')[0];
 }
@@ -267,15 +267,15 @@ serve(async (req) => {
       try {
         await delay(API_DELAY_MS);
 
-        // Fetch orders where delivered_at OR ordered_at falls in range
+        // Fetch orders where delivered_at OR order_created_at falls in range
         // This ensures we capture: delivered orders by delivery date, and non-delivered by order date
         const orders = await fetchAllRows(
           supabase
             .from('marketplace_orders')
             .select('*')
             .eq('store_id', store.id)
-            .or(`delivered_at.gte.${defaultDateFrom},ordered_at.gte.${defaultDateFrom}`)
-            .or(`delivered_at.lte.${defaultDateTo}T23:59:59,ordered_at.lte.${defaultDateTo}T23:59:59`)
+            .or(`delivered_at.gte.${defaultDateFrom},order_created_at.gte.${defaultDateFrom}`)
+            .or(`delivered_at.lte.${defaultDateTo}T23:59:59,order_created_at.lte.${defaultDateTo}T23:59:59`)
         ) as MarketplaceOrder[];
 
         console.log(`[${store.name}] Fetched ${orders.length} orders for ${defaultDateFrom} to ${defaultDateTo}`);
