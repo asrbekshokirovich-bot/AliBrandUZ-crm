@@ -586,27 +586,40 @@ export default function Products() {
                       </p>
                       {(product.price || product.cost_price) && (
                         <div className="flex items-center gap-2 text-xs mt-1 flex-wrap">
+                          {/* Narx: Sotib olish narxi CNY da */}
                           {product.price && (
                             <span className="text-muted-foreground">
                               {t('prod_price_label')} ¥{product.price.toLocaleString()}
                             </span>
                           )}
-                          {product.cost_price && (
+
+                          {/* Tannarx: cost_price — bu allaqachon yakuniy tannarx (price + shipping/qty) CNY da */}
+                          {product.cost_price && product.cost_price !== product.price && (
                             <>
                               {product.price && <span className="text-muted-foreground">|</span>}
-                              <span className="text-muted-foreground">
-                                Tannarx: {new Intl.NumberFormat('uz-UZ').format(
-                                  (() => {
-                                    const price = product.cost_price || 0;
-                                    if (product.purchase_currency === 'CNY') return price * cnyToUzs;
-                                    if (product.purchase_currency === 'USD') return price * usdToUzs;
-                                    return price;
-                                  })()
-                                )} so'm
+                              <span className="text-muted-foreground font-medium">
+                                {(() => {
+                                  const costCNY = product.cost_price as number;
+                                  const currency = product.purchase_currency || 'CNY';
+                                  
+                                  if (currency === 'CNY') {
+                                    // CNY da saqlangan → ikki formatda ko'rsatish
+                                    const costUZS = Math.round(costCNY * cnyToUzs);
+                                    return `Tannarx: ¥${costCNY.toLocaleString()} (${new Intl.NumberFormat('uz-UZ').format(costUZS)} so'm)`;
+                                  }
+                                  if (currency === 'USD') {
+                                    const costUZS = Math.round(costCNY * usdToUzs);
+                                    return `Tannarx: $${costCNY.toLocaleString()} (${new Intl.NumberFormat('uz-UZ').format(costUZS)} so'm)`;
+                                  }
+                                  // UZS da saqlangan
+                                  return `Tannarx: ${new Intl.NumberFormat('uz-UZ').format(costCNY)} so'm`;
+                                })()}
                               </span>
                             </>
                           )}
-                          {product.shipping_cost_to_china && (
+
+                          {/* Yetkazish: shipping_cost alohida faqat agar cost_price ichida EMAS bo'lsa */}
+                          {product.shipping_cost_to_china && !product.cost_price && (
                             <span className="text-orange-600">
                               + Yetkazish: ¥{product.shipping_cost_to_china.toLocaleString()}
                             </span>
