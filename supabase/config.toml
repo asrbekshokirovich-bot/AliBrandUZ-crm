@@ -21,8 +21,8 @@ verify_jwt = false
 [functions.manage-users]
 verify_jwt = true
 
-[functions.test-gemini]
-verify_jwt = false
+# [functions.test-gemini]
+# verify_jwt = false
 
 [functions.analyze-defect]
 verify_jwt = true
@@ -36,8 +36,8 @@ verify_jwt = true
 [functions.ali-ai-brain]
 verify_jwt = true
 
-[functions.ali-ai-tts]
-verify_jwt = true
+# [functions.ali-ai-tts]
+# verify_jwt = true
 
 [functions.ali-ai-insights-worker]
 verify_jwt = false
@@ -45,8 +45,8 @@ verify_jwt = false
 [functions.ali-ai-digest]
 verify_jwt = true
 
-[functions.uzum-sync]
-verify_jwt = false
+# [functions.uzum-sync]
+# verify_jwt = false
 
 [functions.uzum-orders]
 verify_jwt = false
@@ -60,8 +60,8 @@ verify_jwt = false
 [functions.uzum-finance]
 verify_jwt = false
 
-[functions.yandex-sync]
-verify_jwt = false
+# [functions.yandex-sync]
+# verify_jwt = false
 
 [functions.marketplace-health]
 verify_jwt = false
@@ -117,8 +117,8 @@ verify_jwt = false
 [functions.uzum-seo-optimizer]
 verify_jwt = false
 
-[functions.uzum-demand-forecast]
-verify_jwt = false
+# [functions.uzum-demand-forecast]
+# verify_jwt = false
 
 [functions.uzum-returns]
 verify_jwt = false
@@ -178,4 +178,12 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.scan-return-document]
+verify_jwt = false
+
+[functions.db-check]
+enabled = true
+verify_jwt = false
+
+[functions.get-secrets]
+enabled = true
 verify_jwt = false

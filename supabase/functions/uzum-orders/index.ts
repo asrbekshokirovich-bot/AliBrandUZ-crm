@@ -596,18 +596,25 @@ function transformOrderToRecord(
   order: UzumOrder, 
   store_id: string,
 ): Record<string, unknown> {
+  const marketplaceCommission = order.orderItems?.reduce((sum, item) => sum + (item.commission || 0), 0) || 0;
+  const deliveryFee = order.orderItems?.reduce((sum, item) => sum + (item.logisticDeliveryFee || 0), 0) || 0;
+  const netAmount = (order.price || 0) - marketplaceCommission - deliveryFee;
+
   return {
     store_id,
     external_order_id: String(order.id),
+    marketplace: 'uzum',
     status: order.status,
-    fulfillment_status: mapToFulfillmentStatus(order.status),
     customer_name: order.deliveryInfo?.customerFullname,
     customer_phone: order.deliveryInfo?.customerPhone,
-    shipping_address: order.dropOffPoint?.address || order.deliveryInfo?.deliveryAddress,
+    delivery_address: {
+      address: order.dropOffPoint?.address || order.deliveryInfo?.deliveryAddress,
+      region: order.place
+    },
     total_amount: order.price,
     currency: 'UZS',
-    fulfillment_type: normalizeFulfillmentType(order.scheme),
-    delivery_fee: order.orderItems?.reduce((sum, item) => sum + (item.logisticDeliveryFee || 0), 0) || 0,
+    marketplace_commission: marketplaceCommission,
+    net_amount: netAmount,
     items: order.orderItems?.map((item) => {
       // deno-lint-ignore no-explicit-any
       const rawItem = item as any;
@@ -643,37 +650,11 @@ function transformOrderToRecord(
       };
     }) || [],
     order_created_at: unixToIso(order.dateCreated),
-    accepted_at: unixToIso(order.acceptedDate),
-    cancelled_at: unixToIso(order.dateCancelled),
-    cancellation_reason: order.cancelReason,
-    // Only write commission if API returns > 0, otherwise preserve existing value
-    ...((() => {
-      const apiCommission = order.orderItems?.reduce((sum, item) => sum + (item.commission || 0), 0) || 0;
-      return apiCommission > 0 ? { commission: apiCommission } : {};
-    })()),
-    // Calculate profit: prefer API sellerProfit sum, fallback to total - commission - delivery
-    ...((() => {
-      const itemsProfit = order.orderItems?.reduce(
-        (sum: number, item: { sellerProfit?: number }) => sum + (item.sellerProfit || 0), 0
-      ) || 0;
-      if (itemsProfit > 0) return { profit: itemsProfit };
-      const apiCommission = order.orderItems?.reduce(
-        (sum: number, item: { commission?: number }) => sum + (item.commission || 0), 0
-      ) || 0;
-      const apiDeliveryFee = order.orderItems?.reduce(
-        (sum: number, item: { logisticDeliveryFee?: number }) => sum + (item.logisticDeliveryFee || 0), 0
-      ) || 0;
-      if (apiCommission > 0 || apiDeliveryFee > 0) {
-        return { profit: (order.price || 0) - apiCommission - apiDeliveryFee };
-      }
-      return {};
-    })()),
-    // Set delivered_at when order is delivered (for delivery-date revenue recognition)
-    // Use API dates if available, fallback to order_created_at (NOT new Date() which would stamp sync time)
-    ...(mapToFulfillmentStatus(order.status) === 'delivered'
-      ? { delivered_at: unixToIso(order.acceptedDate) || unixToIso(order.completedDate) || unixToIso(order.dateCreated) || new Date().toISOString() }
-      : {}),
-    last_synced_at: new Date().toISOString(),
+    shipped_at: unixToIso(order.acceptedDate),
+    delivered_at: order.status === 'DELIVERED' || order.status === 'COMPLETED' 
+      ? (unixToIso(order.completedDate) || unixToIso(order.acceptedDate) || new Date().toISOString())
+      : null,
+    synced_at: new Date().toISOString(),
   };
 }
 
@@ -961,16 +942,16 @@ serve(async (req) => {
       // === INCREMENTAL SYNC: Only upsert NEW or STATUS-CHANGED orders ===
       // Pre-fetch existing orders
       const allExternalIds = allOrders.map(o => String(o.id));
-      const existingOrdersMap = new Map<string, { id: string; status: string; fulfillment_status: string; delivered_at: string | null; fulfillment_type: string }>();
+      const existingOrdersMap = new Map<string, { id: string; status: string; delivered_at: string | null }>();
       for (let i = 0; i < allExternalIds.length; i += 500) {
         const chunk = allExternalIds.slice(i, i + 500);
         const { data: existingBatch } = await supabase
           .from('marketplace_orders')
-          .select('external_order_id, id, status, fulfillment_status, delivered_at, fulfillment_type')
+          .select('external_order_id, id, status, delivered_at')
           .eq('store_id', store_id)
           .in('external_order_id', chunk);
         for (const eo of existingBatch || []) {
-          existingOrdersMap.set(eo.external_order_id, { id: eo.id, status: eo.status, fulfillment_status: eo.fulfillment_status, delivered_at: eo.delivered_at, fulfillment_type: eo.fulfillment_type });
+          existingOrdersMap.set(eo.external_order_id, { id: eo.id, status: eo.status, delivered_at: eo.delivered_at });
         }
       }
       console.log(`[uzum-orders] Pre-fetched ${existingOrdersMap.size} existing orders`);
@@ -983,17 +964,8 @@ serve(async (req) => {
       let fbuCorrected = 0;
       for (const order of allOrders) {
         const existing = existingOrdersMap.get(String(order.id));
-        if (!existing) {
-          // New order — insert
+        if (!existing || existing.status !== order.status) {
           ordersToUpsert.push(order);
-        } else if (existing.status !== order.status) {
-          // Status changed — update
-          ordersToUpsert.push(order);
-        } else if (existing.fulfillment_type === 'fbu') {
-          // ORDER FROM FBS API ENDPOINT BUT STAMPED AS FBU — correct it
-          // transformOrderToRecord will write fulfillment_type:'fbs' since order.scheme is 'FBS'
-          ordersToUpsert.push(order);
-          fbuCorrected++;
         } else {
           skippedUnchanged++;
         }

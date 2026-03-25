@@ -344,11 +344,11 @@ serve(async (req) => {
             if (fulfillmentType === 'fbs') {
               const { data: existingOrder } = await supabase
                 .from('marketplace_orders')
-                .select('fulfillment_status')
+                .select('status')
                 .eq('store_id', store_id)
                 .eq('external_order_id', String(order.id))
                 .maybeSingle();
-              previousStatus = existingOrder?.fulfillment_status || null;
+              previousStatus = existingOrder?.status || null;
             }
 
             // Extract real commissions from API — separate marketplace commission from delivery fees
@@ -369,23 +369,19 @@ serve(async (req) => {
             const orderData: Record<string, unknown> = {
               store_id,
               external_order_id: String(order.id),
-              order_number: order.partnerOrderId || String(order.id),
-              fulfillment_type: fulfillmentType,
+              marketplace: 'yandex',
               status: order.status,
-              fulfillment_status: fulfillmentStatus,
-              substatus: order.substatus,
-              payment_status: order.paymentType,
-              shipping_address: order.deliveryRegion ? { region: order.deliveryRegion.name } : null,
+              customer_name: null, // Yandex API for stats doesn't always provide customer name
+              customer_phone: null,
+              delivery_address: order.deliveryRegion ? { region: order.deliveryRegion.name } : null,
               notes: order.externalOrderId ? `extId:${order.externalOrderId}${order.fake ? ' [TEST]' : ''}` : (order.fake ? '[TEST]' : null),
               total_amount: totalAmount,
-              items_total: itemsTotal,
-              commission: marketplaceCommission,
-              delivery_fee: deliveryFee || deliveryCommission,
-              delivery_cost: deliveryCommission,
+              marketplace_commission: marketplaceCommission,
+              net_amount: totalAmount - marketplaceCommission - deliveryCommission,
               currency: 'UZS',
               items: itemsData,
               order_created_at: order.creationDate,
-              last_synced_at: new Date().toISOString(),
+              synced_at: new Date().toISOString(),
             };
 
             // Set delivered_at when order is delivered (for delivery-date revenue recognition)
@@ -405,9 +401,9 @@ serve(async (req) => {
 
               // === FBS STOCK DECREMENT: Auto-decrease Tashkent warehouse stock ===
               if (fulfillmentType === 'fbs') {
-                const isNewOrder = previousStatus === null && ['shipped', 'pending'].includes(fulfillmentStatus);
-                const isCancelled = fulfillmentStatus === 'cancelled' && previousStatus !== null && previousStatus !== 'cancelled';
-                const isReturned = fulfillmentStatus === 'returned' && previousStatus !== null && previousStatus !== 'returned';
+                const isNewOrder = previousStatus === null && ['PROCESSING', 'DELIVERY', 'PICKUP'].includes(order.status);
+                const isCancelled = (order.status.startsWith('CANCEL') || order.status === 'CANCELED') && previousStatus !== null && !previousStatus.startsWith('CANCEL');
+                const isReturned = (order.status.startsWith('RETURN')) && previousStatus !== null && !previousStatus.startsWith('RETURN');
 
                 if (isNewOrder || isCancelled || isReturned) {
                   for (const item of order.items || []) {
