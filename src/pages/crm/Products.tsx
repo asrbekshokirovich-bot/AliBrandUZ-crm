@@ -710,10 +710,30 @@ export default function Products() {
                             </div>
                             {/* Mahsulot jami: barcha dona * tannarx/dona */}
                             {(() => {
-                              const unitCost = (costCNY || priceCNY) as number | null;
                               const actualQty = product.quantity as number | null;
-                              if (!unitCost || !actualQty || actualQty < 1) return null;
-                              const totalCNY = unitCost * actualQty;
+                              if (!actualQty || actualQty < 1) return null;
+
+                              // Eng aniq per-unit narxni aniqlash —
+                              // price + shipping formula mavjud bo'lsa, u ishonchli (kichik CNY raqam)
+                              // Aks holda cost_price ishlatiladi (lekin xato kiritilgan bo'lishi mumkin)
+                              const formulaUnitCost = priceCNY
+                                ? priceCNY + (shippingPerUnit || 0)
+                                : null;
+                              const unitCostForJami = formulaUnitCost ?? (costCNY as number | null) ?? null;
+
+                              if (!unitCostForJami) return null;
+
+                              // Xavfsizlik tekshiruvi: 1 dona narxi CNY da 500 dan oshsa,
+                              // ma'lumot xato kiritilgan bo'lishi mumkin (masalan 1925 o'rniga 1.925)
+                              if (currency === 'CNY' && unitCostForJami > 500) {
+                                return (
+                                  <div className="flex items-center gap-1 text-xs mt-1 pt-1 border-t border-border/30 text-orange-500">
+                                    <span>⚠️ Jami: mahsulotni qayta saqlang (narx xato bo'lishi mumkin)</span>
+                                  </div>
+                                );
+                              }
+
+                              const totalCNY = unitCostForJami * actualQty;
                               const totalUZS = Math.round(totalCNY * rateToUzs);
                               return (
                                 <div className="flex items-center flex-wrap gap-1 text-xs mt-1 pt-1 border-t border-border/30">
