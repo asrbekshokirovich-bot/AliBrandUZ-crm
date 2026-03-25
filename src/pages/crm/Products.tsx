@@ -628,17 +628,16 @@ export default function Products() {
                                 <>
                                   <span className="opacity-50">=</span>
                                   <span className="font-semibold text-foreground">
-                                    {currSymbol}{fmt(costCNY)} <span className="opacity-60">(Tannarx)</span>
+                                    {currSymbol}{fmt(costCNY)} <span className="opacity-60">(CNY/dona)</span>
+                                    {tannarxUZS && (
+                                      <span className="ml-1 text-primary">
+                                        ≈ {new Intl.NumberFormat('uz-UZ').format(tannarxUZS)} so'm
+                                      </span>
+                                    )}
                                   </span>
                                 </>
                               )}
                             </div>
-                            {/* So'm ekvivalenti */}
-                            {tannarxUZS && (
-                              <div className="text-primary font-medium">
-                                ≈ {new Intl.NumberFormat('uz-UZ').format(tannarxUZS)} so'm/dona
-                              </div>
-                            )}
                           </div>
                         );
                       })()}
