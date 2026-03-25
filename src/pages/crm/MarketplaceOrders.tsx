@@ -550,7 +550,7 @@ export default function MarketplaceOrders() {
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <TrendingUp className="h-3.5 w-3.5 text-yellow-500" />
                 <span className="font-medium text-foreground">
-                  {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 }).format(platformStats.yandex.revenue)}
+                  {new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0 }).format(platformStats.yandex.revenue)}
                 </span>
               </div>
             )}

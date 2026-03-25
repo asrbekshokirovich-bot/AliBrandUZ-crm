@@ -36,11 +36,14 @@ const FEE_COLORS = [
   'hsl(var(--chart-5))',
 ];
 
-const formatCurrency = (amount: number, currency: string = 'RUB'): string => {
+const formatCurrency = (amount: number, currency: string = 'UZS'): string => {
   if (currency === 'USD') {
     return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `${amount.toLocaleString('ru-RU')} ₽`;
+  if (currency === 'RUB') {
+    return `${amount.toLocaleString('ru-RU')} ₽`;
+  }
+  return `${amount.toLocaleString('uz-UZ')} UZS`;
 };
 
 export function YandexFinanceTab() {
