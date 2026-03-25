@@ -550,50 +550,7 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
             </div>
           )}
 
-          {/* Individual Items */}
-          {items && items.length > 0 && (
-            <>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Individual mahsulotlar
-              </p>
-              {items.map((item) => (
-                <Card
-                  key={item.id}
-                  className="p-3 bg-muted/50 border-border hover:bg-muted transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-mono text-foreground">
-                          {item.item_uuid}
-                        </p>
-                        {item.boxes && (
-                          <Badge variant="outline" className="text-xs">
-                            📦 {item.boxes.box_number}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <MapPin className={`h-3 w-3 ${getLocationColor(item.location || 'china')}`} />
-                          {translateLocation(item.location || 'china')}
-                        </span>
-                        {item.notes && (
-                          <span className="text-xs">• {item.notes}</span>
-                        )}
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${getStatusColor(item.status || 'pending')}`}
-                    >
-                      {translateStatus(item.status || 'pending')}
-                    </Badge>
-                  </div>
-                </Card>
-              ))}
-            </>
-          )}
+          {/* Individual Items — hidden per user request */}
 
           {/* Empty state */}
           {(!items || items.length === 0) && (!variants || variants.length === 0) && (
