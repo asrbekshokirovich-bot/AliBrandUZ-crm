@@ -586,28 +586,11 @@ export default function Products() {
                       </p>
                       {(product.price || product.cost_price) && (
                         <div className="flex items-center gap-2 text-xs mt-1 flex-wrap">
-                          {product.price && (() => {
-                            const currency = product.purchase_currency || product.price_currency;
-                            if (currency === 'CNY') {
-                              return (
-                                <span className="text-muted-foreground">
-                                  {t('prod_price_label')} ¥{product.price.toLocaleString()}
-                                </span>
-                              );
-                            }
-                            if (currency === 'USD') {
-                              return (
-                                <span className="text-muted-foreground">
-                                  {t('prod_price_label')} ${product.price.toLocaleString()}
-                                </span>
-                              );
-                            }
-                            return (
-                              <span className="text-muted-foreground">
-                                {t('prod_price_label')} {product.price.toLocaleString()} so'm
-                              </span>
-                            );
-                          })()}
+                          {product.price && (
+                            <span className="text-muted-foreground">
+                              {t('prod_price_label')} ¥{product.price.toLocaleString()}
+                            </span>
+                          )}
                           {product.cost_price && (
                             <>
                               {product.price && <span className="text-muted-foreground">|</span>}
