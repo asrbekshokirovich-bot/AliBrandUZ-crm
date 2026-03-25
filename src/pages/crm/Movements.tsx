@@ -354,14 +354,7 @@ export default function Movements() {
             </Button>
           </div>
 
-          {failedSources.length > 0 && (
-            <Alert variant="destructive" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                {failedSources.length} ta manba yuklanmadi
-              </AlertDescription>
-            </Alert>
-          )}
+
 
           <MobileCategoryChips
             stats={stats}
@@ -475,14 +468,7 @@ export default function Movements() {
         </Button>
       </div>
 
-      {failedSources.length > 0 && (
-        <Alert variant="destructive" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-800 dark:text-amber-200">
-            {failedSources.length} ta manba yuklanmadi: {failedSources.join(', ')}
-          </AlertDescription>
-        </Alert>
-      )}
+
 
       {/* Stats Cards - scrollable grid */}
       <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-3">

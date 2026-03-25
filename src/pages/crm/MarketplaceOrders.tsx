@@ -27,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   ShoppingCart, Search, Package, Truck, CheckCircle, XCircle, Clock,
   PackageCheck, RotateCcw, MapPin, AlertTriangle, RefreshCw, CalendarIcon, X,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, TrendingUp
 } from "lucide-react";
 import {
   format, formatDistanceToNow, startOfDay, endOfDay,
@@ -312,43 +312,78 @@ export default function MarketplaceOrders() {
   });
 
 
-  // Stats query for cancelled and completed counts
+  // Stats query for cancelled and completed counts (filtered)
   const { data: statsData } = useQuery({
     queryKey: ['marketplace-orders-stats', ...filterKeys],
     queryFn: async () => {
-      let cancelledQuery = supabase
-        .from('marketplace_orders')
-        .select('*, marketplace_stores!inner (name, platform)', { count: 'exact', head: true })
-        .in('status', STATUS_GROUPS['cancelled']);
-      cancelledQuery = applyFilters(cancelledQuery);
-      // Remove status filter that applyFilters may have added — we want cancelled specifically
-      // Actually applyFilters only adds status filter when statusFilter !== 'all', so we rebuild:
-      let cq = supabase
-        .from('marketplace_orders')
-        .select('*, marketplace_stores!inner (name, platform)', { count: 'exact', head: true })
-        .in('status', STATUS_GROUPS['cancelled']);
-      if (storeFilter !== 'all') cq = cq.eq('store_id', storeFilter);
-      else if (platformFilter !== 'all') cq = cq.eq('marketplace_stores.platform', platformFilter);
-      if (fulfillmentFilter !== 'all') cq = cq.eq('fulfillment_type', fulfillmentFilter);
-      if (dateRange?.from) cq = cq.gte('ordered_at', startOfDay(dateRange.from).toISOString());
-      if (dateRange?.to) cq = cq.lte('ordered_at', endOfDay(dateRange.to).toISOString());
-      if (debouncedSearch) cq = cq.or(`external_order_id.ilike.%${debouncedSearch}%,order_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%`);
-
-      let compQ = supabase
-        .from('marketplace_orders')
-        .select('*, marketplace_stores!inner (name, platform)', { count: 'exact', head: true })
-        .in('status', STATUS_GROUPS['completed']);
-      if (storeFilter !== 'all') compQ = compQ.eq('store_id', storeFilter);
-      else if (platformFilter !== 'all') compQ = compQ.eq('marketplace_stores.platform', platformFilter);
-      if (fulfillmentFilter !== 'all') compQ = compQ.eq('fulfillment_type', fulfillmentFilter);
-      if (dateRange?.from) compQ = compQ.gte('ordered_at', startOfDay(dateRange.from).toISOString());
-      if (dateRange?.to) compQ = compQ.lte('ordered_at', endOfDay(dateRange.to).toISOString());
-      if (debouncedSearch) compQ = compQ.or(`external_order_id.ilike.%${debouncedSearch}%,order_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%`);
-
-      const [cancelledRes, completedRes] = await Promise.all([cq, compQ]);
+      const buildBase = (statusGroup: string) => {
+        let q = supabase
+          .from('marketplace_orders')
+          .select('*, marketplace_stores!inner (name, platform)', { count: 'exact', head: true })
+          .in('status', STATUS_GROUPS[statusGroup]);
+        if (storeFilter !== 'all') q = q.eq('store_id', storeFilter);
+        else if (platformFilter !== 'all') q = q.eq('marketplace_stores.platform', platformFilter);
+        if (fulfillmentFilter !== 'all') q = q.eq('fulfillment_type', fulfillmentFilter);
+        if (dateRange?.from) q = q.gte('ordered_at', startOfDay(dateRange.from).toISOString());
+        if (dateRange?.to) q = q.lte('ordered_at', endOfDay(dateRange.to).toISOString());
+        if (debouncedSearch) q = q.or(`external_order_id.ilike.%${debouncedSearch}%,order_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%`);
+        return q;
+      };
+      const [cancelledRes, completedRes] = await Promise.all([
+        buildBase('cancelled'),
+        buildBase('completed'),
+      ]);
       return {
         cancelled: cancelledRes.count || 0,
         completed: completedRes.count || 0,
+      };
+    },
+  });
+
+  // Per-platform stats (Uzum & Yandex breakdown)
+  const { data: platformStats } = useQuery({
+    queryKey: ['marketplace-platform-stats', ...filterKeys],
+    queryFn: async () => {
+      const buildPlatformQuery = (platform: string, statusGroup?: string) => {
+        let q = supabase
+          .from('marketplace_orders')
+          .select('total_amount, currency, marketplace_stores!inner(platform)', { count: 'exact', head: false })
+          .eq('marketplace_stores.platform', platform);
+        if (statusGroup) q = q.in('status', STATUS_GROUPS[statusGroup]);
+        if (fulfillmentFilter !== 'all') q = q.eq('fulfillment_type', fulfillmentFilter);
+        if (dateRange?.from) q = q.gte('ordered_at', startOfDay(dateRange.from).toISOString());
+        if (dateRange?.to) q = q.lte('ordered_at', endOfDay(dateRange.to).toISOString());
+        if (debouncedSearch) q = q.or(`external_order_id.ilike.%${debouncedSearch}%,order_number.ilike.%${debouncedSearch}%`);
+        return q;
+      };
+
+      const [uzumAll, uzumComp, uzumCanc, yandexAll, yandexComp, yandexCanc] = await Promise.all([
+        buildPlatformQuery('uzum'),
+        buildPlatformQuery('uzum', 'completed'),
+        buildPlatformQuery('uzum', 'cancelled'),
+        buildPlatformQuery('yandex'),
+        buildPlatformQuery('yandex', 'completed'),
+        buildPlatformQuery('yandex', 'cancelled'),
+      ]);
+
+      const sumRevenue = (rows: any[] | null) =>
+        (rows || []).reduce((s: number, r: any) => s + (Number(r.total_amount) || 0), 0);
+
+      return {
+        uzum: {
+          total: uzumAll.count || 0,
+          revenue: sumRevenue(uzumAll.data),
+          currency: uzumAll.data?.[0]?.currency || 'UZS',
+          completed: uzumComp.count || 0,
+          cancelled: uzumCanc.count || 0,
+        },
+        yandex: {
+          total: yandexAll.count || 0,
+          revenue: sumRevenue(yandexAll.data),
+          currency: yandexAll.data?.[0]?.currency || 'RUB',
+          completed: yandexComp.count || 0,
+          cancelled: yandexCanc.count || 0,
+        },
       };
     },
   });
@@ -472,38 +507,85 @@ export default function MarketplaceOrders() {
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-full bg-primary/10 p-2">
-              <ShoppingCart className="h-5 w-5 text-primary" />
+      {/* Per-Platform Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Uzum Card */}
+        <Card className="border-purple-200 dark:border-purple-900">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🟣</span>
+              <span className="font-semibold text-purple-700 dark:text-purple-400">Uzum</span>
+              <span className="ml-auto text-2xl font-bold">{(platformStats?.uzum.total ?? 0).toLocaleString()}</span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('mpo_stats_all')}</p>
-              <p className="text-2xl font-bold">{totalCount.toLocaleString()}</p>
+            {platformStats?.uzum.revenue !== undefined && platformStats.uzum.revenue > 0 && (
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-purple-500" />
+                <span className="font-medium text-foreground">
+                  {new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0 }).format(platformStats.uzum.revenue)}
+                </span>
+              </div>
+            )}
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1 text-green-600">
+                <CheckCircle className="h-3 w-3" />
+                {(platformStats?.uzum.completed ?? 0).toLocaleString()}
+              </span>
+              <span className="flex items-center gap-1 text-red-500">
+                <XCircle className="h-3 w-3" />
+                {(platformStats?.uzum.cancelled ?? 0).toLocaleString()}
+              </span>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-full bg-red-100 p-2">
-              <XCircle className="h-5 w-5 text-red-600" />
+
+        {/* Yandex Card */}
+        <Card className="border-yellow-200 dark:border-yellow-900">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🟡</span>
+              <span className="font-semibold text-yellow-700 dark:text-yellow-400">Yandex</span>
+              <span className="ml-auto text-2xl font-bold">{(platformStats?.yandex.total ?? 0).toLocaleString()}</span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('mpo_stats_cancelled')}</p>
-              <p className="text-2xl font-bold">{(statsData?.cancelled ?? 0).toLocaleString()}</p>
+            {platformStats?.yandex.revenue !== undefined && platformStats.yandex.revenue > 0 && (
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-yellow-500" />
+                <span className="font-medium text-foreground">
+                  {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 }).format(platformStats.yandex.revenue)}
+                </span>
+              </div>
+            )}
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1 text-green-600">
+                <CheckCircle className="h-3 w-3" />
+                {(platformStats?.yandex.completed ?? 0).toLocaleString()}
+              </span>
+              <span className="flex items-center gap-1 text-red-500">
+                <XCircle className="h-3 w-3" />
+                {(platformStats?.yandex.cancelled ?? 0).toLocaleString()}
+              </span>
             </div>
           </CardContent>
         </Card>
+
+        {/* Total Summary Card */}
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-full bg-green-100 p-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🌐</span>
+              <span className="font-semibold text-muted-foreground">{t('mpo_stats_all')}</span>
+              <span className="ml-auto text-2xl font-bold">{totalCount.toLocaleString()}</span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('mpo_stats_completed')}</p>
-              <p className="text-2xl font-bold">{(statsData?.completed ?? 0).toLocaleString()}</p>
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1 text-green-600">
+                <CheckCircle className="h-3 w-3" />
+                {(statsData?.completed ?? 0).toLocaleString()} {t('mpo_stats_completed')}
+              </span>
+            </div>
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1 text-red-500">
+                <XCircle className="h-3 w-3" />
+                {(statsData?.cancelled ?? 0).toLocaleString()} {t('mpo_stats_cancelled')}
+              </span>
             </div>
           </CardContent>
         </Card>
