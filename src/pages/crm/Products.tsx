@@ -722,7 +722,7 @@ export default function Products() {
                                     {currSymbol}{totalCNY.toLocaleString('en-US', { maximumFractionDigits: 2 })} CNY
                                   </span>
                                   <span className="text-primary font-semibold">
-                                    \u2248 {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
+                                    ≈ {new Intl.NumberFormat('uz-UZ').format(totalUZS)} so'm
                                   </span>
                                 </div>
                               );
