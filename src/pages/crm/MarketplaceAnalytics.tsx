@@ -94,7 +94,7 @@ export default function MarketplaceAnalytics() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from('marketplace_orders')
-        .select('store_id, order_created_at, total_price, commission, status')
+        .select('store_id, order_created_at, total_amount, commission, status')
         .gte('order_created_at', thirtyDaysAgo);
       if (error) throw error;
 
@@ -118,7 +118,7 @@ export default function MarketplaceAnalytics() {
         }
         const r = map[key];
         r.orders_count++;
-        r.gross_revenue += order.total_price || 0;
+        r.gross_revenue += order.total_amount || 0;
         r.commission_total += order.commission || 0;
         const st = (order.status || '').toUpperCase();
         if (['DELIVERED','COMPLETED','DONE','ARRIVED'].some(s => st.includes(s))) r.delivered_count++;
