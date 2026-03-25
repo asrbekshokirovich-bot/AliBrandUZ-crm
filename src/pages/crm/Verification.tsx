@@ -70,6 +70,15 @@ export default function Verification() {
   const startScanner = async () => {
     try {
       setScanning(true);
+      
+      // Wait for React to render the #qr-reader element
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const element = document.getElementById('qr-reader');
+      if (!element) {
+        throw new Error('Scanner element not found in DOM');
+      }
+
       const html5QrCode = new Html5Qrcode('qr-reader');
       scannerRef.current = html5QrCode;
 

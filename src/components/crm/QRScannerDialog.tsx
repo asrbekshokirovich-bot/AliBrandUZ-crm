@@ -86,6 +86,14 @@ export function QRScannerDialog({ open, onOpenChange, onBoxFound }: QRScannerDia
       setScanning(true);
       setScanSuccess(false);
       
+      // Wait for React to render the #qr-reader-dialog element
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const element = document.getElementById('qr-reader-dialog');
+      if (!element) {
+        throw new Error('Scanner element not found in DOM');
+      }
+
       const config: any = {
         fps: 10,
         qrbox: isMobile ? { width: 280, height: 280 } : { width: 250, height: 250 },
