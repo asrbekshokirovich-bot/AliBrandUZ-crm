@@ -613,7 +613,10 @@ export default function Products() {
                           : null;
 
                         const currSymbol = currency === 'CNY' ? '¥' : currency === 'USD' ? '$' : '';
-                        const fmt = (n: number) => n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+                        // MUHIM: 'en-US' locale ishlatiladi — ba'zi tizimlarda toLocaleString()
+                        // vergulni kasrli belgisi sifatida ishlatadi (masalan 1.925 → "1,925")
+                        // Bu ¥1.925 ni ¥1,925 kabi ko'rsatib muammo chiqaradi
+                        const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 
                         return (
                           <div className="text-xs mt-1 text-muted-foreground space-y-0.5">

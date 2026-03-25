@@ -7,8 +7,11 @@ export type DisplayCurrency = 'UZS' | 'USD' | 'CNY';
 // Fallback rates (used until live rates load)
 const DEFAULT_USD_TO_UZS = 12800;
 const DEFAULT_CNY_TO_UZS = 1750;
-// Minimum valid CNY→UZS rate: anything below this means bad data
-const MIN_CNY_TO_UZS = 100;
+// Realistic bounds for CNY→UZS rate (1 CNY ≈ 1,500–2,500 so'm historically)
+const MIN_CNY_TO_UZS = 500;
+const MAX_CNY_TO_UZS = 5000;
+const MIN_USD_TO_UZS = 8000;
+const MAX_USD_TO_UZS = 20000;
 
 interface FinanceCurrencyContextValue {
   displayCurrency: DisplayCurrency;
@@ -65,15 +68,26 @@ export function FinanceCurrencyProvider({ children }: { children: ReactNode }) {
       const rates = rateData.rates as Record<string, number>;
       const uzs = rates.UZS || DEFAULT_USD_TO_UZS;
       const cnyDirectUzs = rates.CNY_TO_UZS;
-      // CNY field in exchange_rates is USD/CNY cross rate (e.g. 7.25), NOT CNY→UZS
-      // So we use: CNY→UZS = USD→UZS / (USD/CNY) = uzs / cny
-      // But CNY_TO_UZS direct is more reliable if available
-      const cny = rates.CNY || 7.25;
-      const computedCnyRate = cnyDirectUzs || (uzs / cny);
-      // Safety guard: if computed rate is unrealistically low (bad DB data), use default
-      const safeCnyRate = computedCnyRate >= MIN_CNY_TO_UZS ? computedCnyRate : DEFAULT_CNY_TO_UZS;
-      
-      setDbUsdRate(uzs);
+      // Cross-rate fallback: CNY→UZS = (USD→UZS) / (USD/CNY)
+      // rates.CNY is the USD/CNY forex rate (e.g. 7.25)
+      const cny = rates.CNY;
+      const crossRate = cny && cny > 0 ? uzs / cny : null;
+      const computedCnyRate = cnyDirectUzs || crossRate || DEFAULT_CNY_TO_UZS;
+
+      // Sanity check: must be within realistic range for CNY→UZS
+      const safeCnyRate = (computedCnyRate >= MIN_CNY_TO_UZS && computedCnyRate <= MAX_CNY_TO_UZS)
+        ? computedCnyRate
+        : DEFAULT_CNY_TO_UZS;
+
+      const safeUsdRate = (uzs >= MIN_USD_TO_UZS && uzs <= MAX_USD_TO_UZS)
+        ? uzs
+        : DEFAULT_USD_TO_UZS;
+
+      if (safeCnyRate !== computedCnyRate) {
+        console.warn('[FinanceCurrency] Bad CNY rate from DB:', computedCnyRate, '→ using default:', DEFAULT_CNY_TO_UZS, 'Raw rates:', rates);
+      }
+
+      setDbUsdRate(safeUsdRate);
       setDbCnyRate(safeCnyRate);
       setIsManualRate(rateData.is_manual === true);
       setRateSource(rateData.source || 'unknown');
