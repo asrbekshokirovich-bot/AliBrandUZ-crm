@@ -176,8 +176,8 @@ function DashboardContent() {
         </div>
       ) : (
         <>
-          {/* Main Stats - hide from investors */}
-          {!isInvestor && (
+          {/* Main Stats - Restrict to Admins and Finance */}
+          {(isAdmin || isFinance) && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
               <Link to="/crm/products">
                 <Card className="p-3 sm:p-6 bg-card border-border hover:shadow-lg transition-shadow cursor-pointer hover:border-primary/50">
@@ -221,24 +221,55 @@ function DashboardContent() {
                 </Card>
               </Link>
 
-              {(isFinance || isAdmin) && (
-                <Link to="/crm/finance">
-                  <Card className="p-3 sm:p-6 bg-card border-border hover:shadow-lg transition-shadow cursor-pointer hover:border-primary/50">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-muted-foreground">{t('balance')}</p>
-                        <p className={`text-xl sm:text-2xl font-bold truncate ${(stats?.balance || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`} title={`$${stats?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`}>
-                          ${stats?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                        </p>
-                      </div>
+              <Link to="/crm/finance">
+                <Card className="p-3 sm:p-6 bg-card border-border hover:shadow-lg transition-shadow cursor-pointer hover:border-primary/50">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                     </div>
-                  </Card>
-                </Link>
-              )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-muted-foreground">{t('balance')}</p>
+                      <p className={`text-xl sm:text-2xl font-bold truncate ${(stats?.balance || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`} title={`$${stats?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`}>
+                        ${stats?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
             </div>
+          )}
+
+          {/* Warehouse Staff Navigation Jump Cards */}
+          {(isChinaStaff || isChinaManager) && !isAdmin && (
+            <Link to="/crm/china-dashboard">
+              <Card className="p-6 bg-card border-border hover:shadow-lg transition-all duration-200 cursor-pointer border-l-4 border-l-red-500">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
+                    <Package className="h-6 w-6 text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-foreground">Xitoy Ombori</h3>
+                    <p className="text-sm text-muted-foreground">Kodni skanerlash va ishlarni davom ettirish uchun bosing <ArrowRight className="h-3 w-3 inline ml-1" /></p>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+          )}
+
+          {(isUzStaff || isUzManager) && !isAdmin && (
+            <Link to="/crm/tashkent-dashboard">
+              <Card className="p-6 bg-card border-border hover:shadow-lg transition-all duration-200 cursor-pointer border-l-4 border-l-blue-500">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <Box className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-foreground">Toshkent Skladi</h3>
+                    <p className="text-sm text-muted-foreground">Tovarlarni tarqatish va statusni yangilash <ArrowRight className="h-3 w-3 inline ml-1" /></p>
+                  </div>
+                </div>
+              </Card>
+            </Link>
           )}
 
           {/* Investor-only finance card */}

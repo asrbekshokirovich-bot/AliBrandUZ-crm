@@ -209,8 +209,8 @@ export function CRMSidebar() {
       return ['/crm/products', '/crm/shipments', '/crm/tasks', '/crm/store-orders', '/crm/ali-ai'].includes(url) || url.startsWith('/crm/marketplace');
     }
 
-    // Fallback: no specific role found → show all menus (access controlled by DB RLS)
-    return true;
+    // Fallback: no specific role found → hide unmapped menus
+    return false;
 
   };
 

@@ -35,9 +35,13 @@ export function useUserRole() {
   const isChiefManager = hasRole('bosh_admin');
   const isAdmin = hasAnyRole(['rahbar', 'bosh_admin']);
   const isChinaManager = hasRole('xitoy_manager');
-  const isChinaStaff = hasRole('xitoy_packer');
+  const isChinaPacker = hasRole('xitoy_packer');
+  const isChinaReceiver = hasRole('xitoy_receiver');
+  const isChinaStaff = hasAnyRole(['xitoy_packer', 'xitoy_receiver']);
   const isUzManager = hasRole('uz_manager');
-  const isUzStaff = hasRole('uz_receiver');
+  const isUzReceiver = hasRole('uz_receiver');
+  const isUzQuality = hasRole('uz_quality');
+  const isUzStaff = hasAnyRole(['uz_receiver', 'uz_quality']);
   const isFinanceStaff = hasRole('moliya_xodimi');
   const isMarketplaceManager = hasRole('manager'); // Use 'manager' role for marketplace management
   const isInvestor = hasRole('investor');
