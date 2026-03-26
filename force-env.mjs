@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 
-const KEY_VALUE = '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';
+const KEY_VALUE = process.env.NEW_OPENAI_KEY;
 
 function addEnv(env) {
   return new Promise((resolve) => {
