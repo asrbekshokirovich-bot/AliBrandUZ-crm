@@ -164,20 +164,16 @@ export function CRMSidebar() {
     // Settings always visible
     if (url === '/crm/settings') return true;
 
-    // Bosh Menejer (Chief Manager): see EVERYTHING
-    if (isChiefManager) {
-      return true;
-    }
-
-    // Rahbar (Owner/Director): Restricted to executive dashboard views
-    if (isOwner) {
+    // Rahbar (Owner) yoki Bosh Admin (Chief Manager) faqat tahliliy va boshqaruv bo'limlarini ko'radi
+    if (isOwner || isChiefManager) {
       return [
         '/crm/ali-ai',
         '/crm/analytics',
         '/crm/marketplace/analytics',
         '/crm/finance',
         '/crm/investor-dashboard',
-        '/crm/users'
+        '/crm/users',
+        '/crm/settings'
       ].includes(url);
     }
 
