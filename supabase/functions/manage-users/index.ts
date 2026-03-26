@@ -109,17 +109,24 @@ serve(async (req) => {
         rolesMap.set(r.user_id, existing);
       });
 
-      const emailMap = new Map<string, string>();
-      authUsers.forEach(u => {
-        emailMap.set(u.id, u.email || 'N/A');
-      });
+      // Create lookup map for profiles
+      const profileMap = new Map();
+      profiles.forEach(p => profileMap.set(p.id, p));
 
-      // Map profiles with roles and emails
-      const usersWithDetails = profiles.map(profile => ({
-        ...profile,
-        email: emailMap.get(profile.id) || 'N/A',
-        roles: rolesMap.get(profile.id) || [],
-      }));
+      // Map auth users (source of truth) with roles and profile data
+      const usersWithDetails = authUsers.map(u => {
+        const profile = profileMap.get(u.id) || {};
+        const fallbackName = u.user_metadata?.username || u.email?.split('@')[0] || 'N/A';
+        return {
+          id: u.id,
+          created_at: u.created_at,
+          email: u.email || 'N/A',
+          username: u.user_metadata?.username || profile.full_name || fallbackName,
+          full_name: profile.full_name || fallbackName,
+          roles: rolesMap.get(u.id) || [],
+          ...profile,
+        };
+      });
 
       return new Response(
         JSON.stringify({ users: usersWithDetails }),
