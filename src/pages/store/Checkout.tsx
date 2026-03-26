@@ -28,7 +28,7 @@ export default function StoreCheckout() {
   const [form, setForm] = useState({
     name: '', phone: '+998', address: '',
     delivery: 'delivery' as 'delivery' | 'pickup',
-    payment: 'card' as 'card',
+    payment: 'card' as const,
     notes: '',
   });
 

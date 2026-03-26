@@ -387,8 +387,8 @@ export function ExcelImportDialog({ open, onOpenChange }: ExcelImportDialogProps
 
               const match = matchResults.get(rd.row);
               let existingBoxId = match?.existingBoxId || null;
-              let trackCodeNotFound = match?.trackCodeNotFound || false;
-              let foundByTrackCode = match?.foundByTrackCode || false;
+              const trackCodeNotFound = match?.trackCodeNotFound || false;
+              const foundByTrackCode = match?.foundByTrackCode || false;
               let weightMismatch = match?.weightMismatch || null;
               let weightMatchQuality = match?.weightMatchQuality || null;
 

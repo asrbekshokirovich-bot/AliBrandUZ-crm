@@ -456,7 +456,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      console.log("Starting product save...", { formData, variants });
 
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -538,7 +537,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         cost_price: landedCostOriginal > 0 ? landedCostOriginal : null,
       };
 
-      console.log("Product data to save:", productData);
 
       const makeItemUuid = (productUuid: string, suffix: string) => {
         const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -638,7 +636,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
       // === MAVJUD MAHSULOTGA BOG'LASH LOGIKASI (MULTI-SELECT) ===
       if (linkMode === 'existing' && selectedExistingProduct) {
-        console.log("Linking to existing product:", selectedExistingProduct.name, "with", selectedVariantOrders.length, "variant orders");
 
         const productId = selectedExistingProduct.id;
 
@@ -689,7 +686,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
               if (variantError) throw variantError;
               variantId = newVariant.id;
-              console.log("Created new variant:", order.rang, order.material, "->", variantId);
             } else {
               variantId = order.variantId;
             }
@@ -745,7 +741,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                 .from('product_items')
                 .insert(itemsToCreate);
               if (itemError) throw itemError;
-              console.log(`Created ${qty} items for variant ${variantId}`);
             }
           }
         } else if (selectedExistingVariant) {
@@ -821,7 +816,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           })
           .eq('id', productId);
 
-        console.log("Successfully linked product_items to existing product:", productId);
         return; // Erta chiqish - yangi mahsulot yaratmaslik
       }
 
@@ -1148,13 +1142,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           }
 
           if (itemsToCreate.length > 0) {
-            console.log('=== DOMESTIC SHIPPING DEBUG (variants) ===');
-            console.log('shippingDistribution:', formData.shippingDistribution);
-            console.log('shippingCostToChina:', formData.shippingCostToChina);
-            console.log('totalQuantityAcrossVariants:', totalQuantityAcrossVariants);
-            console.log('isIndividualShipping:', isIndividualShipping);
-            console.log('First item sample:', itemsToCreate[0]);
-            console.log('=========================================');
 
             const { data: insertedItems, error: itemError } = await supabase
               .from('product_items')
@@ -1163,7 +1150,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
             if (itemError) throw itemError;
 
-            console.log('Inserted items verification:', insertedItems);
           }
         } else {
           // Create individual product items with cost tracking
@@ -1195,13 +1181,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             exchange_rate_at_purchase: currentRate,
           }));
 
-          console.log('=== DOMESTIC SHIPPING DEBUG (no variants) ===');
-          console.log('shippingCostToChina:', formData.shippingCostToChina);
-          console.log('itemQuantity:', itemQuantity);
-          console.log('domesticShippingPerItem:', domesticShippingPerItem);
-          console.log('finalCostUSD:', finalCostUSD);
-          console.log('First item sample:', productItems[0]);
-          console.log('=============================================');
 
           const { data: insertedItems, error: itemError } = await supabase
             .from("product_items")
@@ -1213,7 +1192,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             throw itemError;
           }
 
-          console.log('Inserted items verification:', insertedItems);
         }
       }
     },

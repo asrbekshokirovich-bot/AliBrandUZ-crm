@@ -218,7 +218,7 @@ export function useFBOData(storeId: string | null, uzumStores?: UzumStore[]): FB
   const allReturns: FBOReturn[] = [];
   const allOrders: FBOOrder[] = [];
   const storeNames: string[] = [];
-  let aggregatedOrdersTotals = { revenue: 0, commission: 0, profit: 0, deliveryFees: 0, itemCount: 0 };
+  const aggregatedOrdersTotals = { revenue: 0, commission: 0, profit: 0, deliveryFees: 0, itemCount: 0 };
 
   aggregatedQueries.forEach(query => {
     if (query.data) {

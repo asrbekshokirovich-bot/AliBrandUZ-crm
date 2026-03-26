@@ -274,7 +274,7 @@ serve(async (req) => {
 
             // Pre-fetch listing images for this order's items (cross-store fallback)
             const offerIds = (order.items || []).map(it => it.offerId || it.shopSku).filter(Boolean);
-            let imageMap: Record<string, string> = {};
+            const imageMap: Record<string, string> = {};
             if (offerIds.length > 0) {
               // First try: same store
               const { data: sameStoreListings } = await supabase

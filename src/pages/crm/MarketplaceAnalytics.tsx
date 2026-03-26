@@ -597,7 +597,7 @@ export default function MarketplaceAnalytics() {
                 <p className="text-xs text-red-600">
                   {analytics.totalRevenue > 0
                     ? (() => {
-                      let comm = analytics.totalCommission;
+                      const comm = analytics.totalCommission;
                       // Defensive guard against historical DB corruption (absolute UZS stored as %)
                       if (comm > analytics.totalRevenue * 0.45) {
                         return `${(20).toFixed(1)}% daromaddan (taxminiy)*`;

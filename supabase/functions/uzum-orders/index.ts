@@ -292,7 +292,7 @@ async function enrichCommissionData(
         }
         
         // Fetch commission rates from listings by barcode
-        let listingRates: Record<string, number> = {};
+        const listingRates: Record<string, number> = {};
         if (barcodes.size > 0) {
           const { data: listings } = await supabase
             .from('marketplace_listings')
@@ -961,7 +961,7 @@ serve(async (req) => {
       // This corrects the race condition where uzum-finance stamps 'fbu' before uzum-orders can write 'fbs'
       const ordersToUpsert: UzumOrder[] = [];
       let skippedUnchanged = 0;
-      let fbuCorrected = 0;
+      const fbuCorrected = 0;
       for (const order of allOrders) {
         const existing = existingOrdersMap.get(String(order.id));
         if (!existing || existing.status !== order.status) {
@@ -1115,7 +1115,7 @@ serve(async (req) => {
       console.log(`[uzum-orders] Batch upsert complete: ${totalSynced} synced, ${totalFailed} failed, ${skippedUnchanged} unchanged`);
 
       // FBO sync
-      let fboResult = { synced: 0, errors: 0, skipped: 0 };
+      const fboResult = { synced: 0, errors: 0, skipped: 0 };
       let commissionEnrichment = { updated: 0, errors: 0 };
       let itemEnrichment = { enriched: 0, skipped: 0, errors: 0 };
 

@@ -138,7 +138,7 @@ serve(async (req) => {
     let uzsBuy = 12700;
     let uzsSell = 12700;
     let cnyToUzs = 1750;
-    let sourceUsed = 'cbu';
+    const sourceUsed = 'cbu';
 
     // Parse CBU JSON for USD rate (rasmiy kurs)
     if (cbuUsdResponse.ok) {

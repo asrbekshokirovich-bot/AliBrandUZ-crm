@@ -104,7 +104,7 @@ export default function StoreAnalytics() {
             });
 
             const variantIds = [...new Set(Object.values(resolvedMapping).map(m => m.variantId).filter(Boolean))] as string[];
-            let productIds = [...new Set(Object.values(resolvedMapping).map(m => m.productId).filter(Boolean))] as string[];
+            const productIds = [...new Set(Object.values(resolvedMapping).map(m => m.productId).filter(Boolean))] as string[];
 
             // Fetch cost and cargo data
             const variantsMap: Record<string, { cost: number, currency: string, pId: string }> = {};

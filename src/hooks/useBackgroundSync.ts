@@ -75,25 +75,21 @@ export function useBackgroundSync() {
         case 'box_verification':
           // Sync box verification data
           // await supabase.from('boxes').update(task.data).eq('id', task.data.id);
-          console.log('Syncing box verification:', task.data);
           break;
         
         case 'task_status':
           // Sync task status change
           // await supabase.from('tasks').update(task.data).eq('id', task.data.id);
-          console.log('Syncing task status:', task.data);
           break;
         
         case 'product_update':
           // Sync product update
           // await supabase.from('products').update(task.data).eq('id', task.data.id);
-          console.log('Syncing product update:', task.data);
           break;
         
         case 'defect_claim':
           // Sync defect claim
           // await supabase.from('defect_claims').insert(task.data);
-          console.log('Syncing defect claim:', task.data);
           break;
         
         default:
@@ -157,7 +153,6 @@ export function useBackgroundSync() {
   // Auto-sync when coming online
   useEffect(() => {
     const handleOnline = () => {
-      console.log('Back online, triggering sync...');
       sync();
     };
 
@@ -173,7 +168,7 @@ export function useBackgroundSync() {
         if ('periodicSync' in registration) {
           (registration as any).periodicSync.register('sync-data', {
             minInterval: 5 * 60 * 1000, // 5 minutes
-          }).catch((e: Error) => console.log('Periodic sync registration failed:', e));
+          }).catch((e: Error) => console.error('Periodic sync registration failed:', e));
         }
       });
     }

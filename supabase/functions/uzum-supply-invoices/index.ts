@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
             const dateToStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
             let pageToken: string | undefined;
-            let allShipments: any[] = [];
+            const allShipments: any[] = [];
 
             while (true) {
               const url = `${YANDEX_API_BASE}/v2/campaigns/${campaignId}/first-mile/shipments${pageToken ? `?pageToken=${pageToken}&limit=30` : '?limit=30'}`;

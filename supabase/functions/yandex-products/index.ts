@@ -123,7 +123,7 @@ serve(async (req) => {
 
     // PAGINATED FETCHING using offer-mappings endpoint (business-level, not campaign-level)
     let pageToken: string | undefined;
-    let allMappings: YandexOfferMapping[] = [];
+    const allMappings: YandexOfferMapping[] = [];
     let pageCount = 0;
     let apiErrorCode: number | null = null;
     let apiErrorText: string | null = null;

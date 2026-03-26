@@ -190,7 +190,7 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
       const directProductIds = [...new Set(Object.values(resolvedMapping).map(m => m.productId).filter(Boolean))] as string[];
 
       // 3c. product_variants -> cost_price + product_id
-      let variantsMap: Record<string, { costPrice: number; costPriceCurrency: string; productId: string | null }> = {};
+      const variantsMap: Record<string, { costPrice: number; costPriceCurrency: string; productId: string | null }> = {};
       if (variantIds.length > 0) {
         const variants = await fetchAllRows(
           supabase.from('product_variants')
@@ -214,7 +214,7 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
       const allProductIds = Array.from(allProductIdsSet);
 
       // 3d. products -> shipping_cost_to_china, quantity, cost_price, purchase_currency
-      let productsMap: Record<string, { shippingCostToChina: number; quantity: number; costPrice: number; purchaseCurrency: string }> = {};
+      const productsMap: Record<string, { shippingCostToChina: number; quantity: number; costPrice: number; purchaseCurrency: string }> = {};
       if (allProductIds.length > 0) {
         const products = await fetchAllRows(
           supabase.from('products')

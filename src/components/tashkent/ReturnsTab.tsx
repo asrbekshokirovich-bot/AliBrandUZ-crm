@@ -178,7 +178,7 @@ export function ReturnsTab() {
         result = result.filter(r => r.return_type && (r.return_type.startsWith('fbo') || r.return_type === 'fbo_defect' || r.return_type === 'fbo_seller' || r.return_type === 'fbo_return'));
       } else if (typeFilter === 'fbo_defect_only') {
         // Faqat FBO Brak tovarlar
-        result = result.filter(r => r.return_type === 'fbo_defect' || r.is_fbo_defect);
+        result = result.filter(r => r.return_type === 'fbo_defect' || (r as any).is_fbo_defect);
       }
     }
     return result;
@@ -274,7 +274,6 @@ export function ReturnsTab() {
         const uzumFboReturns = potentialReturns;
 
         if (uzumFboReturns.length > 0) {
-          console.log(`[ReturnsTab] Syncing ${uzumFboReturns.length} Uzum FBO returns/defects for store ${store.name}`);
           const fboRows = uzumFboReturns.map((ret: any) => {
             const stableId = ret.id || ret.returnId || ret.productId || ret.skuId || `rnd-${Math.random().toString(36).substring(7)}`;
             const externalId = `uzum-fbo-return-${stableId}`;
@@ -392,8 +391,6 @@ export function ReturnsTab() {
           });
 
           if (defectedStocks.length > 0) {
-            console.log(`[ReturnsTab] Syncing ${defectedStocks.length} Yandex FBO defects for store ${store.name}`);
-
             // Fetch fallback images from listings
             const offerIds = defectedStocks.map(s => s.offerId).filter(Boolean);
             const { data: listings } = await supabase

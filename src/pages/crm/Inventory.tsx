@@ -113,7 +113,7 @@ export default function Inventory() {
   const { data: productItems = [] } = useQuery({
     queryKey: ['product-items-inventory', selectedWarehouse],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from('product_items')
         .select(`
           *,

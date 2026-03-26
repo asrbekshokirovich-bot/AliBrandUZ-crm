@@ -193,7 +193,7 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
     // If we have positional table rows, use them
     if (tableRows && tableRows.length > 0) {
       let headerRow: string[] | null = null;
-      let columnIndices: Record<string, number> = {};
+      const columnIndices: Record<string, number> = {};
 
       for (const row of tableRows) {
         // Detect header row
@@ -761,7 +761,7 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
     const warnings: string[] = [];
     let success = 0;
     let failed = 0;
-    let created = 0;
+    const created = 0;
     
     const totalOperations = parsedData.length + parsedData.flatMap(s => s.boxes).length;
     let completed = 0;

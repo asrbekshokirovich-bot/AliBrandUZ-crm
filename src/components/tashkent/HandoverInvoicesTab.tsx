@@ -114,8 +114,6 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
     setParsing(true);
     try {
       const text = await parsePdfText(file);
-      console.log('[Nakladnoy PDF text FULL]:', text.substring(0, 3000));
-      console.log('[Nakladnoy PDF text] ASL test:', /ASL/i.test(text), 'A S L test:', /A\s*S\s*L/i.test(text));
       const parsed = parseInvoiceData(text);
       setParsedData(parsed);
       if (!parsed.invoiceNumber) {
@@ -215,8 +213,6 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
           .select('external_sku, variant_id, product_variants!inner(id, product_id)')
           .ilike('external_sku', 'ASL%');
 
-        console.log('[SKU Matching] DB SKUs count:', allSkuMappings?.length);
-
         // Normallashtirish: bo'shliqlarni olib tashlash, uppercase
         const normalize = (s: string) => s.replace(/\s+/g, '').toUpperCase();
 
@@ -248,7 +244,6 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
 
         for (const item of parsedData.productItems) {
           const mapping = findMapping(item.artikul);
-          console.log('[SKU Match]', item.artikul, '->', mapping ? 'FOUND' : 'NOT FOUND');
           if (mapping?.productId) {
             const { error: rpcError } = await supabase.rpc('decrement_tashkent_stock', {
               p_product_id: mapping.productId,

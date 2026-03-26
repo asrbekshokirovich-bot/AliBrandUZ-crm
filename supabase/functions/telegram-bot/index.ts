@@ -284,7 +284,7 @@ serve(async (req) => {
         await sendTelegramMessage(chatId, `❌ "${boxNumber}" raqamli quti topilmadi.`);
       } else {
         let eta = 'Noma\'lum';
-        let status = box.status;
+        const status = box.status;
         
         if (box.actual_arrival) {
           eta = `✅ ${new Date(box.actual_arrival).toLocaleDateString('uz-UZ')} da yetib kelgan`;
