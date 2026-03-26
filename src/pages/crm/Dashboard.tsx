@@ -36,7 +36,16 @@ function DashboardErrorFallback() {
 function DashboardContent() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { isAdmin, isFinance, isInvestor, isChinaStaff, isUzStaff, isLoading: rolesLoading } = useUserRole();
+  const { 
+    isAdmin, 
+    isFinance, 
+    isInvestor, 
+    isChinaStaff, 
+    isChinaManager,
+    isUzStaff, 
+    isUzManager,
+    isLoading: rolesLoading 
+  } = useUserRole();
 
   const { data: stats, isLoading: isStatsLoading, isError, error } = useQuery({
     queryKey: ['dashboard-stats'],
