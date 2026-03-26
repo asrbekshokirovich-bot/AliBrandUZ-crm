@@ -77,7 +77,7 @@ export default function MarketplaceAdmin() {
   const [healthResults, setHealthResults] = useState<Record<string, any>>({});
   const [forceSync, setForceSync] = useState<{ loading: boolean; type: string | null }>({ loading: false, type: null });
 
-  const { data: stores, isLoading: storesLoading } = useQuery({
+  const { data: stores, isLoading: storesLoading, error: storesError } = useQuery({
     queryKey: ['marketplace-stores'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -85,7 +85,11 @@ export default function MarketplaceAdmin() {
         .select('*')
         .order('platform', { ascending: true })
         .order('name', { ascending: true });
-      if (error) throw error;
+      if (error) {
+        console.error('[marketplace-stores] Supabase error:', error);
+        throw error;
+      }
+      console.log('[marketplace-stores] Loaded stores count:', data?.length, data?.map(s => s.name));
       return data as MarketplaceStore[];
     },
   });
