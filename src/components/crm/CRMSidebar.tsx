@@ -164,8 +164,13 @@ export function CRMSidebar() {
     // Settings always visible
     if (url === '/crm/settings') return true;
 
-    // Rahbar (Owner) yoki Bosh Admin (Chief Manager) faqat tahliliy va boshqaruv bo'limlarini ko'radi
-    if (isOwner || isChiefManager) {
+    // Bosh Menejer (Chief Manager): texnik boshqaruv uchun hamma narsani ko'radi
+    if (isChiefManager) {
+      return true;
+    }
+
+    // Rahbar (Owner): faqat tahliliy va boshqaruv bo'limlarini ko'radi
+    if (isOwner) {
       return [
         '/crm/ali-ai',
         '/crm/analytics',
