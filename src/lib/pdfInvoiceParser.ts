@@ -125,7 +125,9 @@ export function parseInvoiceData(text: string): ParsedInvoice {
   
   // Extract 7-10 digit order numbers (covers various Uzum formats)
   const extractOrders = (section: string): string[] => {
-    const matches = section.match(/\b(\d{7,10})\b/g);
+    // PDF format updates: strip out barcodes (e.g. 10-0099025658-1) to prevent extracting the padded order ID
+    const cleanedSection = section.replace(/\d{2}-\d{8,12}-\d+/g, '');
+    const matches = cleanedSection.match(/\b(\d{7,10})\b/g);
     return matches ? [...new Set(matches)] : [];
   };
   
