@@ -57,18 +57,21 @@ async function createConversationIfNeeded(userId: string, conversationId: string
 
 async function saveMessages(convId: string, userMessage: string, assistantMessage: string) {
   try {
+    const now = new Date();
+    const slightlyLater = new Date(now.getTime() + 1000); // offset to guarantee order
+    
     await Promise.all([
       supabaseQuery('/ali_ai_messages', {
         method: 'POST',
-        body: JSON.stringify({ conversation_id: convId, role: 'user', content: userMessage }),
+        body: JSON.stringify({ conversation_id: convId, role: 'user', content: userMessage, created_at: now.toISOString() }),
       }),
       supabaseQuery('/ali_ai_messages', {
         method: 'POST',
-        body: JSON.stringify({ conversation_id: convId, role: 'assistant', content: assistantMessage }),
+        body: JSON.stringify({ conversation_id: convId, role: 'assistant', content: assistantMessage, created_at: slightlyLater.toISOString() }),
       }),
       supabaseQuery(`/ali_ai_conversations?id=eq.${convId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ updated_at: slightlyLater.toISOString() }),
       }),
     ]);
   } catch (err) {
@@ -178,15 +181,18 @@ const TOOL_DEFINITIONS = [
   }
 ];
 
-const SYSTEM_PROMPT = `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
-Sen endi bevosita ma'lumotlar bazasiga ulangan holda ishlaysan va savollarga javob berishda kerak bo'lsa funksiyalardan (Tools) g'urj bilan foydalan!
+const GET_SYSTEM_PROMPT = (todayString: string, isoString: string) => `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
+Sen bevosita ma'lumotlar bazasiga ulangan holda ishlaysan va savollarga javob berishda kerak bo'lsa funksiyalardan (Tools) foydalan!
+
+MUHIM: Bugungi real sana — ${todayString} (ISO: ${isoString}). 
+Juda Muhim: Agar foydalanuvchi "bugun", "shu oy", "hozirgi" deb so'rasa, faqat ${todayString} sanasiga nisbatan hisoblang! Eski yillarni (masalan 2023) qidirmang! Sizda ma'lumotlar bazasidan jonli (live) ma'lumot olish imkoniyati mavjud.
 
 QOIDALAR:
-1. Agar foydalanuvchi joriy holat, moliya, yoki aniq mahsulotlar (masalan: qolgan zaxirasi yohud narxi qancha) haqida so'rasa, to'g'ridan to'g'ri mos Tool'ni chaqir.
-2. O'zbek, Rus va Ingliz tillarini ustasan. Muzokara va savollar qaysi tilda bo'lsa, moslash va shu tilda davom et.
-3. Keltirilgan barcha pul qoldiqlarini o'qishda osonlashtir (masalan: 12,000,000 so'm). Formatlashda chiroyli qoidalarni qo'lla.
-4. "Sen kimsan?" yoki "Seni kim yaratgan" deb so'rashsa: "Men AliBrand tizimining aqlli CEO yordamchisi - Ali AI - man!" deb javob qaytar. GPT, OpenAI so'zlarini ishlatma.
-5. Muammo ko'rsang, srazu xabar ber va chorasini pichiqla.
+1. Joriy holat, moliya, yoki mahsulotlar (masalan: qolgan zaxirasi yohud narxi) haqida so'rasa, to'g'ridan to'g'ri mos Tool'ni chaqir.
+2. O'zbek, Rus va Ingliz tillarini ustasan. JAVOBLAR DOIM FORMATLANGAN SAVOL-JAVOB shaklida, chiroyli qisqa va aniq bo'lsin.
+3. Keltirilgan barcha pul qoldiqlarini o'qishda osonlashtir (masalan: 12,000,000 so'm).
+4. "Sen kimsan?" deb so'rashsa: "Men AliBrand tizimining aqlli CEO yordamchisi - Ali AI - man!" deb javob qaytar. GPT, OpenAI so'zlarini ishlatma.
+5. Muammo ko'rsang, darhol xabar ber va chorasini pichiqla.
 
 TANNARX VA UMUMIY MATEMATIKA:
 Joriy Xitoy > O'zbekiston valyuta kursi (CNY_TO_UZS): ~1750 UZS.
@@ -228,8 +234,10 @@ export default async function handler(req: Request) {
     })).filter((m: any) => m.content); // Prevent sending empty contents
   }
 
+  const today = new Date();
+  const todayString = today.toLocaleDateString('uz-UZ', { timeZone: 'Asia/Tashkent' });
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: GET_SYSTEM_PROMPT(todayString, today.toISOString()) },
     ...previousMessages,
     { role: 'user', content: message }
   ];
