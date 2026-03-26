@@ -38,45 +38,58 @@ function DashboardContent() {
   const queryClient = useQueryClient();
   const { isAdmin, isFinance, isInvestor, isChinaStaff, isUzStaff, isLoading: rolesLoading } = useUserRole();
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: isStatsLoading, isError, error } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      const safeQuery = (promise: any) => promise.catch((e: any) => ({ data: null, error: e, count: 0 }));
+      try {
+        const safeQuery = async (promise: any) => {
+          try {
+            return await promise;
+          } catch (e) {
+            return { data: null, error: e, count: 0 };
+          }
+        };
 
-      // All queries run in parallel for faster loading, wrapped in safeQuery to prevent full crash
-      const [products, boxes, shipments, financeBalance, recentProducts, recentBoxes, boxesByStatus, shipmentsInTransit] = await Promise.all([
-        safeQuery(supabase.from('products').select('*', { count: 'exact', head: true })),
-        safeQuery(supabase.from('boxes').select('*', { count: 'exact', head: true })),
-        safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true })),
-        safeQuery(supabase.rpc('get_finance_balance')),
-        safeQuery(supabase.from('products').select('id, name, created_at, status').order('created_at', { ascending: false }).limit(5)),
-        safeQuery(supabase.from('boxes').select('id, box_number, created_at, status').order('created_at', { ascending: false }).limit(5)),
-        safeQuery(supabase.from('boxes').select('status')),
-        safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'in_transit')),
-      ]);
+        // All queries run in parallel for faster loading, wrapped in safeQuery to prevent full crash
+        const [products, boxes, shipments, financeBalance, recentProducts, recentBoxes, boxesByStatus, shipmentsInTransit] = await Promise.all([
+          safeQuery(supabase.from('products').select('*', { count: 'exact', head: true })),
+          safeQuery(supabase.from('boxes').select('*', { count: 'exact', head: true })),
+          safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true })),
+          safeQuery(supabase.rpc('get_finance_balance')),
+          safeQuery(supabase.from('products').select('id, name, created_at, status').order('created_at', { ascending: false }).limit(5)),
+          safeQuery(supabase.from('boxes').select('id, box_number, created_at, status').order('created_at', { ascending: false }).limit(5)),
+          safeQuery(supabase.from('boxes').select('status')),
+          safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'in_transit')),
+        ]);
 
-      const balanceData = (financeBalance.data as any) || { total_income: 0, total_expense: 0, balance: 0 };
-      const totalIncome = Number(balanceData.total_income) || 0;
-      const totalExpense = Number(balanceData.total_expense) || 0;
+        console.log('[DEBUG Dashboard] query results:', { products, boxes, shipments, financeBalance });
 
-      const packingBoxes = (boxesByStatus.data || []).filter((b: any) => b.status === 'packing').length || 0;
-      const sealedBoxes = (boxesByStatus.data || []).filter((b: any) => b.status === 'sealed').length || 0;
-      const inTransitBoxes = (boxesByStatus.data || []).filter((b: any) => b.status === 'in_transit').length || 0;
+        const balanceData = (financeBalance?.data as any) || { total_income: 0, total_expense: 0, balance: 0 };
+        const totalIncome = Number(balanceData.total_income) || 0;
+        const totalExpense = Number(balanceData.total_expense) || 0;
 
-      return {
-        productsCount: products.count || 0,
-        boxesCount: boxes.count || 0,
-        shipmentsCount: shipments.count || 0,
-        balance: Number(balanceData.balance) || 0,
-        totalIncome,
-        totalExpense,
-        recentProducts: recentProducts.data || [],
-        recentBoxes: recentBoxes.data || [],
-        packingBoxes,
-        sealedBoxes,
-        inTransitBoxes,
-        shipmentsInTransit: shipmentsInTransit.count || 0,
-      };
+        const packingBoxes = (boxesByStatus?.data || []).filter((b: any) => b.status === 'packing').length || 0;
+        const sealedBoxes = (boxesByStatus?.data || []).filter((b: any) => b.status === 'sealed').length || 0;
+        const inTransitBoxes = (boxesByStatus?.data || []).filter((b: any) => b.status === 'in_transit').length || 0;
+
+        return {
+          productsCount: products?.count || 0,
+          boxesCount: boxes?.count || 0,
+          shipmentsCount: shipments?.count || 0,
+          balance: Number(balanceData.balance) || 0,
+          totalIncome,
+          totalExpense,
+          recentProducts: recentProducts?.data || [],
+          recentBoxes: recentBoxes?.data || [],
+          packingBoxes,
+          sealedBoxes,
+          inTransitBoxes,
+          shipmentsInTransit: shipmentsInTransit?.count || 0,
+        };
+      } catch (err) {
+        console.error('[DEBUG Dashboard] unhandled query error:', err);
+        throw err;
+      }
     },
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
@@ -147,8 +160,20 @@ function DashboardContent() {
         </div>
       </div>
 
-      {(stats === undefined || rolesLoading) ? (
-        <DashboardLoadingSkeleton />
+      {isError ? (
+        <div className="p-8 text-center text-destructive">
+          <AlertTriangle className="h-10 w-10 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Ma'lumotlarni yuklashda xatolik</h2>
+          <p className="opacity-80 mb-4">{error?.message || "Kutilmagan xatolik yuz berdi"}</p>
+          <Button onClick={handleRefresh}>Qayta urinish</Button>
+        </div>
+      ) : (isStatsLoading || rolesLoading || stats === undefined) ? (
+        <div>
+          <div className="text-sm text-red-500 mb-4">
+            DEBUG: isStatsLoading: {String(isStatsLoading)}, rolesLoading: {String(rolesLoading)}, stats is undefined: {String(stats === undefined)}
+          </div>
+          <DashboardLoadingSkeleton />
+        </div>
       ) : (
         <>
           {/* Main Stats - hide from investors */}

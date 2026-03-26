@@ -245,7 +245,7 @@ export default function StoreAnalytics() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <Button onClick={handleRefresh} disabled={isRefreshing || isLoading || isRatesLoading} className="shadow-sm transition-all hover:shadow-md">
+                    <Button onClick={handleRefresh} disabled={isRefreshing || isLoading} className="shadow-sm transition-all hover:shadow-md">
                         <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
                         Yangilash
                     </Button>
@@ -315,7 +315,7 @@ export default function StoreAnalytics() {
                         )}
                     </div>
 
-                    {(!isLoading && !isRatesLoading && analyticsData?.stores.length) ? (
+                    {(!isLoading && analyticsData?.stores.length) ? (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-6">
                             {analyticsData.stores.map(store => (
                                 <Card
@@ -354,7 +354,7 @@ export default function StoreAnalytics() {
                             ))}
                         </div>
                     ) : (
-                        !isLoading && !isRatesLoading && (
+                        !isLoading && (
                             <div className="text-center py-12 px-4 rounded-xl border border-dashed text-muted-foreground">
                                 Do'konlar bo'yicha ma'lumot topilmadi yoki buyurtmalar yo'q.
                             </div>
