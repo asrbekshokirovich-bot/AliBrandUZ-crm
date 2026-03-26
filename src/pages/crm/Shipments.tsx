@@ -682,7 +682,7 @@ export default function Shipments() {
                   </Button>
                   <Button className="gap-2 bg-gradient-to-r from-primary to-secondary" onClick={() => setImportDialogOpen(true)}>
                     <Upload className="h-4 w-4" />
-                    PDF yuklash
+                    Fayl yuklash
                   </Button>
                 </div>
               </div>
