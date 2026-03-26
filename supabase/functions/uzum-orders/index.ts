@@ -14,7 +14,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 const MAX_PAGES_PER_STATUS = 20;
 const FULL_SYNC_MAX_PAGES = 100;
-const MAX_EXECUTION_MS = 50000;
+const MAX_EXECUTION_MS = 40000;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -854,10 +854,11 @@ serve(async (req) => {
         const dateFromParam = normalizeEpoch(date_from || statusLookbackMs);
         
         while (hasMore && page < maxPages) {
-          // Timeout guard for full sync mode
-          if (isFullSync && Date.now() - syncStartTime > MAX_EXECUTION_MS) {
+          // Timeout guard (applicable to all sync modes to prevent Edge Function hard kill)
+          if (Date.now() - syncStartTime > MAX_EXECUTION_MS) {
             console.log(`[uzum-orders] Timeout guard triggered at status=${status}, page=${page}`);
             hasMore = false;
+            i = statuses.length; // forcefully break the outer loop too
             break;
           }
           if (page > 0 || i > 0) {

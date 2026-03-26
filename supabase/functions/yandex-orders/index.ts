@@ -53,7 +53,7 @@ function normalizeYandexStatus(rawStatus: string | undefined, substatus?: string
 const API_DELAY_MS = 300;
 const MAX_PAGES = 50;
 const CHUNK_DAYS = 14;
-const MAX_EXECUTION_MS = 50000; // 50s timeout guard
+const MAX_EXECUTION_MS = 40000; // 40s timeout guard
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
