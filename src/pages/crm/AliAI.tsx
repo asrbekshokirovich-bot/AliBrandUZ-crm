@@ -147,9 +147,14 @@ export default function AliAI() {
   });
 
   // Handle sending a message with streaming
-  const handleSendMessage = useCallback(async (message: string) => {
+  const handleSendMessage = useCallback(async (message: string, isQuickAction = false) => {
     setPendingMessage(message);
     setShowFollowUps(false);
+    
+    // Clear the analytics card when starting a new manual chat so it doesn't haunt the bottom screen
+    if (!isQuickAction) {
+      clearAnalytics();
+    }
     
     await streamMessage(message, activeConversationId, {
       onStart: () => {
@@ -170,7 +175,7 @@ export default function AliAI() {
         setPendingMessage(null);
       },
     });
-  }, [activeConversationId, streamMessage, queryClient]);
+  }, [activeConversationId, streamMessage, queryClient, clearAnalytics]);
 
   // Quick action: show analytics panel AND send text to AI simultaneously
   const handleQuickAction = useCallback((question: string) => {
@@ -182,8 +187,12 @@ export default function AliAI() {
       'Logistika':                         'logistics',
     };
     const view = viewMap[question];
-    if (view) void fetchAnalytics(view);
-    void handleSendMessage(question);
+    if (view) {
+      void fetchAnalytics(view);
+      void handleSendMessage(question, true);
+    } else {
+      void handleSendMessage(question, false);
+    }
   }, [fetchAnalytics, handleSendMessage]);
 
   // Filter conversations based on search
