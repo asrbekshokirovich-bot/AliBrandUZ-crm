@@ -524,6 +524,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    // === AUTO-SYNC IMAGES: Fill missing local images from marketplace listings ===
+    if (successCount > 0 && syncType !== "stocks" && syncType !== "stock" && syncType !== "commission_enrichment") {
+      try {
+        console.log("[marketplace-auto-sync] Running image sync to fill missing images...");
+        const imageSyncResult = await supabase.rpc('sync_missing_product_images');
+        console.log(`[marketplace-auto-sync] Image sync completed: updated ${imageSyncResult.data || 0} missing images`);
+      } catch (imageErr) {
+        console.error("[marketplace-auto-sync] Auto image sync error:", imageErr);
+      }
+    }
+
     // Log sync per store so each store appears in sync_logs for accurate rotation tracking
     const syncLogEntries = results.map(r => ({
       store_id: r.store_id,

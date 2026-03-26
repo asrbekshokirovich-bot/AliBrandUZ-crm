@@ -1,10 +1,6 @@
 /**
- * Vercel Serverless Function: CEO AI Brain
- * Replaces the Supabase Edge Function (ali-ai-brain) — runs on Vercel, no Docker needed.
- *
- * POST /api/ceo-ai
- * Body: { message: string, conversationId?: string | null, stream?: boolean }
- * Auth: Bearer <supabase_jwt>
+ * Vercel Serverless Function: CEO AI Brain (Agentic Version)
+ * Uses OpenAI Function Calling to dynamically answer questions.
  */
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://ybtfepdqzbgmtlsiisvp.supabase.co';
@@ -13,7 +9,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPA
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
 // ──────────────────────────────────────────────────────────
-// Supabase helper (server-side, service role key)
+// Supabase helpers
 // ──────────────────────────────────────────────────────────
 async function supabaseQuery(path: string, options: RequestInit = {}) {
   const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
@@ -31,202 +27,35 @@ async function supabaseQuery(path: string, options: RequestInit = {}) {
   return res.json();
 }
 
-async function supabaseGet(table: string, query: string, token?: string) {
-  const options = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-  return supabaseQuery(`/${table}?${query}`, options);
-}
-
-// ──────────────────────────────────────────────────────────
-// Fetch business context from Supabase (enriched CEO data)
-// ──────────────────────────────────────────────────────────
-async function fetchBusinessContext(token: string) {
-  const today = new Date().toISOString().split('T')[0];
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  const [products, boxes, productItems, todayOrders, weekFinance, tasks] = await Promise.all([
-    supabaseGet('products', 'select=id,name,brand,sku,cost_price,purchase_currency,status,tashkent_manual_stock,weight&status=neq.archived&limit=50&order=updated_at.desc', token),
-    supabaseGet('boxes', 'select=id,box_number,status,weight_kg,local_delivery_fee,cargo_fee,packaging_fee,created_at&limit=20&order=created_at.desc', token),
-    supabaseGet('product_items', 'select=product_id,cost_price,weight_grams,landed_cost_per_unit,status,location,quantity&status=neq.sold&limit=100', token),
-    supabaseGet('marketplace_orders', `select=platform,product_name,quantity,total_revenue,commission_fee&created_at=gte.${today}T00:00:00`, token),
-    supabaseGet('finance_transactions', `select=transaction_type,amount,description&created_at=gte.${weekAgo}&limit=100`, token),
-    supabaseGet('tasks', 'select=title,status,due_date,priority&status=in.(todo,in_progress)&limit=20', token),
-  ]);
-
-  const CNY_TO_UZS = 1750;
-
-  // ── Box logistics pre-computation ──
-  const boxesWithCost = (boxes || []).map((b: Record<string, unknown>) => {
-    const localFee = Number(b.local_delivery_fee) || 0;
-    const cargoFee = Number(b.cargo_fee) || 0;
-    const packFee = Number(b.packaging_fee) || 0;
-    const totalLogistics = localFee + cargoFee + packFee;
-    const weightGrams = (Number(b.weight_kg) || 0) * 1000;
-    const feePerGram = weightGrams > 0 ? totalLogistics / weightGrams : 0;
-    const daysInTransit = b.status === 'in_transit'
-      ? Math.floor((Date.now() - new Date(b.created_at as string).getTime()) / 86400000)
-      : 0;
-    return { ...b, totalLogistics, feePerGram, daysInTransit };
-  });
-
-  // ── Landed cost per product (calculateLandedCost formula) ──
-  const bestBox = boxesWithCost.find((b: Record<string, unknown>) => (b.feePerGram as number) > 0);
-  const defaultFeePerGram = (bestBox?.feePerGram as number) || 0;
-
-  const productsWithAnalysis = (products || []).map((p: Record<string, unknown>) => {
-    const priceCny = Number(p.cost_price) || 0;
-    const weightGrams = (Number(p.weight) || 0) * 1000;
-    const logisticsShareCny = weightGrams * defaultFeePerGram;
-    const landedCostCny = priceCny + logisticsShareCny;
-    const landedCostUzs = Math.round(landedCostCny * CNY_TO_UZS);
-    const stock = Number(p.tashkent_manual_stock) ?? 0;
-    return {
-      name: p.name as string,
-      sku: p.sku as string,
-      priceCny,
-      weightGrams,
-      landedCostCny: Math.round(landedCostCny * 100) / 100,
-      landedCostUzs,
-      stock,
-      isLowStock: stock > 0 && stock < 5,
-      isOutOfStock: stock <= 0,
-    };
-  });
-
-  // ── Today's sales ──
-  const todaySales = todayOrders || [];
-  const todayRevenue   = todaySales.reduce((s: number, o: Record<string, unknown>) => s + (Number(o.total_revenue) || 0), 0);
-  const todayCommission = todaySales.reduce((s: number, o: Record<string, unknown>) => s + (Number(o.commission_fee) || 0), 0);
-
-  // ── Week finance ──
-  const wf = weekFinance || [];
-  const weekIncome  = wf.filter((t: Record<string, unknown>) => t.transaction_type === 'income').reduce((s: number, t: Record<string, unknown>) => s + Number(t.amount), 0);
-  const weekExpense = wf.filter((t: Record<string, unknown>) => t.transaction_type === 'expense').reduce((s: number, t: Record<string, unknown>) => s + Number(t.amount), 0);
-
-  // ── Auto-detect problems ──
-  const problems: string[] = [];
-  const outOfStock = productsWithAnalysis.filter((p: any) => p.isOutOfStock);
-  const lowStock = productsWithAnalysis.filter((p: any) => p.isLowStock);
-  const delayedBoxes = boxesWithCost.filter((b: Record<string, unknown>) => (b.daysInTransit as number) > 10);
-  const allTasks = tasks || [];
-  const overdueTasks = allTasks.filter((t: Record<string, unknown>) => t.due_date && new Date(t.due_date as string) < new Date());
-
-  if (outOfStock.length)   problems.push(`🔴 ${outOfStock.length} ta mahsulot TUGADI (${outOfStock.slice(0,3).map((p: any) => p.name).join(', ')})`);
-  if (lowStock.length)     problems.push(`⚠️ ${lowStock.length} ta mahsulot kam qoldi (<5 dona): ${lowStock.slice(0,3).map((p: any) => `${p.name} (${p.stock} dona)`).join(', ')}`);
-  if (delayedBoxes.length) problems.push(`🕐 ${delayedBoxes.length} ta quti 10+ kun yo'lda — kechikish ehtimoli bor`);
-  if (overdueTasks.length) problems.push(`📋 ${overdueTasks.length} ta vazifa muddati o'tib ketdi`);
-
-  return {
-    products: productsWithAnalysis,
-    boxes: boxesWithCost,
-    productItems: productItems || [],
-    todayStats: { count: todaySales.length, revenue: todayRevenue, commission: todayCommission },
-    weekFinance: { income: weekIncome, expense: weekExpense, net: weekIncome - weekExpense },
-    problems,
-    tasks: { total: allTasks.length, overdue: overdueTasks.length },
-    defaultFeePerGram,
-    CNY_TO_UZS,
-  };
-}
-
-// ──────────────────────────────────────────────────────────
-// Build CEO Intelligence System Prompt
-// ──────────────────────────────────────────────────────────
-function buildSystemPrompt(ctx: ReturnType<typeof fetchBusinessContext> extends Promise<infer T> ? T : never) {
-  const { products, boxes, todayStats, weekFinance, problems, tasks, defaultFeePerGram, CNY_TO_UZS } = ctx;
-
-  const problemsSection = problems.length > 0
-    ? problems.map((p) => `  • ${p}`).join('\n')
-    : '  • Hozircha aniq muammo aniqlanmadi';
-
-  const topProducts = [...products]
-    .sort((a, b) => b.stock - a.stock)
-    .slice(0, 15)
-    .map((p) => `  • ${p.name} | SKU: ${p.sku || '-'} | Narx: ${p.priceCny} CNY | Tannarx: ${p.landedCostCny} CNY (${p.landedCostUzs.toLocaleString()} UZS) | Zaxira: ${p.stock} dona${p.isOutOfStock ? ' 🔴TUGADI' : p.isLowStock ? ' ⚠️KAM' : ''}`)
-    .join('\n');
-
-  const recentBoxes = (boxes as Array<Record<string, unknown>>).slice(0, 8)
-    .map((b) => `  • ${b.box_number || 'N/A'} | ${b.status} | ${b.weight_kg || 0} kg | Logistika: ${(b.totalLogistics as number) || 0} CNY | Fee/g: ${Number(b.feePerGram).toFixed(4)} CNY${(b.daysInTransit as number) > 10 ? ` | ⏰ ${b.daysInTransit} kun yo'lda` : ''}`)
-    .join('\n');
-
-  return `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
-Kompaniya: Xitoydan mahsulot import qilib, Uzum va Yandex Market orqali sotadi.
-
-═══════════════════════════════════════════════
-📊 BUGUNGI HOLAT (Real-time, ${new Date().toLocaleDateString('uz-UZ')})
-═══════════════════════════════════════════════
-• Bugungi buyurtmalar: ${todayStats.count} ta
-• Bugungi daromad: ${todayStats.revenue.toLocaleString()} UZS
-• Bugungi komissiya: ${todayStats.commission.toLocaleString()} UZS
-• Sof daromad bugun: ~${(todayStats.revenue - todayStats.commission).toLocaleString()} UZS
-
-• Haftalik kirim: ${weekFinance.income.toLocaleString()} UZS
-• Haftalik chiqim: ${weekFinance.expense.toLocaleString()} UZS
-• Haftalik sof: ${weekFinance.net.toLocaleString()} UZS
-
-• Vazifalar jami: ${tasks.total} ta | Muddati o'tgan: ${tasks.overdue} ta
-
-═══════════════════════════════════════════════
-🚨 ANIQLAB OLINGAN MUAMMOLAR
-═══════════════════════════════════════════════
-${problemsSection}
-
-═══════════════════════════════════════════════
-📦 MAHSULOTLAR (${products.length} ta, tannarx hisoblangan)
-═══════════════════════════════════════════════
-${topProducts}
-
-═══════════════════════════════════════════════
-📬 QUTILLAR (so'nggi ${boxes.length} ta)
-═══════════════════════════════════════════════
-${recentBoxes}
-
-═══════════════════════════════════════════════
-⚖️ TANNARX FORMULASI (har doim ishlat)
-═══════════════════════════════════════════════
-fee_per_gram = ${defaultFeePerGram.toFixed(4)} CNY/gramm (joriy)
-Tannarx = item_narxi_CNY + (og'irlik_gramm × fee_per_gram)
-UZS = Tannarx_CNY × ${CNY_TO_UZS}
-
-═══════════════════════════════════════════════
-🧠 QOIDALAR
-═══════════════════════════════════════════════
-1. CEO INSIGHT FORMAT: Faqat raqam emas — sabab va tavsiya ham ber
-   ❌ "10 ta sotildi"
-   ✅ "10 ta sotildi. Sof foyda ~$X. [Mahsulot Y] margini past — narxni ko'rib chiq."
-
-2. MUAMMO ANIQLASH: Savol "Qanday muammo bor?" bo'lsa — yuqoridagi muammolar ro'yxatini batafsil tushuntir
-
-3. ZARAR ANIQLASH: "Qayerda zarar?" so'ralganda — landedCostUzs > sotish narxini solishtir, ⚠️ bilan belgi
-
-4. UMUMIY SAVOLLARGA: Har qanday mavzuda suhbatlasha olasan (texnologiya, strategiya, marketing, hayot bo'yicha savollar va h.k.) — biznes ma'lumotlari bo'lmasa logikaga asoslanib javob ber
-
-5. TIL: Savol qaysi tilda bo'lsa, shu tilda javob ber (o'zbek, rus, ingliz)
-
-6. "GPT", "OpenAI" haqida so'ralsa: "Men Ali AI — AliBrand ning ongli yordamchisi" de
-`;
-}
-
-// ──────────────────────────────────────────────────────────
-// Create conversation (before streaming — so ID is in header)
-// ──────────────────────────────────────────────────────────
-async function createConversationIfNeeded(userId: string, conversationId: string | null, title: string): Promise<string | null> {
-  if (conversationId) return conversationId;
+async function verifyToken(token: string) {
   try {
-    const newConv = await supabaseQuery('/ali_ai_conversations', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId, title: title.slice(0, 60) + (title.length > 60 ? '...' : ''), is_active: true }),
-    });
-    return Array.isArray(newConv) ? newConv[0]?.id : newConv?.id || null;
-  } catch (err) {
-    console.error('Failed to create conversation:', err);
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+    const payload = JSON.parse(atob(padded));
+    if (!payload.sub) return null;
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return { id: payload.sub as string, email: payload.email as string };
+  } catch {
     return null;
   }
 }
 
-// ──────────────────────────────────────────────────────────
-// Save messages (after streaming is complete)
-// ──────────────────────────────────────────────────────────
-async function saveMessages(convId: string, userMessage: string, assistantMessage: string): Promise<void> {
+async function createConversationIfNeeded(userId: string, conversationId: string | null, title: string) {
+  if (conversationId) return conversationId;
+  try {
+    const newConv = await supabaseQuery('/ali_ai_conversations', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, title: title.slice(0, 60), is_active: true }),
+    });
+    return Array.isArray(newConv) ? newConv[0]?.id : newConv?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveMessages(convId: string, userMessage: string, assistantMessage: string) {
   try {
     await Promise.all([
       supabaseQuery('/ali_ai_messages', {
@@ -243,175 +72,295 @@ async function saveMessages(convId: string, userMessage: string, assistantMessag
       }),
     ]);
   } catch (err) {
-    console.error('Failed to save messages:', err);
+    console.error('Failed to save messages', err);
   }
 }
 
 // ──────────────────────────────────────────────────────────
-// Verify Supabase JWT and get user (decode payload directly)
+// Agent Tools (Data Fetchers)
 // ──────────────────────────────────────────────────────────
-async function verifyToken(token: string) {
-  try {
-    // Supabase JWTs are standard JWTs: header.payload.signature (base64url encoded)
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-
-    // Decode payload (base64url → base64 → JSON)
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
-    const payload = JSON.parse(atob(padded));
-
-    // Supabase JWTs must have sub (user ID) and be non-expired
-    if (!payload.sub) return null;
-    const now = Math.floor(Date.now() / 1000);
-    if (payload.exp && payload.exp < now) return null; // expired
-
-    return { id: payload.sub as string, email: payload.email as string, role: payload.role as string };
-  } catch {
-    return null;
-  }
+async function toolSearchProducts(args: any) {
+  const query = args.query;
+  // Search products by name or SKU
+  const data = await supabaseQuery(`/products?select=id,name,sku,status,cost_price,warehouse_price,tashkent_manual_stock&or=(name.ilike.*${encodeURIComponent(query)}*,sku.ilike.*${encodeURIComponent(query)}*)&limit=15`);
+  return { products_found: data || [] };
 }
 
+async function toolGetDashboardStats() {
+  const today = new Date().toISOString().split('T')[0];
+  const [orders, tasks, boxes] = await Promise.all([
+    supabaseQuery(`/marketplace_orders?select=platform,total_revenue,commission_fee&created_at=gte.${today}T00:00:00`),
+    supabaseQuery(`/tasks?select=id,title,status&status=in.(todo,in_progress)`),
+    supabaseQuery(`/boxes?select=id,box_number,status&status=in.(in_transit,pending)&order=created_at.desc&limit=10`)
+  ]);
+
+  let total_revenue = 0;
+  let total_commission = 0;
+  (orders || []).forEach((o: any) => {
+    total_revenue += Number(o.total_revenue) || 0;
+    total_commission += Number(o.commission_fee) || 0;
+  });
+
+  return {
+    today_orders_count: orders?.length || 0,
+    today_revenue_uzs: total_revenue,
+    today_commission_uzs: total_commission,
+    open_tasks: tasks || [],
+    recently_active_boxes: boxes || [],
+  };
+}
+
+async function toolGetFinanceSummary(args: any) {
+  const { start_date, end_date } = args;
+  const start = start_date || new Date().toISOString().split('T')[0];
+  const end = end_date || '2099-01-01';
+  const data = await supabaseQuery(`/finance_transactions?select=transaction_type,amount,description&created_at=gte.${start}T00:00:00&created_at=lte.${end}T23:59:59&limit=50`);
+  
+  let income = 0;
+  let expense = 0;
+  (data || []).forEach((t: any) => {
+    if (t.transaction_type === 'income') income += Number(t.amount);
+    if (t.transaction_type === 'expense') expense += Number(t.amount);
+  });
+
+  return {
+    period: `${start} dan ${end} gacha`,
+    total_income_uzs: income,
+    total_expense_uzs: expense,
+    net_profit_uzs: income - expense,
+    recent_transactions: (data || []).slice(0, 5)
+  };
+}
+
+// Map tool names to functions
+const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
+  search_products: toolSearchProducts,
+  get_dashboard_stats: toolGetDashboardStats,
+  get_finance_summary: toolGetFinanceSummary,
+};
+
+// Tool Definitions for OpenAI
+const TOOL_DEFINITIONS = [
+  {
+    type: "function",
+    function: {
+      name: "search_products",
+      description: "Qidiruv so'ziga ko'ra mahsulotlarni izlash va ularning bazadagi zaxirasi(stock), narxi va holati haqida ma'lumot olish. Agar so'rov aniq bir mahsulot haqida bo'lsa shuni ishlating.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Mahsulot nomi yoki SKU" } },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_dashboard_stats",
+      description: "Bugungi savdo ko'rsatkichlari, tushumlar, ochiq bo'lgan vazifalar va yo'ldagi qutilar haqida umumiy hisobot olish.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_finance_summary",
+      description: "Ma'lum bir sanalar oralig'idagi umumiy moliya (tushum, komissiya, sof foyda) va oxirgi tranzaksiyalarni olish.",
+      parameters: {
+        type: "object",
+        properties: { 
+          start_date: { type: "string", description: "Boshlanish sanasi (masalan, 2026-03-01)" }, 
+          end_date: { type: "string", description: "Tugash sanasi (masalan, 2026-03-31)" } 
+        },
+        required: ["start_date", "end_date"]
+      }
+    }
+  }
+];
+
+const SYSTEM_PROMPT = `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
+Sen endi bevosita ma'lumotlar bazasiga ulangan holda ishlaysan va savollarga javob berishda kerak bo'lsa funksiyalardan (Tools) g'urj bilan foydalan!
+
+QOIDALAR:
+1. Agar foydalanuvchi joriy holat, moliya, yoki aniq mahsulotlar (masalan: qolgan zaxirasi yohud narxi qancha) haqida so'rasa, to'g'ridan to'g'ri mos Tool'ni chaqir.
+2. O'zbek, Rus va Ingliz tillarini ustasan. Muzokara va savollar qaysi tilda bo'lsa, moslash va shu tilda davom et.
+3. Keltirilgan barcha pul qoldiqlarini o'qishda osonlashtir (masalan: 12,000,000 so'm). Formatlashda chiroyli qoidalarni qo'lla.
+4. "Sen kimsan?" yoki "Seni kim yaratgan" deb so'rashsa: "Men AliBrand tizimining aqlli CEO yordamchisi - Ali AI - man!" deb javob qaytar. GPT, OpenAI so'zlarini ishlatma.
+5. Muammo ko'rsang, srazu xabar ber va chorasini pichiqla.
+
+TANNARX VA UMUMIY MATEMATIKA:
+Joriy Xitoy > O'zbekiston valyuta kursi (CNY_TO_UZS): ~1750 UZS.
+O'rtacha logistika taxminiy narxi (Xitoy-O'zbekiston): 1kg uchun ~35 CNY, ya'ni grammiga: 0.035 CNY tayanch.
+Tannarx = item_narxi_CNY + (og'irlik_gramm × 0.035 CNY).
+`;
+
 // ──────────────────────────────────────────────────────────
-// Main handler
+// Main Export
 // ──────────────────────────────────────────────────────────
-export default async function handler(req: Request): Promise<Response> {
-  // CORS preflight
+export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info',
+        'Access-Control-Allow-Headers': 'authorization, content-type',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
       },
     });
   }
+  if (req.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
 
-  if (req.method !== 'POST') {
-    return Response.json({ error: 'Method not allowed' }, { status: 405 });
-  }
-
-  // Verify auth
-  const authHeader = req.headers.get('Authorization') || '';
-  const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const token = (req.headers.get('Authorization') || '').replace('Bearer ', '').trim();
+  if (!token) return Response.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await verifyToken(token);
-  if (!user?.id) {
-    return Response.json({ error: 'Invalid token' }, { status: 401 });
-  }
+  if (!user?.id) return Response.json({ error: 'Invalid token' }, { status: 401 });
 
-  // Parse body
-  const { message, conversationId = null } = await req.json() as {
-    message: string;
-    conversationId?: string | null;
-  };
+  const { message, conversationId = null } = await req.json() as any;
+  if (!message?.trim()) return Response.json({ error: 'Message required' }, { status: 400 });
+  if (!OPENAI_API_KEY) return Response.json({ error: 'OPENAI_API_KEY is missing/invalid on server' }, { status: 500 });
 
-  if (!message?.trim()) {
-    return Response.json({ error: 'Message is required' }, { status: 400 });
-  }
-
-  if (!OPENAI_API_KEY) {
-    return Response.json({ error: 'OPENAI_API_KEY not configured on server' }, { status: 500 });
-  }
-
-  // Fetch context and build prompt
-  const ctx = await fetchBusinessContext(token);
-  const systemPrompt = buildSystemPrompt(ctx);
-
-  // Get previous messages for context
-  let previousMessages: Array<{ role: string; content: string }> = [];
+  // Load history
+  let previousMessages: any[] = [];
   if (conversationId) {
-    const history = await supabaseGet(
-      'ali_ai_messages',
-      `conversation_id=eq.${conversationId}&order=created_at.asc&limit=20`,
-      token
-    );
-    previousMessages = (history || []).map((m: Record<string, unknown>) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content as string,
-    }));
+    const history = await supabaseQuery(`/ali_ai_messages?conversation_id=eq.${conversationId}&order=created_at.asc&limit=15`);
+    previousMessages = (history || []).map((m: any) => ({
+      role: m.role,
+      content: m.content || '',
+    })).filter((m: any) => m.content); // Prevent sending empty contents
   }
 
-  // Call OpenAI API with streaming
-  const openaiRes = await fetch(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...previousMessages.slice(-10),
-          { role: 'user', content: message }
-        ],
-        stream: true,
-        max_tokens: 2048,
-        temperature: 0.3
-      }),
-    }
-  );
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...previousMessages,
+    { role: 'user', content: message }
+  ];
 
-  if (!openaiRes.ok) {
-    const err = await openaiRes.text();
+  // STAGE 1: Non-streaming call to see if tools are needed
+  const openaiRes1 = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages,
+      tools: TOOL_DEFINITIONS,
+      tool_choice: 'auto',
+    }),
+  });
+
+  if (!openaiRes1.ok) {
+    const err = await openaiRes1.text();
     return Response.json({ error: `OpenAI error: ${err}` }, { status: 502 });
   }
 
-  // ── Create conversation BEFORE streaming so the ID is available for the header ──
+  const data1 = await openaiRes1.json();
+  const choice = data1.choices?.[0]?.message;
+
+  // Function to create fake SSE stream for pre-computed responses
+  const streamDirectResponse = async (content: string, convId: string | null) => {
+    if (convId && content) await saveMessages(convId, message, content);
+    
+    return new Response(new ReadableStream({
+      start(controller) {
+        // Enqueue the complete text as one chunk
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+        controller.close();
+      }
+    }), {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'X-Conversation-Id': convId || '',
+      },
+    });
+  };
+
   const convId = await createConversationIfNeeded(user.id, conversationId, message);
 
-  let fullResponse = '';
+  // If AI did NOT call tools, it means choice.content has the direct answer
+  if (!choice?.tool_calls?.length) {
+    return await streamDirectResponse(choice.content || "Kechirasiz, javob topa olmadim.", convId);
+  }
 
+  // STAGE 2: If we get here, tools WERE called.
+  messages.push(choice); // Push the assistant's request to use tools (vital for API schema)
+
+  // Execute all requested tools
+  for (const toolCall of choice.tool_calls) {
+    const funcName = toolCall.function.name;
+    let funcArgs = {};
+    try {
+      funcArgs = JSON.parse(toolCall.function.arguments || '{}');
+    } catch { /* skip err */ }
+    
+    let resultData;
+    if (AVAILABLE_TOOLS[funcName]) {
+      try {
+         resultData = await AVAILABLE_TOOLS[funcName](funcArgs);
+      } catch (e: any) {
+         resultData = { error: e.message };
+      }
+    } else {
+      resultData = { error: 'Tool not implemented' };
+    }
+
+    messages.push({
+      role: 'tool',
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(resultData)
+    });
+  }
+
+  // STAGE 3: Stream the final response matching the tool results back to the user
+  const streamRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages,
+      stream: true,
+    }),
+  });
+
+  if (!streamRes.ok) {
+     const text = await streamRes.text();
+     return streamDirectResponse(`Ulanishda xato yuz berdi. Iltimos keyinroq urinib ko'ring. (OpenAI API Error: ${streamRes.status} ${text})`, convId);
+  }
+
+  let fullContent = '';
   const stream = new ReadableStream({
     async start(controller) {
-      const reader = openaiRes.body!.getReader();
+      const reader = streamRes.body!.getReader();
       const decoder = new TextDecoder();
-
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
-
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const data = line.slice(6).trim();
             if (!data || data === '[DONE]') continue;
-
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || '';
-              if (content) {
-                fullResponse += content;
-                // Forward perfectly matched OpenAI SSE chunk to client
-                controller.enqueue(new TextEncoder().encode(
-                  `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
-                ));
+              const text = parsed.choices?.[0]?.delta?.content || '';
+              if (text) {
+                fullContent += text;
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
               }
-            } catch { /* skip malformed chunks */ }
+            } catch { /* skip */ }
           }
         }
-
-        // Save user+assistant messages AFTER streaming completes
-        if (convId && fullResponse) {
-          await saveMessages(convId, message, fullResponse);
-        }
-
+        if (convId && fullContent) await saveMessages(convId, message, fullContent);
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
       } catch (err) {
         console.error('Stream error:', err);
       } finally {
         controller.close();
       }
-    },
+    }
   });
 
   return new Response(stream, {
@@ -420,12 +369,9 @@ export default async function handler(req: Request): Promise<Response> {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
-      'X-Conversation-Id': convId || '',  // ← Now correctly set BEFORE headers are sent
+      'X-Conversation-Id': convId || '',
     },
   });
 }
 
-// Vercel Edge Runtime config
-export const config = {
-  runtime: 'edge',
-};
+export const config = { runtime: 'edge' };
