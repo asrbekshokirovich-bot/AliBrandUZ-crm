@@ -1,0 +1,29 @@
+[36mvite v5.4.19 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 4430 modules transformed.
+
+[31mx[39m Build failed in 1m 37s
+[31merror during build:
+[31m[vite-plugin-pwa:build] [plugin vite-plugin-pwa:build] src/hooks/useLowStockAlerts.ts (100:21): There was an error during the build:
+  Transform failed with 1 error:
+C:/Users/user/Downloads/Telegram Desktop/alicargo-joy-main (5)/alicargo-joy-main/src/hooks/useLowStockAlerts.ts:100:21: ERROR: Syntax error "`"
+Additionally, handling the error in the 'buildEnd' hook caused the following error:
+  Transform failed with 1 error:
+C:/Users/user/Downloads/Telegram Desktop/alicargo-joy-main (5)/alicargo-joy-main/src/hooks/useLowStockAlerts.ts:100:21: ERROR: Syntax error "`"[31m
+file: [36mC:/Users/user/Downloads/Telegram Desktop/alicargo-joy-main (5)/alicargo-joy-main/src/hooks/useLowStockAlerts.ts:100:21[31m
+[33m
+[33mSyntax error "`"[33m
+98 |                
+99 |                alerts.push({
+100|                  id: \`low-stock-var-\${v.id}\`,
+   |                       ^
+101|                  product_id: product.id,
+102|                  name: \`\${product.name} (\${attrs})\`,
+[31m
+    at getRollupError (file:///C:/Users/user/Downloads/Telegram%20Desktop/alicargo-joy-main%20(5)/alicargo-joy-main/node_modules/vite/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at file:///C:/Users/user/Downloads/Telegram%20Desktop/alicargo-joy-main%20(5)/alicargo-joy-main/node_modules/vite/node_modules/rollup/dist/es/shared/node-entry.js:23467:39
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async catchUnfinishedHookActions (file:///C:/Users/user/Downloads/Telegram%20Desktop/alicargo-joy-main%20(5)/alicargo-joy-main/node_modules/vite/node_modules/rollup/dist/es/shared/node-entry.js:22925:16)
+    at async rollupInternal (file:///C:/Users/user/Downloads/Telegram%20Desktop/alicargo-joy-main%20(5)/alicargo-joy-main/node_modules/vite/node_modules/rollup/dist/es/shared/node-entry.js:23450:5)
+    at async build (file:///C:/Users/user/Downloads/Telegram%20Desktop/alicargo-joy-main%20(5)/alicargo-joy-main/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:65693:14)
+    at async CAC.<anonymous> (file:///C:/Users/user/Downloads/Telegram%20Desktop/alicargo-joy-main%20(5)/alicargo-joy-main/node_modules/vite/dist/node/cli.js:829:5)[39m

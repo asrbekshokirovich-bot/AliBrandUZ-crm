@@ -97,9 +97,9 @@ export function useLowStockAlerts() {
               const daysLeft = dailySales > 0 ? Math.floor(stock / dailySales) : 0;
               
               alerts.push({
-                id: \`low-stock-var-\${v.id}\`,
+                id: `low-stock-var-${v.id}`,
                 product_id: product.id,
-                name: \`\${product.name} (\${attrs})\`,
+                name: `${product.name} (${attrs})`,
                 current_stock: stock,
                 threshold,
                 product_type: type,
@@ -118,7 +118,7 @@ export function useLowStockAlerts() {
           if (totalStock <= threshold) {
             const daysLeft = dailySales > 0 ? Math.floor(totalStock / dailySales) : 0;
             alerts.push({
-              id: \`low-stock-prod-\${product.id}\`,
+              id: `low-stock-prod-${product.id}`,
               product_id: product.id,
               name: product.name,
               current_stock: totalStock,
