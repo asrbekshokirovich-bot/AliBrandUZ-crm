@@ -1013,6 +1013,11 @@ export default function MarketplaceAnalytics() {
             <CardContent>
               {financeLoading ? (
                 <Skeleton className="h-[200px] w-full" />
+              ) : trendData.length === 0 ? (
+                <div className="h-[200px] flex flex-col items-center justify-center text-muted-foreground">
+                  <BarChart3 className="h-8 w-8 text-muted/30 mb-2" />
+                  <p className="text-sm">Hozircha buyurtmalar yo'q</p>
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={trendData}>
