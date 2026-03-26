@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 
 const KEY_NAME = 'OPENAI_API_KEY';
-const KEY_VALUE = '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';
+const KEY_VALUE = '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';
 
 const envs = ['production', 'preview', 'development'];
 
