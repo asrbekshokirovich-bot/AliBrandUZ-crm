@@ -184,14 +184,14 @@ function FinanceInner() {
   const periodDeliveryFeesUZS = periodMarketplaceSummary?.reduce((sum, d) => sum + (Number(d.delivery_fees) || 0), 0) || 0;
 
   // Non-marketplace income from finance_transactions
-  const directSalesUSD = periodTransactions?.filter(t => t.transaction_type === 'income' && t.category?.toLowerCase().includes("to'g'ridan-to'g'ri sotuv")).reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
-  const otherIncomeUSD = periodTransactions?.filter(t => t.transaction_type === 'income' && !t.category?.startsWith('Marketplace sotuv') && t.reference_type !== 'marketplace_order' && !t.category?.toLowerCase().includes("to'g'ridan-to'g'ri sotuv")).reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
+  const directSalesUSD = periodTransactions?.filter(t => t.transaction_type === 'income' && t.category?.toLowerCase().includes("to'g'ridan-to'g'ri sotuv")).reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
+  const otherIncomeUSD = periodTransactions?.filter(t => t.transaction_type === 'income' && !t.category?.startsWith('Marketplace sotuv') && t.reference_type !== 'marketplace_order' && !t.category?.toLowerCase().includes("to'g'ridan-to'g'ri sotuv")).reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
 
   // Expenses from finance_transactions
-  const totalExpenseUSD = periodTransactions?.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
-  const buyingCostUSD = periodTransactions?.filter(t => t.transaction_type === 'expense' && t.category?.includes('Mahsulot sotib')).reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
-  const domesticShippingUSD = periodTransactions?.filter(t => t.transaction_type === 'expense' && t.category?.includes('Xitoy ichki')).reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
-  const internationalShippingUSD = periodTransactions?.filter(t => t.transaction_type === 'expense' && t.category?.includes('Yuk tashish')).reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
+  const totalExpenseUSD = periodTransactions?.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
+  const buyingCostUSD = periodTransactions?.filter(t => t.transaction_type === 'expense' && t.category?.includes('Mahsulot sotib')).reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
+  const domesticShippingUSD = periodTransactions?.filter(t => t.transaction_type === 'expense' && t.category?.includes('Xitoy ichki')).reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
+  const internationalShippingUSD = periodTransactions?.filter(t => t.transaction_type === 'expense' && t.category?.includes('Yuk tashish')).reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
   const cogsUSD = buyingCostUSD + domesticShippingUSD + internationalShippingUSD;
 
   // Derived UZS values
@@ -246,7 +246,7 @@ function FinanceInner() {
   });
 
   // Transaction income totals for the Transactions tab
-  const totalIncomeUSD = periodTransactions?.filter(t => t.transaction_type === 'income').reduce((s, t) => s + (Number(t.amount_usd) || 0), 0) || 0;
+  const totalIncomeUSD = periodTransactions?.filter(t => t.transaction_type === 'income').reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
   const currencyBreakdown: Record<string, { income: number; expense: number }> = periodTransactions?.reduce((acc: Record<string, { income: number; expense: number }>, t) => {
     const currency = t.currency || 'USD';
     if (!acc[currency]) acc[currency] = { income: 0, expense: 0 };
