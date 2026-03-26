@@ -1,6 +1,7 @@
 -- Expand product_inventory_overview to include non-active product statuses used in the app
 -- This fixes empty Key Indicators table when products are in 'arrived' or 'pending' status.
 
+DROP VIEW IF EXISTS public.product_inventory_overview CASCADE;
 CREATE OR REPLACE VIEW public.product_inventory_overview AS
 SELECT
   p.id,
