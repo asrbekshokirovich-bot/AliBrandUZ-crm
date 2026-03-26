@@ -194,7 +194,7 @@ async function toolGetMarketplaceSales(args: any) {
   const { start_date, end_date } = args;
   const start = start_date || new Date().toISOString().split('T')[0];
   const end = end_date || '2099-01-01';
-  const data = await supabaseQuery(`/marketplace_orders?select=platform,total_amount,status,items&created_at=gte.${start}T00:00:00&created_at=lte.${end}T23:59:59&limit=200`);
+  const data = await supabaseQuery(`/marketplace_orders?select=platform,total_amount,status,items&order_created_at=gte.${start}T00:00:00&order_created_at=lte.${end}T23:59:59&limit=500`);
 
   let total_sales = 0;
   const itemsSold: Record<string, { qty: number, price: number }> = {};
