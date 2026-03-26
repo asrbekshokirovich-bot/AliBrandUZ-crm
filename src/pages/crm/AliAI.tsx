@@ -396,7 +396,7 @@ export default function AliAI() {
       <div className={`${isMobile ? 'h-[calc(100vh-180px)]' : 'h-[calc(100vh-120px)]'} flex gap-3`}>
         {/* Left Sidebar - Desktop only */}
         {!isMobile && (
-          <div className="w-64 flex-shrink-0 hidden lg:flex flex-col gap-2">
+          <div className="w-64 flex-shrink-0 hidden md:flex flex-col gap-2">
             <SidebarContent />
           </div>
         )}
