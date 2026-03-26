@@ -190,12 +190,52 @@ async function toolAnalyzeInventory() {
   };
 }
 
+async function toolGetMarketplaceSales(args: any) {
+  const { start_date, end_date } = args;
+  const start = start_date || new Date().toISOString().split('T')[0];
+  const end = end_date || '2099-01-01';
+  const data = await supabaseQuery(`/marketplace_orders?select=platform,total_amount,status,items&created_at=gte.${start}T00:00:00&created_at=lte.${end}T23:59:59&limit=200`);
+
+  let total_sales = 0;
+  const itemsSold: Record<string, { qty: number, price: number }> = {};
+  
+  (data || []).forEach((o: any) => {
+    // Skip cancelled/returned orders if analyzing successful sales
+    if (!o.status?.includes('CANCEL') && !o.status?.includes('RETURN')) { 
+      total_sales += Number(o.total_amount) || 0;
+      (o.items || []).forEach((item: any) => {
+        const name = item.title || item.offerName || item.skuTitle || 'Unknown Product';
+        const qty = item.quantity || item.count || 1;
+        const price = item.price || 0;
+        
+        if (!itemsSold[name]) {
+          itemsSold[name] = { qty: 0, price: price };
+        }
+        itemsSold[name].qty += qty;
+      });
+    }
+  });
+
+  const sortedItems = Object.entries(itemsSold)
+    .sort((a, b) => b[1].qty - a[1].qty)
+    .slice(0, 30) // top 30 to avoid token limits
+    .map(([name, stats]) => `${name} (Sotildi: ${stats.qty} dona, Donasi: ${stats.price} UZS)`);
+
+  return {
+    period: `${start} dan ${end} gacha`,
+    total_sales_revenue_uzs: total_sales,
+    total_orders_count: data?.length || 0,
+    top_sold_items: sortedItems.length > 0 ? sortedItems : ["Sotuvlar topilmadi yoki API dan sinxron qilinmagan"]
+  };
+}
+
 // Map tool names to functions
 const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
   search_products: toolSearchProducts,
   get_dashboard_stats: toolGetDashboardStats,
   get_finance_summary: toolGetFinanceSummary,
   analyze_inventory: toolAnalyzeInventory,
+  get_marketplace_sales: toolGetMarketplaceSales,
 };
 
 // Tool Definitions for OpenAI
@@ -241,6 +281,21 @@ const TOOL_DEFINITIONS = [
       name: "analyze_inventory",
       description: "Tugab borayotgan mahsulotlarni intelligential (Katta va Mayda) toifalarga ajratib, analiz qilish. Har bir mahsulot necha kunga yetishi (days_left) va nechta qolganligini chiqarib beradi.",
       parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_marketplace_sales",
+      description: "Berilgan aniq bir sana yoki sanalar oralig'idagi barcha Marketplace (Uzum, Yandex) sotuvlarini, tushgan umumiy summani va aynan nima tovarlar nechta sotilganini (TOP 30 ro'yxatini) batafsil olish. Agar foydalanuvchi 'kechagi', 'bugungi', yoki 'falon sanadagi sotuvlar/sotilgan narsalar ro'yxatini' so'rasa shu funksiyani ishlating.",
+      parameters: {
+        type: "object",
+        properties: { 
+          start_date: { type: "string", description: "Boshlanish sanasi (masalan, 2026-03-25)" }, 
+          end_date: { type: "string", description: "Tugash sanasi (masalan, 2026-03-25)" } 
+        },
+        required: ["start_date", "end_date"]
+      }
     }
   }
 ];
