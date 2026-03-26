@@ -333,13 +333,18 @@ export default async function handler(req: Request) {
     async start(controller) {
       const reader = streamRes.body!.getReader();
       const decoder = new TextDecoder();
+      let textBuffer = '';
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          for (const line of lines) {
+          
+          textBuffer += decoder.decode(value, { stream: true });
+          const lines = textBuffer.split('\n');
+          textBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+          
+          for (let line of lines) {
+            line = line.trim();
             if (!line.startsWith('data: ')) continue;
             const data = line.slice(6).trim();
             if (!data || data === '[DONE]') continue;
@@ -350,9 +355,29 @@ export default async function handler(req: Request) {
                 fullContent += text;
                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
               }
-            } catch { /* skip */ }
+            } catch { /* skip incomplete JSON that somehow made it as a full line */ }
           }
         }
+        
+        // Process remaining buffer
+        if (textBuffer.trim()) {
+          const lines = textBuffer.split('\n');
+          for (let line of lines) {
+            line = line.trim();
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (!data || data === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(data);
+              const text = parsed.choices?.[0]?.delta?.content || '';
+              if (text) {
+                fullContent += text;
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
+              }
+            } catch {}
+          }
+        }
+        
         if (convId && fullContent) await saveMessages(convId, message, fullContent);
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
       } catch (err) {
