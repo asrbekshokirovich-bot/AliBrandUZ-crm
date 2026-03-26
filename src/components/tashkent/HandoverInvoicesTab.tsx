@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { FileText, Upload, ChevronDown, ChevronRight, CheckCircle2, XCircle, Search, Loader2, Trash2, Undo2, Store, AlertTriangle, WifiOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -184,12 +185,12 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
       const allOrders = [
         ...parsedData.acceptedOrders.map(o => ({ 
           handover_invoice_id: (invoice as any).id, 
-          order_number: o, 
+          order_number: o.orderNumber, 
           accepted: true 
         })),
         ...parsedData.notAcceptedOrders.map(o => ({ 
           handover_invoice_id: (invoice as any).id, 
-          order_number: o, 
+          order_number: o.orderNumber, 
           accepted: false 
         })),
       ];
@@ -264,7 +265,7 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
         const { data: marketplaceOrders } = await supabase
           .from('marketplace_orders')
           .select('id, external_order_id, items')
-          .in('external_order_id', parsedData.acceptedOrders);
+          .in('external_order_id', parsedData.acceptedOrders.map(o => o.orderNumber));
 
         if (marketplaceOrders && marketplaceOrders.length > 0) {
           const skuQuantityMap: Record<string, number> = {};
@@ -287,9 +288,9 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
             }
           }
 
-          for (const orderNum of parsedData.acceptedOrders) {
-            if (!foundOrderIds.has(orderNum)) {
-              unmatchedOrders.push(orderNum);
+          for (const order of parsedData.acceptedOrders) {
+            if (!foundOrderIds.has(order.orderNumber)) {
+              unmatchedOrders.push(order.orderNumber);
             }
           }
 
@@ -320,7 +321,7 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
             }
           }
         } else {
-          unmatchedOrders.push(...parsedData.acceptedOrders);
+          unmatchedOrders.push(...parsedData.acceptedOrders.map(o => o.orderNumber));
         }
       }
 
@@ -436,7 +437,7 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
             const { data: marketplaceOrders } = await supabase
               .from('marketplace_orders')
               .select('id, external_order_id, items')
-              .in('external_order_id', parsed.acceptedOrders);
+              .in('external_order_id', parsed.acceptedOrders.map((o: any) => o.orderNumber));
 
             if (marketplaceOrders && marketplaceOrders.length > 0) {
               const skuQuantityMap: Record<string, number> = {};
@@ -755,15 +756,32 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
                       Jami: {parsedData.acceptedOrders.length + parsedData.notAcceptedOrders.length} ta buyurtma
                     </span>
                   </div>
-                  <div className="max-h-40 overflow-y-auto border rounded-lg p-3">
-                    <div className="flex flex-wrap gap-2">
-                      {parsedData.acceptedOrders.map(o => (
-                        <Badge key={o} variant="outline" className="text-xs">{o}</Badge>
-                      ))}
-                      {parsedData.notAcceptedOrders.map(o => (
-                        <Badge key={o} variant="destructive" className="text-xs">{o}</Badge>
-                      ))}
-                    </div>
+                  <div className="max-h-60 overflow-y-auto border rounded-xl overflow-hidden shadow-sm">
+                    <Table>
+                      <TableHeader className="bg-muted bg-opacity-50">
+                        <TableRow>
+                          <TableHead className="w-12">№</TableHead>
+                          <TableHead>Buyurtma (Принятые)</TableHead>
+                          <TableHead>Barkod (ШК)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parsedData.acceptedOrders.map((o, i) => (
+                          <TableRow key={o.orderNumber}>
+                            <TableCell className="font-medium text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell className="font-semibold">{o.orderNumber}</TableCell>
+                            <TableCell><span className="font-mono text-xs">{o.barcode || '—'}</span></TableCell>
+                          </TableRow>
+                        ))}
+                        {parsedData.notAcceptedOrders.map((o, i) => (
+                          <TableRow key={o.orderNumber} className="bg-destructive/5 hover:bg-destructive/10">
+                            <TableCell className="font-medium text-destructive">{parsedData.acceptedOrders.length + i + 1}</TableCell>
+                            <TableCell className="font-bold text-destructive">{o.orderNumber} (Rad qilingan)</TableCell>
+                            <TableCell><span className="font-mono text-xs text-destructive">{o.barcode || '—'}</span></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 </>
               )}

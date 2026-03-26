@@ -1,10 +1,15 @@
+export interface ParsedOrder {
+  orderNumber: string;
+  barcode: string;
+}
+
 export interface ParsedInvoice {
   invoiceNumber: string;
   senderName: string;
   pickupPoint: string;
   invoiceDate: string;
-  acceptedOrders: string[];
-  notAcceptedOrders: string[];
+  acceptedOrders: ParsedOrder[];
+  notAcceptedOrders: ParsedOrder[];
   isProductReceipt: boolean;
   productItems: Array<{ artikul: string; quantity: number; name: string }>;
 }
@@ -124,11 +129,21 @@ export function parseInvoiceData(text: string): ParsedInvoice {
   const notAcceptedSection = notAcceptedSplit[1] || '';
   
   // Extract 7-10 digit order numbers (covers various Uzum formats)
-  const extractOrders = (section: string): string[] => {
+  const extractOrders = (section: string): ParsedOrder[] => {
     // PDF format updates: strip out barcodes (e.g. 10-0099025658-1) to prevent extracting the padded order ID
     const cleanedSection = section.replace(/\d{2}-\d{8,12}-\d+/g, '');
     const matches = cleanedSection.match(/\b(\d{7,10})\b/g);
-    return matches ? [...new Set(matches)] : [];
+    const uniqueOrders = matches ? [...new Set(matches)] : [];
+    
+    return uniqueOrders.map(order => {
+      // Find matching barcode in the original section
+      const regexStr = `\\d{2}-${order.padStart(10, '0')}-\\d+`;
+      const barcodeMatch = section.match(new RegExp(regexStr, 'i'));
+      return {
+        orderNumber: order,
+        barcode: barcodeMatch ? barcodeMatch[0] : ''
+      };
+    });
   };
   
   // Remove invoice number + date digits + header metadata from order lists
@@ -148,8 +163,8 @@ export function parseInvoiceData(text: string): ParsedInvoice {
     ...(okedMatch ? [okedMatch[1]] : []),
     ...phoneMatches.map(p => p.replace(/\D/g, '')),
   ]);
-  const acceptedOrders = extractOrders(acceptedSection).filter(o => !filterOut.has(o));
-  const notAcceptedOrders = extractOrders(notAcceptedSection).filter(o => !filterOut.has(o));
+  const acceptedOrders = extractOrders(acceptedSection).filter(o => !filterOut.has(o.orderNumber));
+  const notAcceptedOrders = extractOrders(notAcceptedSection).filter(o => !filterOut.has(o.orderNumber));
   
   return { invoiceNumber, senderName, pickupPoint, invoiceDate, acceptedOrders, notAcceptedOrders, isProductReceipt: false, productItems: [] };
 }
