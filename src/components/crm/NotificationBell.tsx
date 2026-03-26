@@ -19,6 +19,8 @@ import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 
+import { useLowStockAlerts } from '@/hooks/useLowStockAlerts';
+
 interface Notification {
   id: string;
   title: string;
@@ -37,6 +39,7 @@ const eventIcons: Record<string, React.ElementType> = {
   box_arrived: Check,
   defect_found: AlertTriangle,
   uzum_sale: ShoppingBag,
+  low_stock: AlertTriangle,
   default: Bell
 };
 
@@ -46,6 +49,7 @@ const eventColors: Record<string, string> = {
   box_arrived: 'text-green-500',
   defect_found: 'text-red-500',
   uzum_sale: 'text-emerald-500',
+  low_stock: 'text-amber-500',
   default: 'text-muted-foreground'
 };
 
@@ -56,7 +60,7 @@ export function NotificationBell() {
   const { isSupported, isSubscribed, subscribe, unsubscribe, isLoading: pushLoading } = usePushNotifications();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Fetch notifications
+  // Fetch real notifications
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', user?.id],
     queryFn: async () => {
@@ -72,8 +76,28 @@ export function NotificationBell() {
       return data as Notification[];
     },
     enabled: !!user?.id,
-    refetchInterval: 30000 // Refetch every 30 seconds
+    refetchInterval: 30000
   });
+
+  // Fetch virtual low stock alerts
+  const { data: virtualAlerts = [] } = useLowStockAlerts();
+
+  const mergedNotifications: Notification[] = [
+    ...virtualAlerts.map(alert => ({
+      id: alert.id,
+      title: 'Zaxira kamaymoqda',
+      body: `${alert.name} atigi ${alert.current_stock} ta qoldi. Tavsiya kunlari: ${alert.days_left > 0 ? alert.days_left : 'Zudlik bilan'}.`,
+      event_type: 'low_stock',
+      entity_type: 'product',
+      entity_id: alert.product_id,
+      sent_at: new Date().toISOString(),
+      read_at: null,
+      metadata: { threshold: alert.threshold, product_type: alert.product_type }
+    })),
+    ...notifications
+  ];
+
+  const unreadCount = mergedNotifications.filter(n => !n.read_at).length;
 
   // Subscribe to realtime notifications
   useEffect(() => {
@@ -87,7 +111,7 @@ export function NotificationBell() {
           event: 'INSERT',
           schema: 'public',
           table: 'notification_logs',
-          filter: `user_id=eq.${user.id}`
+          filter: 'user_id=eq.' + user.id
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
@@ -99,8 +123,6 @@ export function NotificationBell() {
       supabase.removeChannel(channel);
     };
   }, [user?.id, queryClient]);
-
-  const unreadCount = notifications.filter(n => !n.read_at).length;
 
   // Mark as read mutation
   const markAsRead = useMutation({
@@ -201,14 +223,14 @@ export function NotificationBell() {
             <div className="p-3">
               <LoadingSkeleton count={3} compact />
             </div>
-          ) : notifications.length === 0 ? (
+          ) : mergedNotifications.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">{t('notif_empty')}</p>
             </div>
           ) : (
             <div className="divide-y">
-              {notifications.map((notification) => {
+              {mergedNotifications.map((notification) => {
                 const isSale = notification.event_type === 'uzum_sale';
                 const meta = notification.metadata as Record<string, unknown> | undefined;
                 const platform = meta?.platform as string | undefined;

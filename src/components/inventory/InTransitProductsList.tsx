@@ -45,7 +45,7 @@ export function InTransitProductsList() {
   const { data: inTransitData, isLoading } = useQuery({
     queryKey: ['in-transit-products-detailed'],
     queryFn: async () => {
-      // 1. Yo'ldagi qutilarni olish (status = in_transit yoki location = transit)
+      // 1. Yo'ldagi va Xitoydagi qutilarni olish (Toshkentga yetib kelmagan barcha qutilar)
       const { data: transitBoxes, error: boxError } = await supabase
         .from('boxes')
         .select(`
@@ -56,7 +56,8 @@ export function InTransitProductsList() {
           location,
           estimated_arrival
         `)
-        .or('status.eq.in_transit,location.eq.transit')
+        .not('status', 'in', '("arrived","delivered")')
+        .not('location', 'eq', 'uzbekistan')
         .order('estimated_arrival', { ascending: true });
       
       if (boxError) throw boxError;
@@ -87,7 +88,7 @@ export function InTransitProductsList() {
         products = boxProducts || [];
       }
 
-      // 3. Alohida in_transit statusdagi mahsulotlar (FAQAT box_id bor bo'lganlar)
+      // 3. Alohida in_transit va Xitoydagi qutisiz mahsulotlar
       const { data: transitItems, error: transitError } = await supabase
         .from('product_items')
         .select(`
@@ -101,8 +102,7 @@ export function InTransitProductsList() {
             main_image_url
           )
         `)
-        .eq('status', 'in_transit')
-        .not('box_id', 'is', null);
+        .in('status', ['in_transit', 'in_stock', 'packed', 'pending']);
       
       if (transitError) throw transitError;
 
@@ -129,6 +129,16 @@ export function InTransitProductsList() {
         });
       });
 
+      const unboxedItemsBox: InTransitBox = {
+        id: 'unboxed-virtual',
+        box_number: 'Qutisiz (Xitoy omborida)',
+        store_number: null,
+        status: 'pending',
+        estimated_arrival: null,
+        item_count: 0,
+        products: [],
+      };
+
       // Add products to boxes
       allProducts.forEach(item => {
         const boxId = item.box_id;
@@ -148,13 +158,20 @@ export function InTransitProductsList() {
           const box = boxMap.get(boxId)!;
           box.products.push(product);
           box.item_count++;
+        } else if (!boxId) {
+          unboxedItemsBox.products.push(product);
+          unboxedItemsBox.item_count++;
         }
       });
 
       // Convert to array and filter out empty boxes if needed
       const boxes = Array.from(boxMap.values());
+      if (unboxedItemsBox.item_count > 0) {
+        boxes.unshift(unboxedItemsBox);
+      }
+      
       const totalProducts = allProducts.length;
-      const emptyBoxes = boxes.filter(b => b.item_count === 0);
+      const emptyBoxes = boxes.filter(b => b.item_count === 0 && b.id !== 'unboxed-virtual');
 
       return {
         boxes,
@@ -272,7 +289,7 @@ export function InTransitProductsList() {
                         </div>
                         <span className="text-sm font-medium flex-1 truncate">{product.product_name}</span>
                         <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
-                          {product.status === 'in_transit' ? t('inv_transit_in_transit') : product.status === 'packed' ? t('inv_transit_packed') : product.status}
+                          {product.status === 'in_transit' ? t('inv_transit_in_transit', "Yo'lda") : product.status === 'packed' ? 'Qadoqlanmoqda' : (product.status === 'in_stock' || product.status === 'pending' ? 'Xitoyda kutmoqda' : product.status)}
                         </Badge>
                       </div>
                     ))}

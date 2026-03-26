@@ -266,7 +266,8 @@ export default function TashkentDashboard() {
         supabase
           .from('boxes')
           .select('id, box_number, created_at, product_items(id)')
-          .eq('status', 'in_transit')
+          .not('status', 'in', '("arrived","delivered")')
+          .not('location', 'eq', 'uzbekistan')
           .order('created_at', { ascending: false })
           .limit(5),
         
@@ -286,11 +287,12 @@ export default function TashkentDashboard() {
           .eq('status', 'completed')
           .eq('boxes.location', 'uzbekistan'),
         
-        // Total boxes in transit
+        // Total boxes incoming
         supabase
           .from('boxes')
           .select('id, box_number, estimated_arrival')
-          .eq('status', 'in_transit')
+          .not('status', 'in', '("arrived","delivered")')
+          .not('location', 'eq', 'uzbekistan')
           .order('estimated_arrival', { ascending: true }),
         
         // FIX #2: Get manual stock from products table

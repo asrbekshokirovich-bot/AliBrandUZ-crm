@@ -57,21 +57,18 @@ async function createConversationIfNeeded(userId: string, conversationId: string
 
 async function saveMessages(convId: string, userMessage: string, assistantMessage: string) {
   try {
-    const now = new Date();
-    const slightlyLater = new Date(now.getTime() + 1000); // offset to guarantee order
-    
     await Promise.all([
       supabaseQuery('/ali_ai_messages', {
         method: 'POST',
-        body: JSON.stringify({ conversation_id: convId, role: 'user', content: userMessage, created_at: now.toISOString() }),
+        body: JSON.stringify({ conversation_id: convId, role: 'user', content: userMessage }),
       }),
       supabaseQuery('/ali_ai_messages', {
         method: 'POST',
-        body: JSON.stringify({ conversation_id: convId, role: 'assistant', content: assistantMessage, created_at: slightlyLater.toISOString() }),
+        body: JSON.stringify({ conversation_id: convId, role: 'assistant', content: assistantMessage }),
       }),
       supabaseQuery(`/ali_ai_conversations?id=eq.${convId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ updated_at: slightlyLater.toISOString() }),
+        body: JSON.stringify({ updated_at: new Date().toISOString() }),
       }),
     ]);
   } catch (err) {
@@ -94,7 +91,7 @@ async function toolGetDashboardStats() {
   const [orders, tasks, boxes] = await Promise.all([
     supabaseQuery(`/marketplace_orders?select=platform,total_revenue,commission_fee&created_at=gte.${today}T00:00:00`),
     supabaseQuery(`/tasks?select=id,title,status&status=in.(todo,in_progress)`),
-    supabaseQuery(`/boxes?select=id,box_number,status&status=in.(in_transit,pending)&order=created_at.desc&limit=10`)
+    supabaseQuery(`/boxes?select=id,box_number,status&status=in.(in_transit,pending)&limit=10`)
   ]);
 
   let total_revenue = 0;
@@ -106,10 +103,10 @@ async function toolGetDashboardStats() {
 
   return {
     today_orders_count: orders?.length || 0,
-    today_revenue_uzs: total_revenue,
-    today_commission_uzs: total_commission,
+    today_revenue: total_revenue,
+    today_commission: total_commission,
     open_tasks: tasks || [],
-    recently_active_boxes: boxes || [],
+    active_boxes: boxes || [],
   };
 }
 
@@ -128,65 +125,10 @@ async function toolGetFinanceSummary(args: any) {
 
   return {
     period: `${start} dan ${end} gacha`,
-    total_income_uzs: income,
-    total_expense_uzs: expense,
-    net_profit_uzs: income - expense,
-    recent_transactions: (data || []).slice(0, 5)
-  };
-}
-
-async function toolAnalyzeInventory() {
-  const data = await supabaseQuery('/products?select=id,name,category_id,tashkent_manual_stock,avg_daily_sales,categories_hierarchy(name),product_variants(id,stock_quantity,variant_attributes)&status=eq.active');
-  
-  const smallKeywords = ['achki', 'ochki', "ko'zoynak", 'quloqchin', 'naushnik', 'kabel', 'chexol', 'aksessuar', 'soat', 'braslet', 'uzuk', 'sumka', 'kosmetika', 'atirlar', 'ruchka', 'paypoq', 'mayda', 'kichik'];
-  const largeKeywords = ['noutbuk', 'kompyuter', 'televizor', 'muzlatgich', 'konditsioner', 'kir yuvish', 'velosiped', 'kalyaska', 'mebel', 'skuter', 'tv', 'monitor'];
-
-  const lowStockItems: any[] = [];
-  
-  (data || []).forEach((product: any) => {
-    if (product.source === 'marketplace_auto') return;
-    const catName = product.categories_hierarchy?.name || '';
-    const searchString = (product.name + " " + catName).toLowerCase();
-    
-    let threshold = 15;
-    let type = 'standart';
-    if (smallKeywords.some(k => searchString.includes(k))) { threshold = 50; type = 'mayda (small)'; }
-    else if (largeKeywords.some(k => searchString.includes(k))) { threshold = 5; type = 'katta (large)'; }
-    
-    const variants = product.product_variants || [];
-    const dailySales = product.avg_daily_sales || 0;
-    
-    if (variants.length > 0) {
-      variants.forEach((v: any) => {
-        const stock = v.stock_quantity || 0;
-        if (stock <= threshold) {
-          lowStockItems.push({
-            name: `${product.name} (Variant: ${JSON.stringify(v.variant_attributes || {})})`,
-            stock: stock,
-            threshold: threshold,
-            type: type,
-            days_left: dailySales > 0 ? Math.floor(stock / dailySales) : 0
-          });
-        }
-      });
-    } else {
-      const stock = product.tashkent_manual_stock || 0;
-      if (stock <= threshold) {
-        lowStockItems.push({
-          name: product.name,
-          stock: stock,
-          threshold: threshold,
-          type: type,
-          days_left: dailySales > 0 ? Math.floor(stock / dailySales) : 0
-        });
-      }
-    }
-  });
-
-  return {
-    analysis_logic: "Thresholds: Mayda (50+), Katta (5+), Standart (15+).",
-    critical_items_count: lowStockItems.length,
-    critical_items: lowStockItems.sort((a, b) => a.stock - b.stock).slice(0, 30) // max 30 to save context
+    total_income: income,
+    total_expense: expense,
+    net_profit: income - expense,
+    recent_transactions: (data || []).slice(0, 10)
   };
 }
 
@@ -195,7 +137,6 @@ const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
   search_products: toolSearchProducts,
   get_dashboard_stats: toolGetDashboardStats,
   get_finance_summary: toolGetFinanceSummary,
-  analyze_inventory: toolAnalyzeInventory,
 };
 
 // Tool Definitions for OpenAI
@@ -216,7 +157,7 @@ const TOOL_DEFINITIONS = [
     type: "function",
     function: {
       name: "get_dashboard_stats",
-      description: "Bugungi savdo ko'rsatkichlari, tushumlar, ochiq bo'lgan vazifalar va yo'ldagi qutilar haqida umumiy hisobot olish.",
+      description: "Bugungi savdo ko'rsatkichlari, tushumlar, ochiq vazifalar va yo'ldagi qutilar haqida umumiy hisobot olish.",
       parameters: { type: "object", properties: {} }
     }
   },
@@ -224,7 +165,7 @@ const TOOL_DEFINITIONS = [
     type: "function",
     function: {
       name: "get_finance_summary",
-      description: "Ma'lum bir sanalar oralig'idagi umumiy moliya (tushum, komissiya, sof foyda) va oxirgi tranzaksiyalarni olish.",
+      description: "Ma'lum bir vaqt oralig'i uchun moliyaviy statistikani (tushum, komissiya, foyda) va tranzaksiyalarni olish. Sana formati: YYYY-MM-DD",
       parameters: {
         type: "object",
         properties: { 
@@ -234,36 +175,17 @@ const TOOL_DEFINITIONS = [
         required: ["start_date", "end_date"]
       }
     }
-  },
-  {
-    type: "function",
-    function: {
-      name: "analyze_inventory",
-      description: "Tugab borayotgan mahsulotlarni intelligential (Katta va Mayda) toifalarga ajratib, analiz qilish. Har bir mahsulot necha kunga yetishi (days_left) va nechta qolganligini chiqarib beradi.",
-      parameters: { type: "object", properties: {} }
-    }
   }
 ];
 
-const GET_SYSTEM_PROMPT = (todayString: string, isoString: string) => `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
-Sen bevosita ma'lumotlar bazasiga ulangan holda ishlaysan va savollarga javob berishda kerak bo'lsa funksiyalardan (Tools) foydalan!
-
-MUHIM: Bugungi real sana — ${todayString} (ISO: ${isoString}). 
-Juda Muhim: Agar foydalanuvchi "bugun", "shu oy", "hozirgi" deb so'rasa, faqat ${todayString} sanasiga nisbatan hisoblang! Eski yillarni (masalan 2023) qidirmang! Sizda ma'lumotlar bazasidan jonli (live) ma'lumot olish imkoniyati mavjud.
-
+const SYSTEM_PROMPT = `Sen "Ali AI" — AliBrand CRM tizimining aqlli CEO yordamchisisisan.
+Sen endi bevosita ma'lumotlar bazasiga ulangan holda ishlaysan so'rovnomalarni bajarish funksiyalaridan (Tools) foydalanib eng aniq javoblarni taqdim eta olasan.
 QOIDALAR:
-1. Joriy holat, moliya, yoki mahsulotlar (masalan: qolgan zaxirasi yohud narxi) haqida so'rasa, to'g'ridan to'g'ri mos Tool'ni chaqir.
-2. Zaxirasi tugayotgan tovarlar ("qolmayapti", "tugamoqda", "analiz") haqida so'ralganda 'analyze_inventory' dagi katta/mayda ekanligini ta'kidlab javob ber!
-3. O'zbek, Rus va Ingliz tillarini ustasan. JAVOBLAR DOIM FORMATLANGAN SAVOL-JAVOB shaklida, chiroyli qisqa va aniq bo'lsin.
-4. Keltirilgan barcha pul qoldiqlarini o'qishda osonlashtir (masalan: 12,000,000 so'm).
-5. "Sen kimsan?" deb so'rashsa: "Men AliBrand tizimining aqlli CEO yordamchisi - Ali AI - man!" deb javob qaytar.
-6. Muammo ko'rsang, darhol xabar ber va chorasini pichiqla.
-
-TANNARX VA UMUMIY MATEMATIKA:
-Joriy Xitoy > O'zbekiston valyuta kursi (CNY_TO_UZS): ~1750 UZS.
-O'rtacha logistika taxminiy narxi (Xitoy-O'zbekiston): 1kg uchun ~35 CNY, ya'ni grammiga: 0.035 CNY tayanch.
-Tannarx = item_narxi_CNY + (og'irlik_gramm × 0.035 CNY).
-`;
+1. Agar mijoz mahsulot zaxirasi, qutilar, statistika yoki moliya haqida so'rasa, to'g'ridan-to'g'ri o'ylab o'tirmasdan tegishli "Tool"ni chaqirib aniq javob qaytar!
+2. O'zbek, Rus va Ingliz tillarini tushunasan. Muzokara qaysi tilda bo'lsa, shu tilda davom et.
+3. Keltirilgan barcha pul qoldiqlarini o'qishda vizual qulaylik yarat (masalan: 12,000,000 so'm).
+4. O'zingni "Men Ali AI — AliBrand tizimi yordamchisi" deb tanishtir agar so'rashsa.
+5. Agar bironta ochiq muammo aniqlasang, foydalanuvchiga muammoning yechimi haqida o'z maslahatingni ber.`;
 
 // ──────────────────────────────────────────────────────────
 // Main Export
@@ -287,7 +209,7 @@ export default async function handler(req: Request) {
 
   const { message, conversationId = null } = await req.json() as any;
   if (!message?.trim()) return Response.json({ error: 'Message required' }, { status: 400 });
-  if (!OPENAI_API_KEY) return Response.json({ error: 'OPENAI_API_KEY is missing/invalid on server' }, { status: 500 });
+  if (!OPENAI_API_KEY) return Response.json({ error: 'OPENAI_API_KEY is missing' }, { status: 500 });
 
   // Load history
   let previousMessages: any[] = [];
@@ -296,13 +218,11 @@ export default async function handler(req: Request) {
     previousMessages = (history || []).map((m: any) => ({
       role: m.role,
       content: m.content || '',
-    })).filter((m: any) => m.content); // Prevent sending empty contents
+    }));
   }
 
-  const today = new Date();
-  const todayString = today.toLocaleDateString('uz-UZ', { timeZone: 'Asia/Tashkent' });
   const messages = [
-    { role: 'system', content: GET_SYSTEM_PROMPT(todayString, today.toISOString()) },
+    { role: 'system', content: SYSTEM_PROMPT },
     ...previousMessages,
     { role: 'user', content: message }
   ];
@@ -327,97 +247,64 @@ export default async function handler(req: Request) {
   const data1 = await openaiRes1.json();
   const choice = data1.choices?.[0]?.message;
 
-  // Function to create fake SSE stream for pre-computed responses
-  const streamDirectResponse = async (content: string, convId: string | null) => {
-    if (convId && content) await saveMessages(convId, message, content);
-    
-    return new Response(new ReadableStream({
-      start(controller) {
-        // Enqueue the complete text as one chunk
-        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
-        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-        controller.close();
-      }
-    }), {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'X-Conversation-Id': convId || '',
-      },
-    });
-  };
+  // If AI decides to call tools
+  if (choice?.tool_calls?.length > 0) {
+    messages.push(choice); // Push the assistant's tool_call request
 
+    // Execute all tool calls
+    for (const toolCall of choice.tool_calls) {
+      const funcName = toolCall.function.name;
+      const funcArgs = JSON.parse(toolCall.function.arguments || '{}');
+      
+      let resultData;
+      if (AVAILABLE_TOOLS[funcName]) {
+        try {
+           resultData = await AVAILABLE_TOOLS[funcName](funcArgs);
+        } catch (e: any) {
+           resultData = { error: e.message };
+        }
+      } else {
+        resultData = { error: 'Tool not implemented' };
+      }
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(resultData)
+      });
+    }
+  } else {
+    // If no tools were called, we still want to stream the response!
+    // But since we just got the full text, we can just pseudo-stream it or make the second call.
+    // Making a second call with `stream: true` using exactly the same messages is easiest conceptually.
+  }
+
+  // Ensure conversation exists to send in headers
   const convId = await createConversationIfNeeded(user.id, conversationId, message);
 
-  // If AI did NOT call tools, it means choice.content has the direct answer
-  if (!choice?.tool_calls?.length) {
-    return await streamDirectResponse(choice.content || "Kechirasiz, javob topa olmadim.", convId);
-  }
-
-  // STAGE 2: If we get here, tools WERE called.
-  messages.push(choice); // Push the assistant's request to use tools (vital for API schema)
-
-  // Execute all requested tools
-  for (const toolCall of choice.tool_calls) {
-    const funcName = toolCall.function.name;
-    let funcArgs = {};
-    try {
-      funcArgs = JSON.parse(toolCall.function.arguments || '{}');
-    } catch { /* skip err */ }
-    
-    let resultData;
-    if (AVAILABLE_TOOLS[funcName]) {
-      try {
-         resultData = await AVAILABLE_TOOLS[funcName](funcArgs);
-      } catch (e: any) {
-         resultData = { error: e.message };
-      }
-    } else {
-      resultData = { error: 'Tool not implemented' };
-    }
-
-    messages.push({
-      role: 'tool',
-      tool_call_id: toolCall.id,
-      content: JSON.stringify(resultData)
-    });
-  }
-
-  // STAGE 3: Stream the final response matching the tool results back to the user
+  // STAGE 2: Stream final response to user
   const streamRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      messages,
+      messages, // This now includes tool_calls and tool results if they happened
       stream: true,
     }),
   });
-
-  if (!streamRes.ok) {
-     const text = await streamRes.text();
-     return streamDirectResponse(`Ulanishda xato yuz berdi. Iltimos keyinroq urinib ko'ring. (OpenAI API Error: ${streamRes.status} ${text})`, convId);
-  }
 
   let fullContent = '';
   const stream = new ReadableStream({
     async start(controller) {
       const reader = streamRes.body!.getReader();
       const decoder = new TextDecoder();
-      let textBuffer = '';
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
-          textBuffer += decoder.decode(value, { stream: true });
-          const lines = textBuffer.split('\n');
-          textBuffer = lines.pop() || ''; // Keep incomplete line in buffer
-          
-          for (let line of lines) {
-            line = line.trim();
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const data = line.slice(6).trim();
             if (!data || data === '[DONE]') continue;
@@ -428,29 +315,9 @@ export default async function handler(req: Request) {
                 fullContent += text;
                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
               }
-            } catch { /* skip incomplete JSON that somehow made it as a full line */ }
+            } catch { /* skip */ }
           }
         }
-        
-        // Process remaining buffer
-        if (textBuffer.trim()) {
-          const lines = textBuffer.split('\n');
-          for (let line of lines) {
-            line = line.trim();
-            if (!line.startsWith('data: ')) continue;
-            const data = line.slice(6).trim();
-            if (!data || data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              const text = parsed.choices?.[0]?.delta?.content || '';
-              if (text) {
-                fullContent += text;
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
-              }
-            } catch {}
-          }
-        }
-        
         if (convId && fullContent) await saveMessages(convId, message, fullContent);
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
       } catch (err) {

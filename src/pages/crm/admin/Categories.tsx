@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/integrations/supabase/client';
@@ -127,6 +127,51 @@ export default function Categories() {
     staleTime: 30 * 1000, // Cache for 30 seconds
     gcTime: 5 * 60 * 1000, // Keep in memory for 5 minutes
   });
+
+  // Auto-seed Categories when missing
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      const marketCategories = [
+        "Elektronika",
+        "Go'zallik va parvarishlash",
+        "Uy-ro'zg'or buyumlari",
+        "Aksessuarlar",
+        "Sumka va hamyonlar",
+        "Soatlar",
+        "Sport va salomatlik",
+        "Kiyim-kechak",
+        "Avtomobil uchun",
+        "Boshqa"
+      ];
+      
+      const missingCategories = marketCategories.filter(
+        mc => !categories.some(c => c.name.toLowerCase() === mc.toLowerCase())
+      );
+      
+      if (missingCategories.length > 0) {
+        console.log('Seeding missing categories:', missingCategories);
+        toast.info(`Yangi kategoriyalar qo'shilmoqda... (${missingCategories.length} ta)`);
+        
+        const seedMissing = async () => {
+          let sortOrder = categories.length + 1;
+          for (const name of missingCategories) {
+            const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            await supabase.from('categories_hierarchy').insert({
+              name,
+              slug,
+              is_active: true,
+              sort_order: sortOrder++,
+              level: 0
+            });
+          }
+          queryClient.invalidateQueries({ queryKey: ['categories-admin-full'] });
+          toast.success("Standart kategoriyalar bazaga uzatildi!");
+        };
+        
+        seedMissing();
+      }
+    }
+  }, [categories, queryClient]);
 
   // Fetch attributes for editing category
   const fetchCategoryAttributes = async (categoryId: string) => {

@@ -56,6 +56,7 @@ interface ProductIndicator {
   avg_daily_sales: number | null;
   tashkent_manual_stock: number | null;
   tashkent_section: string | null;
+  china_count: number;
   in_transit_count: number;
   tashkent_count: number;
   notes: string | null;
@@ -191,8 +192,7 @@ export function TashkentWarehouseIndicators({
       const { data: itemCounts } = await supabase
         .from('product_items')
         .select('product_id, status, box_id')
-        .in('status', ['in_transit', 'in_tashkent', 'packed'])
-        .not('box_id', 'is', null);
+        .in('status', ['in_transit', 'in_tashkent', 'packed', 'in_stock', 'pending']);
 
       // Get full cost data per variant/product from product_items
       const { data: shippingData } = await supabase
@@ -249,15 +249,22 @@ export function TashkentWarehouseIndicators({
 
       const transitCounts: Record<string, number> = {};
       const tashkentCounts: Record<string, number> = {};
+      const chinaCounts: Record<string, number> = {};
 
       itemCounts?.forEach(item => {
+        const isTransitBox = item.box_id && transitBoxIds.includes(item.box_id);
         const isInTransit = item.status === 'in_transit' ||
-          (item.status === 'packed' && item.box_id && transitBoxIds.includes(item.box_id));
+          (item.status === 'packed' && isTransitBox);
+          
+        const isChina = (item.status === 'in_stock' || item.status === 'pending') ||
+          (item.status === 'packed' && !isTransitBox);
 
         if (isInTransit) {
           transitCounts[item.product_id] = (transitCounts[item.product_id] || 0) + 1;
         } else if (item.status === 'in_tashkent') {
           tashkentCounts[item.product_id] = (tashkentCounts[item.product_id] || 0) + 1;
+        } else if (isChina) {
+          chinaCounts[item.product_id] = (chinaCounts[item.product_id] || 0) + 1;
         }
       });
 
@@ -298,6 +305,7 @@ export function TashkentWarehouseIndicators({
               avg_daily_sales: product.avg_daily_sales,
               tashkent_manual_stock: variant.stock_quantity,
               tashkent_section: product.tashkent_section,
+              china_count: chinaCounts[product.id] || 0,
               in_transit_count: transitCounts[product.id] || 0,
               tashkent_count: tashkentCounts[product.id] || 0,
               notes: product.notes,
@@ -328,6 +336,7 @@ export function TashkentWarehouseIndicators({
             avg_daily_sales: product.avg_daily_sales,
             tashkent_manual_stock: product.tashkent_manual_stock,
             tashkent_section: product.tashkent_section,
+            china_count: chinaCounts[product.id] || 0,
             in_transit_count: transitCounts[product.id] || 0,
             tashkent_count: tashkentCounts[product.id] || 0,
             notes: product.notes,
@@ -748,6 +757,7 @@ export function TashkentWarehouseIndicators({
       main_image_url: product.main_image_url,
       tashkent_section: product.tashkent_section,
       notes: product.notes,
+      china_count: product.china_count,
       in_transit_count: product.in_transit_count,
       avg_daily_sales: product.avg_daily_sales,
       variants: variants.length > 0 ? variants : [product],
@@ -984,11 +994,11 @@ export function TashkentWarehouseIndicators({
                                 <div><InlineStockInput value={tashkentStock} onSave={(v) => handleUpdateTashkentStock(indicator, v)} /></div>
                               </div>
                               <div>
-                                <span className="text-muted-foreground">{t('inventory.inTransitQty', "Yo'lda")}</span>
-                                <div>
-                                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                    {indicator.in_transit_count}
-                                  </Badge>
+                                <span className="text-muted-foreground">Kutilmoqda</span>
+                                <div className="flex flex-col gap-1 items-start mt-1">
+                                  {indicator.china_count > 0 && <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 text-[10px] uppercase px-1.5 w-full justify-center">Xitoy: {indicator.china_count}</Badge>}
+                                  {indicator.in_transit_count > 0 && <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] uppercase px-1.5 w-full justify-center">Yo'l: {indicator.in_transit_count}</Badge>}
+                                  {(indicator.china_count === 0 && indicator.in_transit_count === 0) && <span className="text-muted-foreground">-</span>}
                                 </div>
                               </div>
                               <div>
@@ -1061,7 +1071,7 @@ export function TashkentWarehouseIndicators({
                   <TableHead className="text-center">{t('inv_tash_section', 'Bo\'lim')}</TableHead>
                   <TableHead>{t('inventory.colCategory')}</TableHead>
                   <TableHead className="text-right">{t('inv_tash_cost', 'Tannarx')}</TableHead>
-                  <TableHead className="text-center">{t('inventory.inTransitQty')}</TableHead>
+                  <TableHead className="text-center w-[80px]">Kutilmoqda</TableHead>
                   <TableHead className="text-center">{t('inventory.tashkentStockQty')}</TableHead>
                   <TableHead className="text-right">{t('inventory.tashkentSalePrice')}</TableHead>
                   <TableHead className="text-center">{t('inventory.stockoutDate')}</TableHead>
@@ -1147,8 +1157,12 @@ export function TashkentWarehouseIndicators({
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">{indicator.in_transit_count}</Badge>
+                        <TableCell className="text-center align-top pt-3">
+                          <div className="flex flex-col gap-1 items-center">
+                            {indicator.china_count > 0 && <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 text-[10px] uppercase px-1.5">Xitoy: {indicator.china_count}</Badge>}
+                            {indicator.in_transit_count > 0 && <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] uppercase px-1.5">Yo'l: {indicator.in_transit_count}</Badge>}
+                            {(indicator.china_count === 0 && indicator.in_transit_count === 0) && <span className="text-muted-foreground">-</span>}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <InlineStockInput value={tashkentStock} onSave={(newValue) => handleUpdateTashkentStock(indicator, newValue)} />
@@ -1227,8 +1241,12 @@ export function TashkentWarehouseIndicators({
                           <InlineCategorySelect currentCategoryId={group.category_id} currentCategoryName={group.category_name} categories={categories || []} onSave={(catId) => handleUpdateCategory(group.productId, catId)} />
                         </TableCell>
                         <TableCell></TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">{group.in_transit_count}</Badge>
+                        <TableCell className="text-center align-top pt-3">
+                          <div className="flex flex-col gap-1 items-center">
+                            {group.china_count > 0 && <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 text-[10px] uppercase px-1.5">Xitoy: {group.china_count}</Badge>}
+                            {group.in_transit_count > 0 && <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] uppercase px-1.5">Yo'l: {group.in_transit_count}</Badge>}
+                            {(group.china_count === 0 && group.in_transit_count === 0) && <span className="text-muted-foreground">-</span>}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant={group.totalStock > 5 ? "default" : "destructive"}
