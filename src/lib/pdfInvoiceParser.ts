@@ -139,9 +139,13 @@ export function parseInvoiceData(text: string): ParsedInvoice {
       // Find matching barcode in the original section
       const regexStr = `\\d{2}-${order.padStart(10, '0')}-\\d+`;
       const barcodeMatch = section.match(new RegExp(regexStr, 'i'));
+      
+      // If pdfjs-dist couldn't extract the barcode (often happens if rendered as SVG/image), synthesize it natively
+      const synthesizedBarcode = `10-${order.padStart(10, '0')}-1`;
+      
       return {
         orderNumber: order,
-        barcode: barcodeMatch ? barcodeMatch[0] : ''
+        barcode: barcodeMatch ? barcodeMatch[0] : synthesizedBarcode
       };
     });
   };
@@ -154,6 +158,11 @@ export function parseInvoiceData(text: string): ParsedInvoice {
   const okedMatch = workingText.match(/ОКЭД\s*:?\s*(\d{4,})/i);
   const phoneMatches = workingText.match(/\+?\d{10,}/g) || [];
   
+  // Extract ALL numbers from the header section (before the actual table starts)
+  const headerBoundary = Math.max(0, workingText.toLowerCase().indexOf('принятые заказы'));
+  const headerText = headerBoundary > 0 ? workingText.slice(0, headerBoundary) : '';
+  const headerNumbers = headerText.match(/\d{5,}/g) || [];
+  
   const filterOut = new Set([
     invoiceNumber,
     ...dateDigits,
@@ -162,6 +171,8 @@ export function parseInvoiceData(text: string): ParsedInvoice {
     ...(pinfMatch ? [pinfMatch[1]] : []),
     ...(okedMatch ? [okedMatch[1]] : []),
     ...phoneMatches.map(p => p.replace(/\D/g, '')),
+    '309376127', // Default Uzum Market INN
+    ...headerNumbers
   ]);
   const acceptedOrders = extractOrders(acceptedSection).filter(o => !filterOut.has(o.orderNumber));
   const notAcceptedOrders = extractOrders(notAcceptedSection).filter(o => !filterOut.has(o.orderNumber));
