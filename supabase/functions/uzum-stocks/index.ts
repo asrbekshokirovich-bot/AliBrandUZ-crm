@@ -64,6 +64,10 @@ async function fetchStocksViaProductAPI(
   let hasMore = true;
 
   while (hasMore) {
+    if (Date.now() - (globalThis as any).syncStartTime > 40000) {
+       console.log('[fallback] Timeout guard triggered');
+       break;
+    }
     const url = `${UZUM_API_BASE}/v1/product/shop/${shopId}?size=${pageSize}&page=${page}&filter=ALL&sortBy=DEFAULT`;
     console.log(`[fallback] Fetching products page ${page}`);
 
@@ -180,6 +184,10 @@ async function batchUpdateStocks(
   // Step 3: Batch update in chunks of 100 using listing IDs
   const BATCH_SIZE = 100;
   for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+    if (Date.now() - (globalThis as any).syncStartTime > 45000) {
+      console.log(`[uzum-stocks] Timeout guard triggered during batch update at chunk ${i}`);
+      break;
+    }
     const chunk = toUpdate.slice(i, i + BATCH_SIZE);
     
     // Group by stock value for efficient updates
@@ -219,6 +227,7 @@ Deno.serve(async (req) => {
   }
 
   const startTime = Date.now();
+  (globalThis as any).syncStartTime = startTime;
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
