@@ -1210,7 +1210,7 @@ export default function Boxes() {
                       {(box as any).shipping_cost && (
                         <div>
                           <span className="text-muted-foreground">{t('box_cost')}</span>
-                          <span className="ml-1 text-foreground">${(box as any).shipping_cost}</span>
+                          <span className="ml-1 text-foreground">¥{(box as any).shipping_cost}</span>
                         </div>
                       )}
                       {(box as any).estimated_arrival && (
