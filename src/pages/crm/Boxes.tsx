@@ -1264,9 +1264,12 @@ export default function Boxes() {
                         'sariq': '🟡', 'yellow': '🟡',
                         'qora': '⚫', 'black': '⚫',
                         'oq': '⚪', 'white': '⚪',
+                        'kulrang': '🔘', 'grey': '🔘', 'gray': '🔘', 'sery': '🔘',
                         'jigarrang': '🟤', 'brown': '🟤',
                         'pushti': '💗', 'pink': '💗',
                         'binafsha': '🟣', 'purple': '🟣',
+                        'zarhal': '🟡', 'gold': '🟡',
+                        'kumush': '⚪', 'silver': '⚪',
                       };
                       return colorMap[c] || "";
                     };
