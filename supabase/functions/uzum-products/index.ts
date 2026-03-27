@@ -358,6 +358,9 @@ serve(async (req) => {
         const totalSkus = allProducts.reduce((sum, p) => sum + (p.skuList?.length || 0), 0);
         console.log(`[uzum-products] Syncing ${totalSkus} SKUs to database`);
 
+        const allFbsListings: Record<string, unknown>[] = [];
+        const allFbuListings: Record<string, unknown>[] = [];
+
         for (const product of allProducts) {
           for (const sku of product.skuList || []) {
             try {
@@ -472,30 +475,7 @@ serve(async (req) => {
                 stock_fbu: null,
                 fulfillment_type: 'fbs' as const,
               };
-
-              let fbsErrorToReport = null;
-              const { error: fbsError } = await supabase
-                .from('marketplace_listings')
-                .upsert(fbsData, { onConflict: 'store_id,external_sku,fulfillment_type' });
-
-              if (fbsError && fbsError.message.includes('column "stock_')) {
-                // Fallback: the production database might be missing the new stock_fbu/stock_fbs columns
-                const { stock_fbs, stock_fbu, ...fallbackFbsData } = fbsData;
-                const { error: fallbackError } = await supabase
-                  .from('marketplace_listings')
-                  .upsert(fallbackFbsData as any, { onConflict: 'store_id,external_sku,fulfillment_type' });
-                fbsErrorToReport = fallbackError;
-              } else {
-                fbsErrorToReport = fbsError;
-              }
-
-              if (fbsErrorToReport) {
-                failed++;
-                failedSkuDetails.push({ sku: String(sku.skuId), error: fbsErrorToReport.message });
-                console.error(`[uzum-products] Failed to upsert FBS SKU ${sku.skuId}:`, JSON.stringify(fbsErrorToReport));
-              } else {
-                synced++;
-              }
+              allFbsListings.push(fbsData);
 
               // === FBU listing (always upsert, even at zero stock) ===
               const fbuData = {
@@ -505,40 +485,48 @@ serve(async (req) => {
                 stock_fbu: stockFbu,
                 fulfillment_type: 'fbu' as const,
               };
+              allFbuListings.push(fbuData);
 
-              let fbuErrorToReport = null;
-              const { error: fbuError } = await supabase
-                .from('marketplace_listings')
-                .upsert(fbuData, { onConflict: 'store_id,external_sku,fulfillment_type' });
-
-              if (fbuError && fbuError.message.includes('column "stock_')) {
-                const { stock_fbs, stock_fbu, ...fallbackFbuData } = fbuData;
-                const { error: fallbackFbuErr } = await supabase
-                  .from('marketplace_listings')
-                  .upsert(fallbackFbuData as any, { onConflict: 'store_id,external_sku,fulfillment_type' });
-                fbuErrorToReport = fallbackFbuErr;
-              } else {
-                fbuErrorToReport = fbuError;
-              }
-
-              if (fbuErrorToReport) {
-                failed++;
-                failedSkuDetails.push({ sku: `${sku.skuId}-fbu`, error: fbuErrorToReport.message });
-                console.error(`[uzum-products] Failed to upsert FBU SKU ${sku.skuId}:`, JSON.stringify(fbuErrorToReport));
-              } else {
-                synced++;
-              }
             } catch (err) {
               failed++;
               console.error(`[uzum-products] Error processing SKU:`, err);
             }
+          }
+        }
 
-            // Rate limit DB operations
-            if ((synced + failed) % 100 === 0) {
-              await delay(50);
+        const BATCH_SIZE = 200;
+        async function batchUpsert(listings: any[], type: string) {
+          for (let i = 0; i < listings.length; i += BATCH_SIZE) {
+            const batch = listings.slice(i, i + BATCH_SIZE);
+            let errorToReport = null;
+            const { error: upsertErr } = await supabase
+              .from('marketplace_listings')
+              .upsert(batch, { onConflict: 'store_id,external_sku,fulfillment_type' });
+
+            if (upsertErr && upsertErr.message.includes('column "stock_')) {
+              // Fallback: production database might be missing new stock_fbu/stock_fbs columns
+              const fallbackBatch = batch.map(({ stock_fbs, stock_fbu, ...rest }) => rest);
+              const { error: fallbackErr } = await supabase
+                .from('marketplace_listings')
+                .upsert(fallbackBatch, { onConflict: 'store_id,external_sku,fulfillment_type' });
+              errorToReport = fallbackErr;
+            } else {
+              errorToReport = upsertErr;
+            }
+
+            if (errorToReport) {
+              failed += batch.length;
+              failedSkuDetails.push({ sku: `batch-${i}-${type}`, error: errorToReport.message });
+              console.error(`[uzum-products] Failed to batch upsert ${type}:`, errorToReport.message);
+            } else {
+              synced += batch.length;
             }
           }
         }
+
+        console.log(`[uzum-products] Upserting in batches...`);
+        await batchUpsert(allFbsListings, 'fbs');
+        await batchUpsert(allFbuListings, 'fbu');
 
         // Update sync log
         if (syncLogId) {
