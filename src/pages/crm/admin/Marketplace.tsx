@@ -76,6 +76,7 @@ export default function MarketplaceAdmin() {
   const [healthCheckLoading, setHealthCheckLoading] = useState(false);
   const [healthResults, setHealthResults] = useState<Record<string, any>>({});
   const [forceSync, setForceSync] = useState<{ loading: boolean; type: string | null }>({ loading: false, type: null });
+  const [syncProgress, setSyncProgress] = useState<{ completed: number; total: number; errors: number } | null>(null);
 
   const { data: stores, isLoading: storesLoading, error: storesError } = useQuery({
     queryKey: ['marketplace-stores'],
@@ -162,28 +163,65 @@ export default function MarketplaceAdmin() {
   });
 
   const handleForceSync = async (syncType: string) => {
+    if (!stores || stores.length === 0) return;
+    const activeStoresList = stores.filter(s => s.is_active);
+    if (activeStoresList.length === 0) return;
+
     setForceSync({ loading: true, type: syncType });
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('marketplace-auto-sync', {
-        body: { sync_type: syncType, trigger_ai: true, send_alerts: true },
-      });
+    setSyncProgress({ completed: 0, total: activeStoresList.length, errors: 0 });
 
-      if (error) throw error;
-
-      if (data.success) {
-        toast.success(t('mpadm_sync_complete', { success: data.summary.success_count, total: data.summary.total_stores }));
+    // Map sync_type to edge function name per platform
+    const getFunctionName = (platform: string, sType: string) => {
+      if (platform === 'uzum') {
+        if (sType === 'orders') return 'uzum-orders';
+        return 'uzum-products'; // listings / stocks
       } else {
-        toast.warning(t('mpadm_sync_partial', { success: data.summary.success_count, errors: data.summary.error_count }));
+        if (sType === 'orders') return 'yandex-orders';
+        if (sType === 'stocks') return 'yandex-stocks';
+        return 'yandex-products';
       }
+    };
 
-      queryClient.invalidateQueries({ queryKey: ['marketplace-stores'] });
-      queryClient.invalidateQueries({ queryKey: ['marketplace-sync-logs'] });
-    } catch (error) {
-      toast.error(`${t('mpadm_sync_error')}: ${error instanceof Error ? error.message : ''}`);
-    } finally {
-      setForceSync({ loading: false, type: null });
+    const getBody = (storeId: string, sType: string) => {
+      if (sType === 'stocks') return { store_id: storeId, action: 'sync' };
+      return { store_id: storeId, action: 'sync' };
+    };
+
+    let completed = 0;
+    let errors = 0;
+
+    // Invoke all stores in parallel
+    const promises = activeStoresList.map(store =>
+      supabase.functions.invoke(getFunctionName(store.platform, syncType), {
+        body: getBody(store.id, syncType),
+      }).then(result => {
+        completed++;
+        if (result.error || result.data?.error) errors++;
+        setSyncProgress(prev => prev ? { ...prev, completed, errors } : null);
+        return { store, result };
+      }).catch(err => {
+        completed++;
+        errors++;
+        setSyncProgress(prev => prev ? { ...prev, completed, errors } : null);
+        return { store, error: err };
+      })
+    );
+
+    await Promise.allSettled(promises);
+
+    const successCount = activeStoresList.length - errors;
+    if (errors === 0) {
+      toast.success(`✅ Barcha ${successCount} ta do'kon sinxronlandi!`);
+    } else if (successCount > 0) {
+      toast.warning(`⚠️ ${successCount}/${activeStoresList.length} ta do'kon sinxronlandi, ${errors} ta xato`);
+    } else {
+      toast.error(`❌ Sinxronlash xato: ${errors} ta do'kon ishlamadi`);
     }
+
+    queryClient.invalidateQueries({ queryKey: ['marketplace-stores'] });
+    queryClient.invalidateQueries({ queryKey: ['marketplace-sync-logs'] });
+    setForceSync({ loading: false, type: null });
+    setSyncProgress(null);
   };
 
   const handleHealthCheck = async () => {
@@ -524,6 +562,20 @@ export default function MarketplaceAdmin() {
                   {t('mpadm_stocks_btn')}
                 </Button>
               </div>
+              {/* Progress bar shown during sync */}
+              {syncProgress && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                      {syncProgress.completed}/{syncProgress.total} do'kon tayyor
+                      {syncProgress.errors > 0 && <span className="text-destructive ml-1">({syncProgress.errors} xato)</span>}
+                    </span>
+                    <span>{Math.round((syncProgress.completed / syncProgress.total) * 100)}%</span>
+                  </div>
+                  <Progress value={(syncProgress.completed / syncProgress.total) * 100} className="h-1.5" />
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
