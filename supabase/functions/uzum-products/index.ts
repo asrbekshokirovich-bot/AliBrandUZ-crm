@@ -434,7 +434,6 @@ serve(async (req) => {
                 external_barcode: externalBarcode,
                 title: product.title,
                 price: sku.sellPrice || sku.price || sku.marketPrice,
-                compare_price: sku.fullPrice || sku.marketPrice,
                 status: isActive ? 'active' : 'inactive',
                 moderation_status: product.moderationStatus,
                 image_url: imageUrl,
@@ -463,8 +462,6 @@ serve(async (req) => {
                   if (sold > 20) return 'C';
                   return 'D';
                 })(),
-                commission_rate: skuCommissionRate,
-                category_title: product.categoryTitle,
               };
 
               // === FBS listing (ALWAYS created) ===
@@ -477,13 +474,13 @@ serve(async (req) => {
               };
               allFbsListings.push(fbsData);
 
-              // === FBU listing (always upsert, even at zero stock) ===
+              // === FBU listing (always upsert, mapped to standard due to legacy DB constraints) ===
               const fbuData = {
                 ...commonListingData,
                 stock: stockFbu,
                 stock_fbs: null,
                 stock_fbu: stockFbu,
-                fulfillment_type: 'fbu' as const,
+                fulfillment_type: 'standard' as const, // Aliased to standard to pass legacy constraint
               };
               allFbuListings.push(fbuData);
 
@@ -495,29 +492,51 @@ serve(async (req) => {
         }
 
         const BATCH_SIZE = 200;
+
         async function batchUpsert(listings: any[], type: string) {
           for (let i = 0; i < listings.length; i += BATCH_SIZE) {
-            const batch = listings.slice(i, i + BATCH_SIZE);
-            let errorToReport = null;
-            const { error: upsertErr } = await supabase
-              .from('marketplace_listings')
-              .upsert(batch, { onConflict: 'store_id,external_sku,fulfillment_type' });
+            let batch = listings.slice(i, i + BATCH_SIZE);
+            let success = false;
+            let finalError = null;
 
-            if (upsertErr && upsertErr.message.includes('column "stock_')) {
-              // Fallback: production database might be missing new stock_fbu/stock_fbs columns
-              const fallbackBatch = batch.map(({ stock_fbs, stock_fbu, ...rest }) => rest);
-              const { error: fallbackErr } = await supabase
+            // Try up to 10 times to dynamically strip missing columns
+            for (let attempt = 0; attempt < 10; attempt++) {
+              const { error: upsertErr } = await supabase
                 .from('marketplace_listings')
-                .upsert(fallbackBatch, { onConflict: 'store_id,external_sku,fulfillment_type' });
-              errorToReport = fallbackErr;
-            } else {
-              errorToReport = upsertErr;
+                .upsert(batch, { onConflict: 'store_id,external_sku,fulfillment_type' });
+
+              if (!upsertErr) {
+                success = true;
+                break;
+              }
+
+              // Parse PostgREST/PostgreSQL missing column error
+              let match = upsertErr.message.match(/Could not find the '([^']+)' column/);
+              if (!match) {
+                match = upsertErr.message.match(/column "([^"]+)" of relation/);
+              }
+
+              if (match && match[1]) {
+                const missingCol = match[1];
+                console.log(`[uzum-products] Fallback: DB missing column '${missingCol}'. Stripping it from batch...`);
+                batch = batch.map(item => {
+                  const copy = { ...item };
+                  delete copy[missingCol];
+                  return copy;
+                });
+                // Recurse on same batch index
+                continue;
+              } else {
+                // Unrecognized error, break retry loop and log it
+                finalError = upsertErr.message;
+                break;
+              }
             }
 
-            if (errorToReport) {
+            if (!success) {
               failed += batch.length;
-              failedSkuDetails.push({ sku: `batch-${i}-${type}`, error: errorToReport.message });
-              console.error(`[uzum-products] Failed to batch upsert ${type}:`, errorToReport.message);
+              failedSkuDetails.push({ sku: `batch-${i}-${type}`, error: finalError || "Max schema fallback retries exceeded" });
+              console.error(`[uzum-products] Failed to batch upsert ${type}:`, finalError || "Too many missing columns");
             } else {
               synced += batch.length;
             }
@@ -554,6 +573,7 @@ serve(async (req) => {
           synced,
           failed,
           records_processed: totalSkus,
+          failedDetails: failedSkuDetails,
         };
       }
 

@@ -386,7 +386,7 @@ Deno.serve(async (req) => {
       
       const fbsResult = await batchUpdateStocks(supabase, relatedStoreIds, fbsStockMap, 'fbs', 'stock_fbs');
       const fbuResult = fbuStockMap.size > 0 
-        ? await batchUpdateStocks(supabase, relatedStoreIds, fbuStockMap, 'fbu', 'stock_fbu')
+        ? await batchUpdateStocks(supabase, relatedStoreIds, fbuStockMap, 'standard', 'stock_fbu') // Use standard alias for legacy DB compat
         : { updated: 0, unchanged: 0, errors: 0 };
 
       result = {
