@@ -499,7 +499,11 @@ serve(async (req) => {
 
     await supabase
       .from('marketplace_stores')
-      .update({ last_sync_at: new Date().toISOString() })
+      .update({ 
+        last_sync_at: new Date().toISOString(),
+        sync_status: 'success',
+        sync_error: null 
+      })
       .eq('id', store_id);
 
     return new Response(

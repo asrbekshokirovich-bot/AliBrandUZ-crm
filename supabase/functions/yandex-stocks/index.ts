@@ -68,7 +68,10 @@ serve(async (req: Request) => {
     console.log(`[yandex-stocks] Fetching stocks for ${store.name} from ${campaignsToFetch.length} campaign(s)`);
 
     let synced = 0;
+    // Store the first error encountered for logging context
+    let firstUpdateError: string | null = null;
     let failed = 0;
+
     let totalOffers = 0;
     const stockData: Array<{
       offerId: string;
@@ -170,11 +173,38 @@ serve(async (req: Request) => {
                 .eq('external_sku', offer.offerId)
                 .eq('fulfillment_type', targetFulfillmentType);
 
-              if (updateError) {
+              let hasUpdated = false;
+              if (updateError && updateError.message.includes('column "stock_')) {
+                // Fallback: the production database might be missing the new stock_fby/stock_fbs columns
+                const fallbackData = { 
+                  last_synced_at: updateData.last_synced_at, 
+                  stock: updateData.stock 
+                };
+                const { error: fallbackError } = await supabase
+                  .from('marketplace_listings')
+                  .update(fallbackData)
+                  .eq('store_id', store_id)
+                  .eq('external_sku', offer.offerId)
+                  .eq('fulfillment_type', targetFulfillmentType);
+                  
+                if (fallbackError) {
+                  console.error(`[yandex-stocks] Fallback failed for ${offer.offerId}:`, fallbackError.message);
+                  if (!firstUpdateError) firstUpdateError = fallbackError.message;
+                  failed++;
+                } else {
+                  hasUpdated = true;
+                  synced++;
+                }
+              } else if (updateError) {
                 console.error(`[yandex-stocks] Failed to update ${offer.offerId}:`, updateError.message);
+                if (!firstUpdateError) firstUpdateError = updateError.message;
                 failed++;
               } else {
+                hasUpdated = true;
                 synced++;
+              }
+
+              if (hasUpdated) {
                 // Update rank based on stock level
                 const stockRank = totalStock > 20 ? 'B' : (totalStock > 0 ? 'C' : 'D');
                 await supabase
@@ -212,7 +242,7 @@ serve(async (req: Request) => {
       .update({
         last_sync_at: new Date().toISOString(),
         sync_status: synced > 0 ? 'success' : 'partial',
-        sync_error: failed > 0 ? `${failed} offers failed to update` : null,
+        sync_error: failed > 0 ? `${failed} offers failed to update: ${firstUpdateError || 'Unknown DB Error'}` : null,
       })
       .eq('id', store_id);
 
