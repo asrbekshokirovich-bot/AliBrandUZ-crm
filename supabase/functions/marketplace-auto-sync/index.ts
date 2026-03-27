@@ -238,11 +238,13 @@ Deno.serve(async (req) => {
             error = result.error;
             
           } else if (syncType === "listings" || syncType === "products") {
-            // Use dedicated products functions for listings sync
+            // Use dedicated products functions for listings sync (with timeout to prevent 50s Supabase hard kill)
             functionName = store.platform === "uzum" ? "uzum-products" : "yandex-products";
-            const productsResult = await supabase.functions.invoke(functionName, {
-              body: { store_id: store.id },
-            });
+            const productsResult = await withTimeout(
+              supabase.functions.invoke(functionName, { body: { store_id: store.id } }),
+              INNER_TIMEOUT_MS,
+              `${functionName} listings for ${store.name}`
+            );
             data = productsResult.data;
             error = productsResult.error;
             

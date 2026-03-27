@@ -148,11 +148,82 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get(store.api_key_secret_name);
     if (!apiKey) {
-      throw new Error(`API key not configured: ${store.api_key_secret_name}`);
+      throw new Error(`API key not configured for store "${store.name}": secret "${store.api_key_secret_name}" not found in Edge Function secrets`);
     }
 
     const shopId = parseInt(store.shop_id);
     let result: unknown = null;
+    let syncLogId: string | null = null; // hoisted for error cleanup
+
+    // test_connection: quick API check without syncing DB
+    if (action === 'test_connection') {
+      const url = `${UZUM_API_BASE}/v1/product/shop/${shopId}?size=1&page=0&filter=ALL&sortBy=DEFAULT`;
+      console.log(`[uzum-products] test_connection for ${store.name} (shopId=${shopId}): ${url}`);
+      const testResp = await fetch(url, {
+        headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' },
+      });
+      const testBodyText = await testResp.text();
+      let testBody: unknown = testBodyText;
+      try { testBody = JSON.parse(testBodyText); } catch { /* keep raw text */ }
+      return new Response(
+        JSON.stringify({
+          success: testResp.ok,
+          store_name: store.name,
+          shop_id: shopId,
+          secret_name: store.api_key_secret_name,
+          api_status: testResp.status,
+          api_response: testBody,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // find_shop_id: try seller_id and known shop IDs to discover correct shopId for this API key
+    if (action === 'find_shop_id') {
+      const sellerId = parseInt(store.seller_id || '0');
+      // Try: current shop_id, seller_id, and known shop IDs from the project
+      const candidates = [
+        shopId, sellerId,
+        356944, 322295, 316698,
+        49052, 69508, 69555, 70010, 88409, 89165, 92638, 92815,
+      ].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
+      
+      const results: Array<{shopId: number; status: number; works: boolean; totalProducts?: number}> = [];
+      for (const candidateId of candidates) {
+        const tryUrl = `${UZUM_API_BASE}/v1/product/shop/${candidateId}?size=1&page=0&filter=ALL&sortBy=DEFAULT`;
+        try {
+          const r = await fetch(tryUrl, {
+            headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' },
+          });
+          if (r.ok) {
+            const d = await r.json();
+            const total = d.payload?.totalProducts ?? d.total ?? 0;
+            results.push({ shopId: candidateId, status: r.status, works: true, totalProducts: total });
+            console.log(`[find_shop_id] ${store.name}: shopId=${candidateId} ✅ (${total} products)`);
+          } else {
+            results.push({ shopId: candidateId, status: r.status, works: false });
+            console.log(`[find_shop_id] ${store.name}: shopId=${candidateId} ❌ (${r.status})`);
+          }
+        } catch (e) {
+          results.push({ shopId: candidateId, status: 0, works: false });
+        }
+        await new Promise(res => setTimeout(res, 200));
+      }
+      const working = results.filter(r => r.works);
+      return new Response(
+        JSON.stringify({
+          store_name: store.name,
+          current_shop_id: shopId,
+          seller_id: sellerId,
+          secret_name: store.api_key_secret_name,
+          working_shop_ids: working,
+          all_results: results,
+          recommendation: working.length > 0 ? `UPDATE marketplace_stores SET shop_id='${working[0].shopId}' WHERE id='${store_id}';` : 'No working shopId found - API key may be invalid',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
 
     // Normalize fulfillment type for this store
     const normalizedFulfillmentType = normalizeUzumFulfillmentType(store.fulfillment_type);
@@ -181,7 +252,6 @@ serve(async (req) => {
       }
 
       // Create sync log entry at start for sync action
-      let syncLogId: string | null = null;
       if (action === 'sync') {
         const { data: syncLog } = await supabase
           .from('marketplace_sync_logs')
@@ -669,9 +739,28 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Function error:', error);
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[uzum-products] Fatal error:', errMsg);
+    // If a sync log was created, update it to error so it doesn't stay "running" forever
+    if (typeof syncLogId === 'string' && syncLogId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        await supabase
+          .from('marketplace_sync_logs')
+          .update({
+            status: 'error',
+            error_message: errMsg,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', syncLogId);
+      } catch (logErr) {
+        console.error('[uzum-products] Failed to update sync log on error:', logErr);
+      }
+    }
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: errMsg }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
