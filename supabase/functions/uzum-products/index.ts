@@ -473,21 +473,31 @@ serve(async (req) => {
                 fulfillment_type: 'fbs' as const,
               };
 
+              let fbsErrorToReport = null;
               const { error: fbsError } = await supabase
                 .from('marketplace_listings')
                 .upsert(fbsData, { onConflict: 'store_id,external_sku,fulfillment_type' });
 
-              if (fbsError) {
+              if (fbsError && fbsError.message.includes('column "stock_')) {
+                // Fallback: the production database might be missing the new stock_fbu/stock_fbs columns
+                const { stock_fbs, stock_fbu, ...fallbackFbsData } = fbsData;
+                const { error: fallbackError } = await supabase
+                  .from('marketplace_listings')
+                  .upsert(fallbackFbsData as any, { onConflict: 'store_id,external_sku,fulfillment_type' });
+                fbsErrorToReport = fallbackError;
+              } else {
+                fbsErrorToReport = fbsError;
+              }
+
+              if (fbsErrorToReport) {
                 failed++;
-                failedSkuDetails.push({ sku: String(sku.skuId), error: fbsError.message });
-                console.error(`[uzum-products] Failed to upsert FBS SKU ${sku.skuId}:`, JSON.stringify(fbsError));
+                failedSkuDetails.push({ sku: String(sku.skuId), error: fbsErrorToReport.message });
+                console.error(`[uzum-products] Failed to upsert FBS SKU ${sku.skuId}:`, JSON.stringify(fbsErrorToReport));
               } else {
                 synced++;
               }
 
               // === FBU listing (always upsert, even at zero stock) ===
-              // FIX: Previously skipped when stockFbu === 0, leaving stale non-zero stock values in DB
-              // Now always upsert to prevent FBU listings from showing incorrect stock after it hits zero
               const fbuData = {
                 ...commonListingData,
                 stock: stockFbu,
@@ -496,14 +506,25 @@ serve(async (req) => {
                 fulfillment_type: 'fbu' as const,
               };
 
+              let fbuErrorToReport = null;
               const { error: fbuError } = await supabase
                 .from('marketplace_listings')
                 .upsert(fbuData, { onConflict: 'store_id,external_sku,fulfillment_type' });
 
-              if (fbuError) {
+              if (fbuError && fbuError.message.includes('column "stock_')) {
+                const { stock_fbs, stock_fbu, ...fallbackFbuData } = fbuData;
+                const { error: fallbackFbuErr } = await supabase
+                  .from('marketplace_listings')
+                  .upsert(fallbackFbuData as any, { onConflict: 'store_id,external_sku,fulfillment_type' });
+                fbuErrorToReport = fallbackFbuErr;
+              } else {
+                fbuErrorToReport = fbuError;
+              }
+
+              if (fbuErrorToReport) {
                 failed++;
-                failedSkuDetails.push({ sku: `${sku.skuId}-fbu`, error: fbuError.message });
-                console.error(`[uzum-products] Failed to upsert FBU SKU ${sku.skuId}:`, JSON.stringify(fbuError));
+                failedSkuDetails.push({ sku: `${sku.skuId}-fbu`, error: fbuErrorToReport.message });
+                console.error(`[uzum-products] Failed to upsert FBU SKU ${sku.skuId}:`, JSON.stringify(fbuErrorToReport));
               } else {
                 synced++;
               }

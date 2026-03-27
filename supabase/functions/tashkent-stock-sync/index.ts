@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
           const newStock = product.tashkent_manual_stock || 0;
 
           // Update internal DB: sync tashkent_manual_stock → FBS listing stock
-          const { error: updateError } = await supabase
+          let { error: updateError } = await supabase
             .from('marketplace_listings')
             .update({
               stock: newStock,
@@ -81,6 +81,17 @@ Deno.serve(async (req) => {
               last_synced_at: new Date().toISOString(),
             })
             .eq('id', listing.id);
+
+          if (updateError && updateError.message.includes('column "stock_')) {
+            const { error: fallbackErr } = await supabase
+              .from('marketplace_listings')
+              .update({
+                stock: newStock,
+                last_synced_at: new Date().toISOString(),
+              })
+              .eq('id', listing.id);
+            updateError = fallbackErr;
+          }
 
           if (!updateError) {
             syncedCount++;

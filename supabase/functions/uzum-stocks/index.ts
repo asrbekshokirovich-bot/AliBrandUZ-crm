@@ -200,7 +200,7 @@ async function batchUpdateStocks(
     }
 
     for (const [stockValue, ids] of byStockValue) {
-      const { error: updateErr } = await supabase
+      let { error: updateErr } = await supabase
         .from('marketplace_listings')
         .update({
           stock: stockValue,
@@ -208,6 +208,17 @@ async function batchUpdateStocks(
           last_synced_at: new Date().toISOString(),
         })
         .in('id', ids);
+
+      if (updateErr && updateErr.message.includes('column "stock_')) {
+        const { error: fallbackErr } = await supabase
+          .from('marketplace_listings')
+          .update({
+            stock: stockValue,
+            last_synced_at: new Date().toISOString(),
+          })
+          .in('id', ids);
+        updateErr = fallbackErr;
+      }
 
       if (updateErr) {
         console.error(`[uzum-stocks] Batch update error:`, updateErr.message);
