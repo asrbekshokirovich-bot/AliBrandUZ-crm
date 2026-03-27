@@ -60,26 +60,27 @@ function DashboardContent() {
         };
 
         // All queries run in parallel for faster loading, wrapped in safeQuery to prevent full crash
-        const [products, boxes, shipments, financeBalance, recentProducts, recentBoxes, boxesByStatus, shipmentsInTransit] = await Promise.all([
-          safeQuery(supabase.from('products').select('*', { count: 'exact', head: true })),
-          safeQuery(supabase.from('boxes').select('*', { count: 'exact', head: true })),
-          safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true })),
+        const [
+          products, boxes, shipments, financeBalance, 
+          recentProducts, recentBoxes, 
+          packingBoxesCount, sealedBoxesCount, inTransitBoxesCount, 
+          shipmentsInTransit
+        ] = await Promise.all([
+          safeQuery(supabase.from('products').select('id', { count: 'exact', head: true })),
+          safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true })),
+          safeQuery(supabase.from('shipments').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.rpc('get_finance_balance')),
           safeQuery(supabase.from('products').select('id, name, created_at, status').order('created_at', { ascending: false }).limit(5)),
           safeQuery(supabase.from('boxes').select('id, box_number, created_at, status').order('created_at', { ascending: false }).limit(5)),
-          safeQuery(supabase.from('boxes').select('status')),
-          safeQuery(supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'in_transit')),
+          safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'packing')),
+          safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'sealed')),
+          safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'in_transit')),
+          safeQuery(supabase.from('shipments').select('id', { count: 'exact', head: true }).eq('status', 'in_transit')),
         ]);
-
-        console.log('[DEBUG Dashboard] query results:', { products, boxes, shipments, financeBalance });
 
         const balanceData = (financeBalance?.data as any) || { total_income: 0, total_expense: 0, balance: 0 };
         const totalIncome = Number(balanceData.total_income) || 0;
         const totalExpense = Number(balanceData.total_expense) || 0;
-
-        const packingBoxes = (boxesByStatus?.data || []).filter((b: any) => b.status === 'packing').length || 0;
-        const sealedBoxes = (boxesByStatus?.data || []).filter((b: any) => b.status === 'sealed').length || 0;
-        const inTransitBoxes = (boxesByStatus?.data || []).filter((b: any) => b.status === 'in_transit').length || 0;
 
         return {
           productsCount: products?.count || 0,
@@ -90,9 +91,9 @@ function DashboardContent() {
           totalExpense,
           recentProducts: recentProducts?.data || [],
           recentBoxes: recentBoxes?.data || [],
-          packingBoxes,
-          sealedBoxes,
-          inTransitBoxes,
+          packingBoxes: packingBoxesCount?.count || 0,
+          sealedBoxes: sealedBoxesCount?.count || 0,
+          inTransitBoxes: inTransitBoxesCount?.count || 0,
           shipmentsInTransit: shipmentsInTransit?.count || 0,
         };
       } catch (err) {
@@ -178,9 +179,6 @@ function DashboardContent() {
         </div>
       ) : (isStatsLoading || rolesLoading || stats === undefined) ? (
         <div>
-          <div className="text-sm text-red-500 mb-4">
-            DEBUG: isStatsLoading: {String(isStatsLoading)}, rolesLoading: {String(rolesLoading)}, stats is undefined: {String(stats === undefined)}
-          </div>
           <DashboardLoadingSkeleton />
         </div>
       ) : (
