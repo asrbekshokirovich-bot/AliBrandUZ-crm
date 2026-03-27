@@ -92,7 +92,7 @@ async function toolSearchProducts(args: any) {
 async function toolGetDashboardStats() {
   const today = new Date().toISOString().split('T')[0];
   const [orders, tasks, boxes] = await Promise.all([
-    supabaseQuery(`/marketplace_orders?select=platform,total_revenue,commission_fee&created_at=gte.${today}T00:00:00`),
+    supabaseQuery(`/marketplace_orders?select=platform,total_amount,commission&order_created_at=gte.${today}T00:00:00`),
     supabaseQuery(`/tasks?select=id,title,status&status=in.(todo,in_progress)`),
     supabaseQuery(`/boxes?select=id,box_number,status&status=in.(in_transit,pending)&order=created_at.desc&limit=10`)
   ]);
@@ -100,8 +100,8 @@ async function toolGetDashboardStats() {
   let total_revenue = 0;
   let total_commission = 0;
   (orders || []).forEach((o: any) => {
-    total_revenue += Number(o.total_revenue) || 0;
-    total_commission += Number(o.commission_fee) || 0;
+    total_revenue += Number(o.total_amount) || 0;
+    total_commission += Number(o.commission) || 0;
   });
 
   return {
@@ -317,8 +317,8 @@ QOIDALAR:
 
 TANNARX VA UMUMIY MATEMATIKA:
 Joriy Xitoy > O'zbekiston valyuta kursi (CNY_TO_UZS): ~1750 UZS.
-O'rtacha logistika taxminiy narxi (Xitoy-O'zbekiston): 1kg uchun ~35 CNY, ya'ni grammiga: 0.035 CNY tayanch.
-Tannarx = item_narxi_CNY + (og'irlik_gramm × 0.035 CNY).
+Qat'iy formula (Proportional weight-based landed cost):
+item_landed_cost_CNY = item_price_CNY + ((item_weight / total_weight) * total_logistics_cost)
 `;
 
 // ──────────────────────────────────────────────────────────
@@ -372,6 +372,7 @@ export default async function handler(req: Request) {
       messages,
       tools: TOOL_DEFINITIONS,
       tool_choice: 'auto',
+      max_tokens: 1000,
     }),
   });
 
@@ -449,6 +450,7 @@ export default async function handler(req: Request) {
       model: 'gpt-4o-mini',
       messages,
       stream: true,
+      max_tokens: 1500,
     }),
   });
 
