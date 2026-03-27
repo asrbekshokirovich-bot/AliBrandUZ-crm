@@ -1240,7 +1240,25 @@ export function TashkentWarehouseIndicators({
                         <TableCell>
                           <InlineCategorySelect currentCategoryId={group.category_id} currentCategoryName={group.category_name} categories={categories || []} onSave={(catId) => handleUpdateCategory(group.productId, catId)} />
                         </TableCell>
-                        <TableCell></TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            // Calculate min and max cost prices
+                            const costs = group.variants
+                              .map(v => getCostPriceProps(v))
+                              .filter(c => !c.isMissing && c.displayValue && c.displayValue > 0)
+                              .map(c => c.displayValue as number);
+                            
+                            if (costs.length === 0) return <span className="text-muted-foreground text-xs">Kiritilmagan</span>;
+                            
+                            const minCost = Math.min(...costs);
+                            const maxCost = Math.max(...costs);
+                            
+                            if (minCost === maxCost) {
+                              return <span className="text-sm font-medium">{new Intl.NumberFormat('uz-UZ').format(minCost)} so'm</span>;
+                            }
+                            return <span className="text-sm font-medium text-muted-foreground">{new Intl.NumberFormat('uz-UZ').format(minCost)} - {new Intl.NumberFormat('uz-UZ').format(maxCost)}</span>;
+                          })()}
+                        </TableCell>
                         <TableCell className="text-center align-top pt-3">
                           <div className="flex flex-col gap-1 items-center">
                             {group.china_count > 0 && <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 text-[10px] uppercase px-1.5">Xitoy: {group.china_count}</Badge>}
@@ -1254,9 +1272,56 @@ export function TashkentWarehouseIndicators({
                             {t('inv_tash_total', { count: group.totalStock })}
                           </Badge>
                         </TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            // Calculate min and max sale prices
+                            const prices = group.variants
+                              .map(v => v.warehouse_price)
+                              .filter(p => p !== null && p > 0) as number[];
+                            
+                            if (prices.length === 0) return <span className="text-muted-foreground">-</span>;
+                            
+                            const minPrice = Math.min(...prices);
+                            const maxPrice = Math.max(...prices);
+                            
+                            if (minPrice === maxPrice) {
+                              return <span className="text-sm">{new Intl.NumberFormat('uz-UZ').format(minPrice)}</span>;
+                            }
+                            return <span className="text-sm text-muted-foreground">{new Intl.NumberFormat('uz-UZ').format(minPrice)} - {new Intl.NumberFormat('uz-UZ').format(maxPrice)}</span>;
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            // Find earliest stockout date
+                            const dates = group.variants
+                              .map(v => calculateStockoutDate(v))
+                              .filter(d => d !== null) as Date[];
+                              
+                            if (dates.length === 0) return <span className="text-muted-foreground">-</span>;
+                            
+                            const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
+                            const badgeVariant = getStockoutBadgeVariant(earliestDate);
+                            
+                            return (
+                              <Badge variant={badgeVariant} className="flex items-center gap-1 justify-center">
+                                {badgeVariant === "destructive" && <AlertTriangle className="h-3 w-3" />}
+                                {format(earliestDate, 'dd.MM')}
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            // Sum reorder quantities
+                            const totalReorder = group.variants
+                              .map(v => calculateReorderQty(v))
+                              .filter(q => q !== null)
+                              .reduce((sum: number, q: number | null) => sum + (q || 0), 0);
+                              
+                            if (totalReorder === 0) return <span className="text-muted-foreground">-</span>;
+                            return <Badge variant="outline" className="font-semibold">+{totalReorder}</Badge>;
+                          })()}
+                        </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleEditProduct(group.productId); }} className="h-8 w-8 p-0" disabled={isEditLoading === group.productId}>
