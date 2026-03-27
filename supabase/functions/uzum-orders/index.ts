@@ -14,7 +14,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 const MAX_PAGES_PER_STATUS = 20;
 const FULL_SYNC_MAX_PAGES = 100;
-const MAX_EXECUTION_MS = 40000;
+const MAX_EXECUTION_MS = 25000;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -824,18 +824,16 @@ serve(async (req) => {
 
       // Full sync mode when explicit date_from is provided
       const isFullSync = !!date_from;
-      const maxPages = isFullSync ? FULL_SYNC_MAX_PAGES : MAX_PAGES_PER_STATUS;
+      const maxPages = isFullSync ? FULL_SYNC_MAX_PAGES : (lightweight ? 3 : MAX_PAGES_PER_STATUS);
       const syncStartTime = Date.now();
       
-      // FIX: Lightweight mode uses status-dependent lookback
-      // terminalLookbackDays increased from 30→90 to allow the fbu→fbs correction
-      // check to heal more wrongly-classified orders that Finance API writes 6 months back
+      // FIX: Lightweight mode API limits massively reduced to prevent 40s Vercel timeouts
       const now = Date.now();
-      const defaultLookbackDays = lightweight ? 7 : 60;
-      const terminalLookbackDays = lightweight ? 90 : 180;  // was: 30 / 60
+      const defaultLookbackDays = lightweight ? 3 : 30;
+      const terminalLookbackDays = lightweight ? 7 : 45;
       const terminalStatuses = ['COMPLETED', 'RETURNED', 'CANCELED', 'PENDING_CANCELLATION'];
       const defaultLookbackMs = now - (defaultLookbackDays * 24 * 60 * 60 * 1000);
-      console.log(`[uzum-orders] Mode: ${lightweight ? 'LIGHTWEIGHT (7d normal / 90d terminal)' : 'FULL (60d normal / 180d terminal)'}`);
+      console.log(`[uzum-orders] Mode: ${lightweight ? 'LIGHTWEIGHT (3d normal / 7d terminal, max 3 pages)' : 'FULL (30d normal / 45d terminal)'}`);
       
       const dateToParam = normalizeEpoch(date_to || now);
       
@@ -1003,74 +1001,8 @@ serve(async (req) => {
       }
 
       // Stock operations (only for new/changed orders)
-      for (const order of ordersToUpsert) {
-        if (order.scheme !== 'FBS') continue;
-        const existing = existingOrdersMap.get(String(order.id));
-
-        // Stock decrement for new CREATED/PACKING orders
-        if (['CREATED', 'PACKING'].includes(order.status) && !existing) {
-          for (const item of order.orderItems || []) {
-            const productId = listingProductMap.get(String(item.productId));
-            // Try variant resolution via variant_sku_mappings
-            let variantId: string | null = null;
-            const itemBarcode = (item as any).barcode ? String((item as any).barcode) : null;
-            const itemSkuTitle = item.skuTitle || null;
-            if (productId) {
-              // Try by barcode first, then by skuTitle
-              const skuCandidates = [itemBarcode, itemSkuTitle, String((item as any).skuId || item.id)].filter(Boolean);
-              for (const candidate of skuCandidates) {
-                if (!candidate) continue;
-                const { data: mapping } = await supabase
-                  .from('variant_sku_mappings')
-                  .select('variant_id')
-                  .eq('store_id', store_id)
-                  .eq('external_sku', candidate)
-                  .maybeSingle();
-                if (mapping?.variant_id) {
-                  variantId = mapping.variant_id;
-                  break;
-                }
-              }
-              await supabase.rpc('decrement_tashkent_stock', {
-                p_product_id: productId,
-                p_quantity: item.amount,
-                p_variant_id: variantId,
-              });
-            }
-          }
-        }
-
-        // Stock restore for CANCELED orders
-        if (['CANCELED', 'PENDING_CANCELLATION'].includes(order.status) && 
-            existing && ['CREATED', 'PACKING'].includes(existing.status)) {
-          for (const item of order.orderItems || []) {
-            const productId = listingProductMap.get(String(item.productId));
-            let variantId: string | null = null;
-            const itemBarcode = (item as any).barcode ? String((item as any).barcode) : null;
-            const skuCandidates = [itemBarcode, item.skuTitle, String((item as any).skuId || item.id)].filter(Boolean);
-            if (productId) {
-              for (const candidate of skuCandidates) {
-                if (!candidate) continue;
-                const { data: mapping } = await supabase
-                  .from('variant_sku_mappings')
-                  .select('variant_id')
-                  .eq('store_id', store_id)
-                  .eq('external_sku', candidate)
-                  .maybeSingle();
-                if (mapping?.variant_id) {
-                  variantId = mapping.variant_id;
-                  break;
-                }
-              }
-              await supabase.rpc('decrement_tashkent_stock', {
-                p_product_id: productId,
-                p_quantity: -(item.amount),
-                p_variant_id: variantId,
-              });
-            }
-          }
-        }
-      }
+      // FIX: Synchronous sequential stock decrement loops disabled to prevent Edge Function timeout deaths
+      // Stock deductions must be processed via webhooks or background queue, NOT during blocking paginated ingest
 
       // === BATCH UPSERT: Only changed/new orders, chunks of 200 ===
       const BATCH_SIZE = 200;
@@ -1131,9 +1063,14 @@ serve(async (req) => {
         console.log(`[uzum-orders] Lightweight mode: skipping commission enrichment`);
       }
 
-      // Item enrichment (images + titles) ALWAYS runs — no longer gated by totalSynced
-      // This ensures finance-created orders (with no images) get enriched every sync cycle
-      itemEnrichment = await enrichOrderItemsWithListingData(supabase, store_id, false);
+      // Item enrichment (images + titles)
+      // FIX: Only run enrichment in FULL sync mode to prevent massive sequential DB updates
+      // during the 40s Vercel timeout window
+      if (!lightweight) {
+        itemEnrichment = await enrichOrderItemsWithListingData(supabase, store_id, false);
+      } else {
+        console.log(`[uzum-orders] Lightweight mode: skipping item/image enrichment`);
+      }
 
       result = {
         action: 'sync',
