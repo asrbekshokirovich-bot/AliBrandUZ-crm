@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import {
   ScanLine, Upload, X, FileText, FileSpreadsheet, Image as ImageIcon,
   Loader2, CheckCircle, AlertTriangle, RotateCcw, TrendingUp,
-  Wrench, XCircle, ChevronDown, ChevronUp,
+  Wrench, XCircle, ChevronDown, ChevronUp, Save,
 } from 'lucide-react';
 import { useReturnScanner, ScanResult, FinancialItem } from '@/hooks/useReturnScanner';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ReturnScannerDialogProps {
   open: boolean;
@@ -73,6 +74,8 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
   const [isDragging, setIsDragging] = useState(false);
   const [itemClass, setItemClass] = useState<Record<number, ItemClass>>({});
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { scanFiles, isScanning, result, error, progress, reset } = useReturnScanner();
@@ -101,7 +104,54 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
 
-  useEffect(() => { if (result) { setItemClass({}); setExpandedRow(null); } }, [result]);
+  // Auto-save to marketplace_returns when scan result arrives
+  useEffect(() => {
+    if (!result) return;
+    setItemClass({}); setExpandedRow(null); setSavedCount(null);
+
+    if (!result.items || result.items.length === 0) return;
+
+    const partnerLower = (result.document?.partner || '').toLowerCase();
+    const platform = partnerLower.includes('yandex') ? 'yandex' : 'uzum';
+
+    const docType = (result.document?.document_type || '').toLowerCase();
+    const returnType = docType.includes('defect') || docType.includes('brak') ? 'fbs_defect'
+      : docType.includes('fbo') ? 'fbo_return'
+      : 'fbs_seller';
+
+    const returnDate = new Date().toISOString();
+    const nakladnoyId = result.document?.document_number || `scan-${Date.now()}`;
+
+    const rows = result.items.map((item, idx) => ({
+      external_order_id: `scan-${nakladnoyId}-${idx}-${Date.now()}`,
+      platform,
+      store_name: result.document?.partner || 'Noma\'lum',
+      product_title: item.product_name || 'Noma\'lum mahsulot',
+      sku_title: item.sku || null,
+      quantity: item.quantity || 1,
+      amount: item.total_price || null,
+      currency: 'UZS',
+      return_type: returnType,
+      return_date: returnDate,
+      nakladnoy_id: nakladnoyId,
+      resolution: 'pending',
+      image_url: null,
+    }));
+
+    setIsSaving(true);
+    supabase.functions.invoke('save-scanned-returns', { body: { rows } })
+      .then(({ error: fnErr }) => {
+        if (fnErr) {
+          console.error('[auto-save-returns]', fnErr);
+          toast.error('Saqlashda xatolik: ' + fnErr.message);
+        } else {
+          setSavedCount(rows.length);
+          toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga saqlandi ✓`);
+        }
+      })
+      .finally(() => setIsSaving(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   /** clamp and update one of the qty fields, ensuring fixable+unfixable <= total */
   const setClassQty = (idx: number, field: 'fixable_qty' | 'unfixable_qty', raw: number, total: number) => {
@@ -246,12 +296,23 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
                 <p className="font-semibold">Ma'lumotlar chiqarildi</p>
+                {/* Auto-save status */}
+                {isSaving && (
+                  <span className="flex items-center gap-1 text-xs text-primary ml-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Saqlanmoqda...
+                  </span>
+                )}
+                {!isSaving && savedCount !== null && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 ml-1">
+                    <Save className="h-3 w-3" /> {savedCount} ta saqlandi ✓
+                  </span>
+                )}
                 <span className={cn(
                   'ml-auto text-xs px-2 py-0.5 rounded-full font-medium',
                   result.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700',
                 )}>{result.status || 'success'}</span>
                 <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground"
-                  onClick={() => { reset(); setFiles([]); }}>
+                  onClick={() => { reset(); setFiles([]); setSavedCount(null); }}>
                   <RotateCcw className="h-3 w-3" /> Qayta
                 </Button>
               </div>

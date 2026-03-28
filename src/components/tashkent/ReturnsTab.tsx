@@ -233,63 +233,15 @@ export function ReturnsTab() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannedDocs, setScannedDocs] = useState<Array<{ id: string; result: ScanResult; file?: File }>>([]);
 
-  const handleScannerResult = async (data: ScanResult, file?: File) => {
-    // Auto-detect platform from partner name
-    const partnerLower = (data.document?.partner || '').toLowerCase();
-    const platform = partnerLower.includes('yandex') ? 'yandex'
-      : partnerLower.includes('uzum') ? 'uzum'
-      : 'uzum'; // default
-
-    // Map document_type to return_type
-    const docType = (data.document?.document_type || '').toLowerCase();
-    const returnType = docType.includes('defect') || docType.includes('brak') ? 'fbs_defect'
-      : docType.includes('fbo') ? 'fbo_return'
-      : 'fbs_seller';
-
-    // Try to parse return_date
-    // Always use current date as return_date (when registered in system)
-    // Document date is just a reference, not the filter date
-    const returnDate = new Date().toISOString();
-
-    const nakladnoyId = data.document?.document_number || `scan-${Date.now()}`;
-
-    if (data.items && data.items.length > 0) {
-      const rows = data.items.map((item, idx) => ({
-        external_order_id: `scan-${nakladnoyId}-${idx}`,
-        platform,
-        store_name: data.document?.partner || 'Noma\'lum',
-        product_title: item.product_name || 'Noma\'lum mahsulot',
-        sku_title: item.sku || null,
-        quantity: item.quantity || 1,
-        amount: item.total_price || null,
-        currency: 'UZS',
-        return_type: returnType,
-        return_date: returnDate,
-        nakladnoy_id: nakladnoyId,
-        resolution: 'pending',
-        image_url: null,
-      }));
-
-      const { error: fnErr } = await supabase.functions.invoke('save-scanned-returns', {
-        body: { rows },
-      });
-
-      if (fnErr) {
-        console.error('save-scanned-returns error:', fnErr);
-        toast.error('Saqlashda xatolik: ' + fnErr.message);
-      } else {
-        toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
-        queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
-      }
-    }
-
+  const handleScannerResult = (data: ScanResult, file?: File) => {
+    // Save already happened auto in ReturnScannerDialog — just refresh the list
+    queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
     setScannedDocs(prev => [
       { id: crypto.randomUUID(), result: data, file },
       ...prev,
     ]);
     setIsScannerOpen(false);
   };
-
 
   // Sync from Uzum nakladnoy API and FBO defects
   const handleSync = async () => {
