@@ -2,16 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, TrendingUp, Calendar, DollarSign } from "lucide-react";
+import { ShoppingCart, TrendingUp, Calendar, Banknote } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTranslation } from "react-i18next";
 
 interface DirectSalesStatsProps {
   className?: string;
 }
 
 export function DirectSalesStats({ className }: DirectSalesStatsProps) {
-  const { t } = useTranslation();
   const { data: stats, isLoading } = useQuery({
     queryKey: ["direct-sales-stats"],
     queryFn: async () => {
@@ -26,19 +24,19 @@ export function DirectSalesStats({ className }: DirectSalesStatsProps) {
         // Today's sales
         supabase
           .from("direct_sales")
-          .select("id, quantity, price_usd")
+          .select("id, quantity, price_uzs")
           .gte("created_at", today.toISOString())
           .eq("payment_status", "paid"),
         // This week's sales
         supabase
           .from("direct_sales")
-          .select("id, quantity, price_usd")
+          .select("id, quantity, price_uzs")
           .gte("created_at", weekAgo.toISOString())
           .eq("payment_status", "paid"),
         // This month's sales
         supabase
           .from("direct_sales")
-          .select("id, quantity, price_usd")
+          .select("id, quantity, price_uzs")
           .gte("created_at", monthAgo.toISOString())
           .eq("payment_status", "paid"),
       ]);
@@ -47,24 +45,32 @@ export function DirectSalesStats({ className }: DirectSalesStatsProps) {
       const weekSales = weekResult.data || [];
       const monthSales = monthResult.data || [];
 
+      // Fallback: if price_uzs column doesn't exist, use price_usd * 12800
+      const getRevenue = (rows: any[]) =>
+        rows.reduce((sum, s) => {
+          const uzs = s.price_uzs ?? (s.price_usd ? s.price_usd * 12800 : 0);
+          return sum + uzs;
+        }, 0);
+
       return {
-        todayCount: todaySales.reduce((sum, s) => sum + s.quantity, 0),
-        todayRevenue: todaySales.reduce((sum, s) => sum + (s.price_usd || 0), 0),
-        weekCount: weekSales.reduce((sum, s) => sum + s.quantity, 0),
-        weekRevenue: weekSales.reduce((sum, s) => sum + (s.price_usd || 0), 0),
-        monthCount: monthSales.reduce((sum, s) => sum + s.quantity, 0),
-        monthRevenue: monthSales.reduce((sum, s) => sum + (s.price_usd || 0), 0),
+        todayCount: todaySales.reduce((sum, s) => sum + (s.quantity || 0), 0),
+        todayRevenue: getRevenue(todaySales),
+        weekCount: weekSales.reduce((sum, s) => sum + (s.quantity || 0), 0),
+        weekRevenue: getRevenue(weekSales),
+        monthCount: monthSales.reduce((sum, s) => sum + (s.quantity || 0), 0),
+        monthRevenue: getRevenue(monthSales),
       };
     },
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+  // Format UZS: "12 500 000 so'm"
+  const formatUZS = (value: number) => {
+    if (value === 0) return "0 so'm";
+    return (
+      new Intl.NumberFormat("uz-UZ", {
+        maximumFractionDigits: 0,
+      }).format(Math.round(value)) + " so'm"
+    );
   };
 
   if (isLoading) {
@@ -79,31 +85,31 @@ export function DirectSalesStats({ className }: DirectSalesStatsProps) {
 
   const statCards = [
     {
-      title: t('ss_today_sold'),
+      title: "Bugungi sotuv",
       value: stats?.todayCount || 0,
-      suffix: t('pcs'),
+      suffix: "dona",
       icon: ShoppingCart,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
     },
     {
-      title: t('ss_today_revenue'),
-      value: formatCurrency(stats?.todayRevenue || 0),
-      icon: DollarSign,
+      title: "Bugungi daromad",
+      value: formatUZS(stats?.todayRevenue || 0),
+      icon: Banknote,
       color: "text-green-500",
       bg: "bg-green-500/10",
     },
     {
-      title: t('ss_weekly_sales'),
+      title: "Haftalik sotuv",
       value: stats?.weekCount || 0,
-      suffix: t('pcs'),
+      suffix: "dona",
       icon: Calendar,
       color: "text-blue-500",
       bg: "bg-blue-500/10",
     },
     {
-      title: t('ss_monthly_revenue'),
-      value: formatCurrency(stats?.monthRevenue || 0),
+      title: "Oylik daromad",
+      value: formatUZS(stats?.monthRevenue || 0),
       icon: TrendingUp,
       color: "text-purple-500",
       bg: "bg-purple-500/10",
