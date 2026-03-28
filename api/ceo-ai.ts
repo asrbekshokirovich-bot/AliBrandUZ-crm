@@ -237,12 +237,12 @@ async function toolGetMarketplaceSales(args: any) {
 }
 
 async function toolGetLogisticsStats() {
-  const boxes = await supabaseQuery('/boxes?select=box_number,status,location_type,weight,created_at&status=in.(packing,sealed,in_transit)&limit=100');
+  const boxes = await supabaseQuery('/boxes?select=box_number,status,location,weight,created_at&status=in.(packing,sealed,in_transit)&limit=100');
   const shipments = await supabaseQuery('/shipments?select=shipment_number,status,carrier,departure_date,estimated_arrival&status=in.(pending,in_transit)&limit=50');
   
   return {
     active_boxes_count: boxes?.length || 0,
-    active_boxes_summary: (boxes || []).slice(0, 15).map((b: any) => `${b.box_number} (Holati: ${b.status}, Joyi: ${b.location_type})`),
+    active_boxes_summary: (boxes || []).slice(0, 15).map((b: any) => `${b.box_number} (Holati: ${b.status}, Joyi: ${b.location})`),
     active_shipments_count: shipments?.length || 0,
     active_shipments_summary: (shipments || []).slice(0, 10).map((s: any) => `${s.shipment_number} (Tashuvchi: ${s.carrier}, Holati: ${s.status})`)
   };
