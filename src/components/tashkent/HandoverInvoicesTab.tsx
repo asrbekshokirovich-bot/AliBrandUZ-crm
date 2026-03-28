@@ -117,8 +117,14 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
       const text = await parsePdfText(file);
       const parsed = parseInvoiceData(text);
       setParsedData(parsed);
+      // Auto-switch marketplace tab based on detected format
+      if (parsed.isYandexMarket && !propMarketplace) {
+        setActiveMarket('yandex');
+      }
       if (!parsed.invoiceNumber) {
         toast({ title: 'Nakladnoy raqami topilmadi', description: 'PDF formatini tekshiring', variant: 'destructive' });
+      } else if (parsed.isYandexMarket) {
+        toast({ title: `Yandex akti topildi: №${parsed.invoiceNumber} — ${parsed.productItems.length} ta tovar` });
       }
     } catch (err) {
       console.error('PDF parsing error:', err);
@@ -162,6 +168,9 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
         ? parsedData.productItems.reduce((s, i) => s + i.quantity, 0)
         : parsedData.acceptedOrders.length + parsedData.notAcceptedOrders.length;
 
+      // For Yandex: save items as SKU-based orders, skip stock deduction
+      const effectiveMarketplace = parsedData.isYandexMarket ? 'yandex' : (marketplace ?? null);
+
       // Insert invoice
       const { data: invoice, error: invoiceError } = await supabase
         .from('handover_invoices' as any)
@@ -174,26 +183,32 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
           not_accepted_count: parsedData.notAcceptedOrders.length,
           pdf_url: pdfUrl,
           uploaded_by: user.id,
-          marketplace: marketplace ?? null,
+          marketplace: effectiveMarketplace,
         } as any)
         .select()
         .single();
       
       if (invoiceError) throw invoiceError;
 
-      // Insert orders
-      const allOrders = [
-        ...parsedData.acceptedOrders.map(o => ({ 
-          handover_invoice_id: (invoice as any).id, 
-          order_number: o.orderNumber, 
-          accepted: true 
-        })),
-        ...parsedData.notAcceptedOrders.map(o => ({ 
-          handover_invoice_id: (invoice as any).id, 
-          order_number: o.orderNumber, 
-          accepted: false 
-        })),
-      ];
+      // For Yandex: save product SKUs as orders (accepted=true)
+      const allOrders = parsedData.isYandexMarket
+        ? parsedData.productItems.map(item => ({
+            handover_invoice_id: (invoice as any).id,
+            order_number: item.artikul,
+            accepted: true,
+          }))
+        : [
+          ...parsedData.acceptedOrders.map(o => ({ 
+            handover_invoice_id: (invoice as any).id, 
+            order_number: o.orderNumber, 
+            accepted: true 
+          })),
+          ...parsedData.notAcceptedOrders.map(o => ({ 
+            handover_invoice_id: (invoice as any).id, 
+            order_number: o.orderNumber, 
+            accepted: false 
+          })),
+        ];
 
       if (allOrders.length > 0) {
         const { error: ordersError } = await supabase
@@ -202,11 +217,11 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
         if (ordersError) throw ordersError;
       }
 
-      // === STOCK DEDUCTION LOGIC ===
+      // === STOCK DEDUCTION (only for non-Yandex receipts) ===
       let matchedCount = 0;
       const unmatchedOrders: string[] = [];
 
-      if (parsedData.isProductReceipt && parsedData.productItems.length > 0) {
+      if (!parsedData.isYandexMarket && parsedData.isProductReceipt && parsedData.productItems.length > 0) {
         // "Приём товаров" — smart artikul-based stock deduction
         // Barcha ASL SKU'larni bazadan olish (normallashtirib solishtirish uchun)
         const { data: allSkuMappings } = await supabase
@@ -717,7 +732,48 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
                 </div>
               </div>
 
-              {parsedData.isProductReceipt ? (
+              {parsedData.isYandexMarket ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Badge className="gap-1 bg-[#FC3F1D] text-white border-[#FC3F1D]">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Yandex Akti: {parsedData.productItems.length} xil tovar
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      Jami: {parsedData.productItems.reduce((s, i) => s + i.quantity, 0)} dona
+                    </span>
+                    <span className="text-sm font-semibold text-foreground ml-auto">
+                      {parsedData.productItems.reduce((s, i) => s + (i.totalPrice || 0), 0).toLocaleString('uz-UZ')} so'm
+                    </span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto border rounded-xl overflow-hidden shadow-sm">
+                    <Table>
+                      <TableHeader className="bg-muted/50 sticky top-0">
+                        <TableRow>
+                          <TableHead className="w-8">№</TableHead>
+                          <TableHead className="w-40">SKU</TableHead>
+                          <TableHead>Mahsulot nomi</TableHead>
+                          <TableHead className="text-right w-16">Miqdor</TableHead>
+                          <TableHead className="text-right w-28">Birlik narxi</TableHead>
+                          <TableHead className="text-right w-28">Jami</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parsedData.productItems.map((item, i) => (
+                          <TableRow key={item.artikul} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
+                            <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell><span className="font-mono text-xs">{item.artikul}</span></TableCell>
+                            <TableCell className="max-w-0 truncate" title={item.name}>{item.name || '—'}</TableCell>
+                            <TableCell className="text-right font-semibold">{item.quantity}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{(item.unitPrice || 0).toLocaleString('uz-UZ')}</TableCell>
+                            <TableCell className="text-right font-semibold">{(item.totalPrice || 0).toLocaleString('uz-UZ')}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              ) : parsedData.isProductReceipt ? (
                 <>
                   <div className="flex items-center gap-4">
                     <Badge variant="default" className="gap-1">
@@ -788,7 +844,9 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
 
               <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="w-full">
                 {saveMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saqlanmoqda va zaxira kamaytirilmoqda...</>
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saqlanmoqda...</>
+                ) : parsedData.isYandexMarket ? (
+                  <><Upload className="h-4 w-4 mr-2" /> Yandex nakladnoyni saqlash</>
                 ) : (
                   <><Upload className="h-4 w-4 mr-2" /> Saqlash va zaxirani kamaytirish</>
                 )}
