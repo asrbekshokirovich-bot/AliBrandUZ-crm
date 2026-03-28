@@ -69,7 +69,7 @@ interface MarketplaceOrder {
   customer_phone: string | null;
   delivery_type: string | null;
   items: OrderItem[];
-  order_created_at: string | null;
+  ordered_at: string | null;
   created_at: string;
   last_synced_at: string | null;
   marketplace_stores: {
@@ -261,10 +261,10 @@ export default function MarketplaceOrders() {
       query = query.eq('fulfillment_type', fulfillmentFilter);
     }
     if (dateRange?.from) {
-      query = query.gte('order_created_at', startOfDay(dateRange.from).toISOString());
+      query = query.gte('ordered_at', startOfDay(dateRange.from).toISOString());
     }
     if (dateRange?.to) {
-      query = query.lte('order_created_at', endOfDay(dateRange.to).toISOString());
+      query = query.lte('ordered_at', endOfDay(dateRange.to).toISOString());
     }
     if (debouncedSearch) {
       query = query.or(
@@ -296,7 +296,7 @@ export default function MarketplaceOrders() {
       let query = supabase
         .from('marketplace_orders')
         .select(`*, marketplace_stores!inner (name, platform)`, { count: 'exact' })
-        .order('order_created_at', { ascending: false });
+        .order('ordered_at', { ascending: false });
 
       query = applyFilters(query);
       query = query.range(page * pageSize, (page + 1) * pageSize - 1);
@@ -324,8 +324,8 @@ export default function MarketplaceOrders() {
         if (storeFilter !== 'all') q = q.eq('store_id', storeFilter);
         else if (platformFilter !== 'all') q = q.eq('marketplace_stores.platform', platformFilter);
         if (fulfillmentFilter !== 'all') q = q.eq('fulfillment_type', fulfillmentFilter);
-        if (dateRange?.from) q = q.gte('order_created_at', startOfDay(dateRange.from).toISOString());
-        if (dateRange?.to) q = q.lte('order_created_at', endOfDay(dateRange.to).toISOString());
+        if (dateRange?.from) q = q.gte('ordered_at', startOfDay(dateRange.from).toISOString());
+        if (dateRange?.to) q = q.lte('ordered_at', endOfDay(dateRange.to).toISOString());
         if (debouncedSearch) q = q.or(`external_order_id.ilike.%${debouncedSearch}%,order_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%`);
         return q;
       };
@@ -351,8 +351,8 @@ export default function MarketplaceOrders() {
           .eq('marketplace_stores.platform', platform);
         if (statusGroup) q = q.in('status', STATUS_GROUPS[statusGroup]);
         if (fulfillmentFilter !== 'all') q = q.eq('fulfillment_type', fulfillmentFilter);
-        if (dateRange?.from) q = q.gte('order_created_at', startOfDay(dateRange.from).toISOString());
-        if (dateRange?.to) q = q.lte('order_created_at', endOfDay(dateRange.to).toISOString());
+        if (dateRange?.from) q = q.gte('ordered_at', startOfDay(dateRange.from).toISOString());
+        if (dateRange?.to) q = q.lte('ordered_at', endOfDay(dateRange.to).toISOString());
         if (debouncedSearch) q = q.or(`external_order_id.ilike.%${debouncedSearch}%,order_number.ilike.%${debouncedSearch}%`);
         return q;
       };
@@ -737,7 +737,7 @@ export default function MarketplaceOrders() {
                     <div className="flex items-center justify-between">
                       {getStatusBadge(order.status)}
                       <span className="text-xs text-muted-foreground">
-                        {order.order_created_at ? format(new Date(order.order_created_at), 'dd.MM.yyyy HH:mm') : '-'}
+                        {order.ordered_at ? format(new Date(order.ordered_at), 'dd.MM.yyyy HH:mm') : '-'}
                       </span>
                     </div>
                   </div>
@@ -807,7 +807,7 @@ export default function MarketplaceOrders() {
                       <TableCell className="font-medium">{formatCurrency(order.total_amount, order.currency)}</TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-muted-foreground hidden lg:table-cell">
-                        {order.order_created_at ? format(new Date(order.order_created_at), 'dd.MM.yyyy HH:mm') : '-'}
+                        {order.ordered_at ? format(new Date(order.ordered_at), 'dd.MM.yyyy HH:mm') : '-'}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">
                         {order.last_synced_at ? formatDistanceToNow(new Date(order.last_synced_at), { addSuffix: true }) : '-'}
