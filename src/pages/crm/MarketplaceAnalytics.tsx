@@ -667,7 +667,7 @@ export default function MarketplaceAnalytics() {
                 <p className="text-2xl font-bold">{formatCurrency(netRevenue)}</p>
                 <p className="text-xs text-muted-foreground">{cfg.label} • {t('mpa_last_30_days')}</p>
               </div>
-              <DollarSign className="h-8 w-8 text-green-500 opacity-80" />
+
             </div>
           </CardContent>
         </Card>
