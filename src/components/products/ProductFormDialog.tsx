@@ -468,7 +468,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
       // Get current exchange rate for the selected currency using context rates
       let currentRate = 1;
-      if (formData.purchase_currency === 'CNY') currentRate = cnyToUzs / usdToUzs;
+      if (formData.purchase_currency === 'CNY') currentRate = usdToUzs / cnyToUzs;
       else if (formData.purchase_currency === 'UZS') currentRate = usdToUzs;
       const priceValue = formData.price ? parseFloat(formData.price) : null;
       const purchasePriceUSD = priceValue ? priceValue / currentRate : null;

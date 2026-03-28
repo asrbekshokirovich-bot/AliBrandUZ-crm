@@ -170,9 +170,16 @@ export function BoxCostBreakdownSheet({ productItems, exchangeRates, customRates
       // unit_cost bo'sh bo'lsa → product_variants.cost_price dan fallback
       const rawUnitCost = item.unit_cost ?? item.product_variants?.cost_price ?? 0;
       const unitCostCurrency = item.unit_cost_currency || item.product_variants?.cost_price_currency || 'CNY';
-      const unitCostCNY = unitCostCurrency === 'USD'
-        ? Number(rawUnitCost) * (numericUzsRate / numericCnyToUzs)
-        : Number(rawUnitCost) || 0;
+      
+      let unitCostCNY = 0;
+      if (unitCostCurrency === 'USD') {
+        unitCostCNY = Number(rawUnitCost) * (numericUzsRate / numericCnyToUzs);
+      } else if (unitCostCurrency === 'UZS') {
+        unitCostCNY = Number(rawUnitCost) / numericCnyToUzs;
+      } else {
+        unitCostCNY = Number(rawUnitCost) || 0;
+      }
+      
       const domesticCNY = Number(item.domestic_shipping_cost) || 0;
       const intlUSD = Number(item.international_shipping_cost) || 0;
       
@@ -204,8 +211,15 @@ export function BoxCostBreakdownSheet({ productItems, exchangeRates, customRates
     const groupedArr = Object.values(grouped);
     const totalUZS = groupedArr.reduce((sum, g) => sum + g.totalCostUZS, 0);
     
-    // Calculate averages
-    const avgUnit = validItems.reduce((s: number, i: ProductItem) => s + (Number(i.unit_cost) || 0), 0) / (validItems.length || 1);
+    // Calculate averages (ensure we sum up correctly converted CNY values for avg calculations)
+    const avgUnit = validItems.reduce((s: number, i: ProductItem) => {
+      const rawCost = Number(i.unit_cost) || 0;
+      const currency = i.unit_cost_currency || i.product_variants?.cost_price_currency || 'CNY';
+      let costCny = rawCost;
+      if (currency === 'USD') costCny = rawCost * (numericUzsRate / numericCnyToUzs);
+      else if (currency === 'UZS') costCny = rawCost / numericCnyToUzs;
+      return s + costCny;
+    }, 0) / (validItems.length || 1);
     const avgDomestic = validItems.reduce((s: number, i: ProductItem) => s + (Number(i.domestic_shipping_cost) || 0), 0) / (validItems.length || 1);
     const avgIntl = validItems.reduce((s: number, i: ProductItem) => s + (Number(i.international_shipping_cost) || 0), 0) / (validItems.length || 1);
     const perItem = totalUZS / (validItems.length || 1);
