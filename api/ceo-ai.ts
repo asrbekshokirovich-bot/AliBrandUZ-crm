@@ -237,11 +237,11 @@ async function toolGetMarketplaceSales(args: any) {
 }
 
 async function toolGetLogisticsStats() {
-  const boxesData = await supabaseQuery('/boxes?select=box_number,status,location,weight,created_at&order=created_at.desc&limit=1000') || [];
-  const boxes = boxesData.filter((b: any) => b.status !== 'arrived' && b.status !== 'delivered' && b.location !== 'uzbekistan');
+  const boxesData = await supabaseQuery('/boxes?select=box_number,status,location,weight_kg,created_at&order=created_at.desc&limit=1000');
+  const boxes = (Array.isArray(boxesData) ? boxesData : []).filter((b: any) => b.status !== 'arrived' && b.status !== 'delivered' && b.location !== 'uzbekistan');
 
-  const shipmentsData = await supabaseQuery('/shipments?select=shipment_number,status,carrier,departure_date,estimated_arrival&order=created_at.desc&limit=500') || [];
-  const shipments = shipmentsData.filter((s: any) => s.status !== 'arrived' && s.status !== 'delivered' && s.status !== 'completed');
+  const shipmentsData = await supabaseQuery('/shipments?select=shipment_number,status,carrier,departure_date,estimated_arrival&order=created_at.desc&limit=500');
+  const shipments = (Array.isArray(shipmentsData) ? shipmentsData : []).filter((s: any) => s.status !== 'arrived' && s.status !== 'delivered' && s.status !== 'completed');
   
   return {
     active_boxes_count: boxes.length,
