@@ -172,19 +172,36 @@ export function parseInvoiceData(text: string): ParsedInvoice {
   const dateMatch = workingText.match(/(\d{2}\.\d{2}\.\d{4})/);
   const invoiceDate = dateMatch ? dateMatch[1] : '';
 
-  // Pickup point: 5 fallback patterns
+  // Pickup point: 10 robust patterns
+  // NOTE: PDF text has NO newlines (jointed with ' '), so we use length limits + lookahead stop-words
+  const STOP = /(?=\s{3,}|\s+(?:Не\s|Prin|Qabul|\d{2}\.\d{2}\.|\u0418\u041f\s|\u041e\u041e\u041e\s|\u041f\u0440\u0438\u043d\u044f|\u041d\u043e\u043c\u0435\u0440|\u0413\u0440\u0443\u0437|номер|Накл))/i;
   let pickupPoint = '';
   const pickupPatterns: RegExp[] = [
-    /[\u041f\u043f]\u0443\u043d\u043a\u0442\s+(?:\u043f\u0440\u0438\u0435\u043c\u0430|\u0432\u044b\u0434\u0430\u0447\u0438|\u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438|\u0432\u044b\u0432\u043e\u0437\u0430)\s*:?\s*(.+?)(?:\s{3,}|\n|$)/i,
-    /[\u0410\u0430]\u0434\u0440\u0435\u0441\s*(?:\u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438|\u0441\u0434\u0430\u0447\u0438|\u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438|\u043f\u0443\u043d\u043a\u0442\u0430|\u0441\u043a\u043b\u0430\u0434\u0430)?\s*:?\s*(.+?)(?:\n|$)/i,
-    /[\u041c\u043c]\u0435\u0441\u0442\u043e\s+(?:\u043f\u0440\u0438\u0435\u043c\u0430|\u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438|\u0432\u044b\u0434\u0430\u0447\u0438)\s*:?\s*(.+?)(?:\n|$)/i,
-    /[\u0421\u0441]\u043a\u043b\u0430\u0434\s*(?:\u043f\u0440\u0438\u0435\u043c\u0430)?\s*:?\s*(.+?)(?:\n|$)/i,
-    /(?:\u0433\.|[\u0413\u0433]\u043e\u0440\u043e\u0434|\u0443\u043b\.|\u0448\u043e\u0441\u0441\u0435|\u043f\u0440\.)\s+([\u0400-\u04FFa-zA-Z][^\n]{5,80})/iu,
+    // "Пункт приема/выдачи/передачи: XXX"
+    /[\u041f\u043f]\u0443\u043d\u043a\u0442\s+(?:\u043f\u0440\u0438\u0435\u043c\u0430|\u0432\u044b\u0434\u0430\u0447\u0438|\u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438|\u0432\u044b\u0432\u043e\u0437\u0430)\s*:?\s*(.{5,150})(?=\s{3,}|\s*\d{2}\.\d{2}\.|\s*[\u041f\u0418]\u041f\s|$)/i,
+    // "Адрес склада/доставки: XXX"
+    /[\u0410\u0430]\u0434\u0440\u0435\u0441\s*(?:[\u0434\u0441\u043f][\u0430-\u04FF]+)?\s*:?\s*(.{5,150})(?=\s{3,}|\s*\d{2}\.\d{2}\.|$)/i,
+    // "Место приема: XXX"
+    /[\u041c\u043c]\u0435\u0441\u0442\u043e\s+(?:\u043f\u0440\u0438\u0435\u043c\u0430|\u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438|\u0432\u044b\u0434\u0430\u0447\u0438)\s*:?\s*(.{5,150})(?=\s{3,}|$)/i,
+    // "Склад: XXX" or "Сортировочный склад: XXX"
+    /[\u0421\u0441]\u043a\u043b\u0430\u0434\s*(?:[\u043f\u0440][\u0430-\u04FF]+)?\s*:?\s*(.{5,150})(?=\s{3,}|$)/i,
+    // Postal code + Tashkent: "100000, г. Ташкент, ..."
+    /\b(\d{5,6}[,\s]+(?:\u0433\.\s*)?(?:\u0422\u0430\u0448\u043a\u0435\u043d\u0442|Tashkent)[^,]{0,120})/i,
+    // "г. Ташкент, Алмазарский район, ул. Катартал 2"
+    /(?:\u0433\.\s*|\u0433\u043e\u0440\u043e\u0434\s+)(?:\u0422\u0430\u0448\u043a\u0435\u043d\u0442|Tashkent)(.{0,120})(?=\s*\d{2}\.\d{2}\.|\s{3,}|$)/i,
+    // "Ташкент," followed by district/street info
+    /(?:\u0422\u0430\u0448\u043a\u0435\u043d\u0442|Tashkent),?\s+([\u0400-\u04FFa-zA-Z][^,]{0,30}(?:,\s*[^,]{0,40}){1,4})/i,
+    // "ул. Катартал" or "пр. Мустакиллик" anywhere
+    /(?:\u0443\u043b\.|\u043f\u0440\.|\u0448\u043e\u0441\u0441\u0435|\u043f\u0440\u043e\u0441\u043f\u0435\u043a\u0442|\u0443\u043b\u0438\u0446\u0430)\s+([\u0400-\u04FFa-zA-Z][^,\d]{0,40}(?:[,\s]+\d+[a-zA-Z]?)?)/iu,
+    // "район" mention with nearby address
+    /([\u0400-\u04FFa-zA-Z]{3,}\u0441\u043a\u0438\u0439\s+\u0440\u0430\u0439\u043e\u043d[^,]{0,80})/iu,
+    // Fallback: "г." or "ул." followed by up to 80 Cyrillic/latin chars
+    /(?:\u0433\.|\u0443\u043b\.)\s+([\u0400-\u04FFa-zA-Z][\u0400-\u04FFa-zA-Z0-9\s,.-]{5,80})/iu,
   ];
   for (const pat of pickupPatterns) {
     const m = workingText.match(pat);
     const raw = (m?.[1] ?? '').replace(/\s+/g, ' ').trim();
-    if (raw && raw.length > 3) { pickupPoint = raw; break; }
+    if (raw && raw.length > 3 && raw.length < 200) { pickupPoint = raw; break; }
   }
 
   console.log('[PDF Parser] Extracted fields:', { invoiceNumber, senderName, invoiceDate, pickupPoint });
