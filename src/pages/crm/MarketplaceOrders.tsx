@@ -37,6 +37,22 @@ import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { TableLoadingSkeleton } from '@/components/ui/loading-skeleton';
 
+interface LiveActivity {
+  id: string;
+  eventType: 'INSERT' | 'UPDATE';
+  orderId: string;
+  externalOrderId: string;
+  status: string;
+  oldStatus?: string;
+  storeName: string;
+  platform: string;
+  totalAmount: number | null;
+  currency: string;
+  itemsCount: number;
+  firstItemTitle: string;
+  ts: Date;
+}
+
 interface OrderItem {
   id?: number;
   productId?: number;
@@ -211,6 +227,7 @@ export default function MarketplaceOrders() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+  const [liveActivities, setLiveActivities] = useState<LiveActivity[]>([]);
 
   // Debounce search input
   useEffect(() => {
@@ -388,15 +405,75 @@ export default function MarketplaceOrders() {
     },
   });
 
-  // Realtime subscription
+  // Realtime subscription — captures live order events
   useEffect(() => {
     const channel = supabase
       .channel('orders-realtime')
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'marketplace_orders' },
-        () => {
+        { event: 'INSERT', schema: 'public', table: 'marketplace_orders' },
+        async (payload) => {
           queryClient.invalidateQueries({ queryKey: ['marketplace-orders'] });
           queryClient.invalidateQueries({ queryKey: ['marketplace-orders-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['marketplace-platform-stats'] });
+          // Fetch store info for this order
+          const row = payload.new as any;
+          const { data: store } = await supabase
+            .from('marketplace_stores')
+            .select('name, platform')
+            .eq('id', row.store_id)
+            .single();
+          const items: Array<{title?: string; skuTitle?: string; quantity?: number; count?: number}> = row.items || [];
+          const firstItem = items[0];
+          setLiveActivities(prev => [{
+            id: crypto.randomUUID(),
+            eventType: 'INSERT',
+            orderId: row.id,
+            externalOrderId: row.external_order_id,
+            status: row.status,
+            storeName: store?.name || 'Noma\'lum',
+            platform: store?.platform || 'uzum',
+            totalAmount: row.total_amount,
+            currency: row.currency || 'UZS',
+            itemsCount: items.length,
+            firstItemTitle: firstItem?.title || firstItem?.skuTitle || 'Mahsulot',
+            ts: new Date(),
+          }, ...prev].slice(0, 20));
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'marketplace_orders' },
+        async (payload) => {
+          queryClient.invalidateQueries({ queryKey: ['marketplace-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['marketplace-orders-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['marketplace-platform-stats'] });
+          const row = payload.new as any;
+          const oldRow = payload.old as any;
+          // Only show notable status changes (returns, cancellations, deliveries)
+          const notableNewStatuses = ['RETURNED','CANCELLED','CANCELED','DELIVERED','COMPLETED','CANCELLED_IN_DELIVERY','CANCELLED_BEFORE_PROCESSING'];
+          if (!notableNewStatuses.includes(row.status)) return;
+          if (oldRow?.status === row.status) return;
+          const { data: store } = await supabase
+            .from('marketplace_stores')
+            .select('name, platform')
+            .eq('id', row.store_id)
+            .single();
+          const items: Array<{title?: string; skuTitle?: string}> = row.items || [];
+          const firstItem = items[0];
+          setLiveActivities(prev => [{
+            id: crypto.randomUUID(),
+            eventType: 'UPDATE',
+            orderId: row.id,
+            externalOrderId: row.external_order_id,
+            status: row.status,
+            oldStatus: oldRow?.status,
+            storeName: store?.name || 'Noma\'lum',
+            platform: store?.platform || 'uzum',
+            totalAmount: row.total_amount,
+            currency: row.currency || 'UZS',
+            itemsCount: items.length,
+            firstItemTitle: firstItem?.title || firstItem?.skuTitle || 'Mahsulot',
+            ts: new Date(),
+          }, ...prev].slice(0, 20));
         }
       )
       .subscribe();
@@ -688,7 +765,74 @@ export default function MarketplaceOrders() {
         </CardContent>
       </Card>
 
+      {/* Live Activity Feed */}
+      {liveActivities.length > 0 && (
+        <div className="rounded-xl border border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/20 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 bg-green-100/60 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+              </span>
+              <span className="text-sm font-semibold text-green-700 dark:text-green-400">LIVE</span>
+              <span className="text-xs text-muted-foreground">{liveActivities.length} ta yangi hodisa</span>
+            </div>
+            <button
+              onClick={() => setLiveActivities([])}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+            >✕ Tozalash</button>
+          </div>
+          <div className="max-h-48 overflow-y-auto divide-y divide-green-100 dark:divide-green-900/40">
+            {liveActivities.map((act) => {
+              const isNew = act.eventType === 'INSERT';
+              const isReturn = act.status === 'RETURNED';
+              const isCancel = act.status.startsWith('CANCEL') || act.status === 'CANCELED';
+              const isDelivered = act.status === 'DELIVERED' || act.status === 'COMPLETED';
+              const icon = isNew ? '🛍️' : isReturn ? '↩️' : isCancel ? '❌' : isDelivered ? '✅' : '🔄';
+              const label = isNew ? "Yangi buyurtma"
+                : isReturn ? "Qaytarildi"
+                : isCancel ? "Bekor qilindi"
+                : isDelivered ? "Yetkazildi"
+                : "Status o'zgardi";
+              const dotColor = isNew ? 'bg-blue-500' : isReturn ? 'bg-orange-500' : isCancel ? 'bg-red-500' : 'bg-green-500';
+              const platformBg = act.platform === 'uzum' ? 'bg-purple-100 text-purple-700' : 'bg-yellow-100 text-yellow-700';
+              return (
+                <div
+                  key={act.id}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors animate-in slide-in-from-top-2 duration-300"
+                >
+                  <span className="text-base flex-shrink-0">{icon}</span>
+                  <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold">{label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${platformBg}`}>{act.platform.toUpperCase()}</span>
+                      <span className="text-xs text-muted-foreground truncate">{act.storeName}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      #{act.externalOrderId.slice(0, 10)} · {act.firstItemTitle}
+                      {act.itemsCount > 1 && <span className="text-primary ml-1">(+{act.itemsCount - 1} tur)</span>}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {act.totalAmount && (
+                      <p className="text-xs font-semibold">
+                        {new Intl.NumberFormat('uz-UZ', { style: 'currency', currency: act.currency === 'UZS' ? 'UZS' : 'RUB', minimumFractionDigits: 0 }).format(act.totalAmount)}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      {act.ts.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Orders Table / Mobile Cards */}
+
       <Card>
         <CardContent className={isMobile ? "p-2" : "p-0"}>
           {isLoading ? (
