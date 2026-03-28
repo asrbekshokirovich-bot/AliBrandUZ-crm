@@ -660,7 +660,10 @@ export function ReturnsTab() {
       {/* Scanned document cards */}
       {scannedDocs.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm font-semibold text-foreground">Skanerlangan hujjatlar ({scannedDocs.length})</p>
+        <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Skanerlangan hujjatlar ({scannedDocs.length})
+          </h3>
           {scannedDocs.map(doc => (
             <ScanResultCard
               key={doc.id}
