@@ -63,10 +63,10 @@ interface GroupedItem {
   firstItem: NewArrivalItem;
 }
 
-// Group items by product_id + box_id
+// Group items by product_id (ignore box_id to merge all identical products)
 const groupItems = (items: NewArrivalItem[]): GroupedItem[] => {
   const grouped = items.reduce((acc, item) => {
-    const key = `${item.product_id}_${item.box_id || 'no-box'}`;
+    const key = `${item.product_id || 'no-product'}`;
     
     if (!acc[key]) {
       acc[key] = {
