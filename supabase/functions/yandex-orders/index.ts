@@ -183,6 +183,7 @@ serve(async (req) => {
     let totalSynced = 0;
     let totalFailed = 0;
     let totalReceived = 0;
+    let firstUpsertError: string | null = null;
     const startTime = Date.now();
     let nextDateFrom: string | null = null;
     let completed = true;
@@ -369,19 +370,19 @@ serve(async (req) => {
             const orderData: Record<string, unknown> = {
               store_id,
               external_order_id: String(order.id),
-              marketplace: 'yandex',
               status: order.status,
-              customer_name: null, // Yandex API for stats doesn't always provide customer name
+              fulfillment_status: fulfillmentStatus,
+              fulfillment_type: fulfillmentType,
+              customer_name: null,
               customer_phone: null,
-              delivery_address: order.deliveryRegion ? { region: order.deliveryRegion.name } : null,
+              shipping_address: order.deliveryRegion ? { region: order.deliveryRegion.name } : null,
               notes: order.externalOrderId ? `extId:${order.externalOrderId}${order.fake ? ' [TEST]' : ''}` : (order.fake ? '[TEST]' : null),
               total_amount: totalAmount,
-              marketplace_commission: marketplaceCommission,
-              net_amount: totalAmount - marketplaceCommission - deliveryCommission,
+              commission: marketplaceCommission,
+              delivery_cost: deliveryCommission,
               currency: 'UZS',
               items: itemsData,
-              order_created_at: order.creationDate,
-              synced_at: new Date().toISOString(),
+              ordered_at: order.creationDate,
             };
 
             // Set delivered_at when order is delivered (for delivery-date revenue recognition)
@@ -395,6 +396,7 @@ serve(async (req) => {
 
             if (upsertError) {
               totalFailed++;
+              if (!firstUpsertError) firstUpsertError = `Order ${order.id}: ${upsertError.message} (code: ${upsertError.code})`;
               console.error(`[yandex-orders] Failed to upsert order ${order.id}:`, upsertError);
             } else {
               totalSynced++;
@@ -514,6 +516,7 @@ serve(async (req) => {
         orders_received: totalReceived,
         synced: totalSynced,
         failed: totalFailed,
+          db_error: firstUpsertError,
         date_range: { dateFrom: globalDateFrom, dateTo: globalDateTo },
         nextDateFrom,
         completed,
