@@ -277,22 +277,12 @@ export function ReturnsTab() {
         image_url: null,
       }));
 
-      const { error } = await supabase
+      const { error: insertErr } = await supabase
         .from('marketplace_returns')
-        .upsert(rows, { onConflict: 'external_order_id,store_id' });
+        .insert(rows);
 
-      if (error) {
-        // store_id may be required — try without conflict constraint
-        const { error: error2 } = await supabase
-          .from('marketplace_returns')
-          .insert(rows.map(r => { const { ...rest } = r; return rest; }));
-
-        if (error2) {
-          toast.error('Saqlashda xatolik: ' + error2.message);
-        } else {
-          toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
-          queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
-        }
+      if (insertErr) {
+        toast.error('Saqlashda xatolik: ' + insertErr.message);
       } else {
         toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
         queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
