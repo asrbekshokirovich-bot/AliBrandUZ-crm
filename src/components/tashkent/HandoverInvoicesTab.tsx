@@ -29,6 +29,7 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [undoConfirmId, setUndoConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   // Self-contained marketplace selector (used when no prop is passed)
   const [activeMarket, setActiveMarket] = useState<MarketplaceType>('uzum');
 
@@ -523,6 +524,34 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
     },
   });
 
+  // Delete invoice mutation
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      // Delete child orders first (foreign key)
+      const { error: ordersError } = await supabase
+        .from('handover_invoice_orders' as any)
+        .delete()
+        .eq('handover_invoice_id', invoiceId);
+      if (ordersError) throw ordersError;
+      // Delete the invoice itself
+      const { error: invError } = await supabase
+        .from('handover_invoices' as any)
+        .delete()
+        .eq('id', invoiceId);
+      if (invError) throw invError;
+    },
+    onSuccess: () => {
+      toast({ title: "Nakladnoy o'chirildi ✅" });
+      setDeleteConfirmId(null);
+      setExpandedId(null);
+      queryClient.invalidateQueries({ queryKey: ['handover-invoices'] });
+    },
+    onError: (err: any) => {
+      toast({ title: "O'chirishda xatolik", description: err.message, variant: 'destructive' });
+      setDeleteConfirmId(null);
+    },
+  });
+
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -924,6 +953,15 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
                           {inv.not_accepted_count}
                         </Badge>
                       )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(inv.id); }}
+                        title="O'chirish"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                       {expandedId === inv.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </div>
                   </div>
@@ -976,6 +1014,18 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
         variant="destructive"
         isLoading={undoStockMutation.isPending}
         onConfirm={() => undoConfirmId && undoStockMutation.mutate(undoConfirmId)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+        title="Nakladnoyni o'chirishni tasdiqlang"
+        description="Bu nakladnoy va unga tegishli barcha buyurtmalar ma'lumotlari o'chiriladi. Bu amalni bekor qilib bo'lmaydi!"
+        confirmText="Ha, o'chirish"
+        cancelText="Bekor qilish"
+        variant="destructive"
+        isLoading={deleteInvoiceMutation.isPending}
+        onConfirm={() => deleteConfirmId && deleteInvoiceMutation.mutate(deleteConfirmId)}
       />
     </div>
   );
