@@ -202,7 +202,7 @@ export default function Shipments() {
       let query = supabase
         .from('boxes')
         .select('id, box_number, store_number, abusaxiy_receipt_number, weight_kg, volume_m3, status, location')
-        .eq('status', 'sealed')
+        .in('status', ['packing', 'sealed', 'in_transit', 'arrived'])
         .order('created_at', { ascending: false });
       
       if (excludeIds.length > 0) {
