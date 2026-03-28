@@ -99,7 +99,7 @@ export default function ChinaDashboard() {
       const totalOkItemsToday = completedToday.reduce((sum, v) => sum + (v.ok_count || 0), 0);
       return {
         todayBoxesCount: todayBoxes.length,
-        pendingItemsCount: pendingItems.length, // Kutilayotgan - qutiga qo'yilmagan mahsulotlar
+        pendingItemsCount: pendingItems.length,
         readyToSealCount: readyToSeal.length,
         defectsFoundToday: totalDefectsToday,
         missingItemsToday: totalMissingToday,
@@ -109,15 +109,17 @@ export default function ChinaDashboard() {
         recentVerifications: recentVerificationsResult.data || [],
         defectCategories: defectCategoriesResult.data || [],
         sealedTodayCount: sealedToday.length,
-        inTransitAllCount: inTransitAll.length, // Barcha yo'ldagi qutilar
-        arrivedPendingCount: arrivedPending.length, // Kelgan, tekshirishni kutayotgan
+        inTransitAllCount: inTransitAll.length,
+        arrivedPendingCount: arrivedPending.length,
         totalItemsCheckedToday,
         totalOkItemsToday,
         inTransitBoxes,
-        inTransitCount: inTransitBoxes.length
+        inTransitCount: inTransitBoxes.length,
+        packingCount: allBoxes.filter(b => b.status === 'packing' || b.status === 'sealed').length,
       };
     }
   });
+
 
   // Real-time subscriptions
   useEffect(() => {
@@ -298,7 +300,67 @@ export default function ChinaDashboard() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 gap-6">
-        {/* Pending Verification Queue */}
+
+        {/* ─── Buyurtmalar Jarayoni ─── */}
+        <Card className="p-4 sm:p-6 bg-card border-border">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground flex items-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              📦 Buyurtmalar Jarayoni
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {/* Stage 1: Qadoqlanmoqda */}
+            <div className="rounded-xl border border-yellow-400/40 bg-yellow-50/40 dark:bg-yellow-950/20 p-3 text-center">
+              <div className="w-10 h-10 rounded-full bg-yellow-500/15 flex items-center justify-center mx-auto mb-2">
+                <Package className="h-5 w-5 text-yellow-600" />
+              </div>
+              <p className="text-xl font-bold text-yellow-600">
+                {stats?.packingCount || 0}
+              </p>
+              <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400 mt-0.5">Qadoqlanmoqda</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Xitoy ombori</p>
+            </div>
+            {/* Stage 2: Yo'lda */}
+            <div className="rounded-xl border border-blue-400/40 bg-blue-50/40 dark:bg-blue-950/20 p-3 text-center">
+              <div className="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center mx-auto mb-2">
+                <Truck className="h-5 w-5 text-blue-600" />
+              </div>
+              <p className="text-xl font-bold text-blue-600">{stats?.inTransitAllCount || 0}</p>
+              <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mt-0.5">Yo'lda</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Toshkentga ketmoqda</p>
+            </div>
+            {/* Stage 3: Yetkazildi */}
+            <div className="rounded-xl border border-green-400/40 bg-green-50/40 dark:bg-green-950/20 p-3 text-center">
+              <div className="w-10 h-10 rounded-full bg-green-500/15 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <p className="text-xl font-bold text-green-600">{stats?.arrivedPendingCount || 0}</p>
+              <p className="text-xs font-medium text-green-700 dark:text-green-400 mt-0.5">Yetkazildi</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Toshkent ombori</p>
+            </div>
+          </div>
+          {/* Pipeline progress bar */}
+          {stats && (
+            (() => {
+              const total = (stats.inTransitAllCount || 0) + (stats.arrivedPendingCount || 0) + (stats.packingCount || 0);
+              const packingCount = stats.packingCount || 0;
+              if (total === 0) return null;
+              return (
+                <div className="mt-4">
+                  <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden flex gap-0.5">
+                    {packingCount > 0 && <div className="h-full bg-yellow-400 rounded-l-full transition-all" style={{ width: `${(packingCount / total) * 100}%` }} />}
+                    {(stats.inTransitAllCount || 0) > 0 && <div className="h-full bg-blue-500 transition-all" style={{ width: `${((stats.inTransitAllCount || 0) / total) * 100}%` }} />}
+                    {(stats.arrivedPendingCount || 0) > 0 && <div className="h-full bg-green-500 rounded-r-full transition-all" style={{ width: `${((stats.arrivedPendingCount || 0) / total) * 100}%` }} />}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center mt-1">Jami {total} ta quti jarayonda</p>
+                </div>
+              );
+            })()
+          )}
+        </Card>
+
+
         <Card className="p-4 sm:p-6 bg-card border-border">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base sm:text-lg font-semibold text-foreground flex items-center gap-2">

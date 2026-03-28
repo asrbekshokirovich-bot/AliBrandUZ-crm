@@ -11,10 +11,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ShoppingBag, Phone, MapPin, Clock, Package, 
   CheckCircle, Truck, XCircle, Eye, RefreshCw,
-  MessageCircle, Tag
+  MessageCircle, Tag, Box
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -97,6 +98,22 @@ export default function StoreOrders() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
+  const { data: boxPipeline } = useQuery({
+    queryKey: ['box-pipeline'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('boxes')
+        .select('id, box_number, status, location, created_at, updated_at, estimated_arrival, actual_arrival, product_items(id)')
+        .in('status', ['packing', 'sealed', 'in_transit', 'arrived', 'delivered'])
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      const packing = (data || []).filter(b => b.status === 'packing' || b.status === 'sealed');
+      const inTransit = (data || []).filter(b => b.status === 'in_transit');
+      const delivered = (data || []).filter(b => b.status === 'arrived' || b.status === 'delivered');
+      return { packing, inTransit, delivered, total: (data || []).length };
+    },
+  });
+
 
   const updateStatus = useMutation({
     mutationFn: async ({ orderId, newStatus, note }: { orderId: string; newStatus: OrderStatus; note?: string }) => {
@@ -134,6 +151,40 @@ export default function StoreOrders() {
     { label: 'Jami', value: orders?.length || 0, color: 'text-foreground' },
   ];
 
+  // Box pipeline stage config
+  const pipelineStages = [
+    {
+      key: 'packing',
+      label: '📦 Qadoqlanmoqda',
+      sublabel: 'Xitoy omborida qadoqlanmoqda',
+      boxes: boxPipeline?.packing || [],
+      color: 'border-yellow-400/50 bg-yellow-50/50 dark:bg-yellow-950/20',
+      badge: 'bg-yellow-100 text-yellow-700',
+      icon: Package,
+      iconColor: 'text-yellow-600',
+    },
+    {
+      key: 'in_transit',
+      label: '🚚 Yo\'lda',
+      sublabel: 'Toshkentga yo\'lda',
+      boxes: boxPipeline?.inTransit || [],
+      color: 'border-blue-400/50 bg-blue-50/50 dark:bg-blue-950/20',
+      badge: 'bg-blue-100 text-blue-700',
+      icon: Truck,
+      iconColor: 'text-blue-600',
+    },
+    {
+      key: 'delivered',
+      label: '✅ Yetkazildi',
+      sublabel: 'Toshkent omboriga keldi',
+      boxes: boxPipeline?.delivered || [],
+      color: 'border-green-400/50 bg-green-50/50 dark:bg-green-950/20',
+      badge: 'bg-green-100 text-green-700',
+      icon: CheckCircle,
+      iconColor: 'text-green-600',
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -146,6 +197,21 @@ export default function StoreOrders() {
         </Button>
       </div>
 
+      <Tabs defaultValue="site-orders">
+        <TabsList className="grid w-full max-w-sm grid-cols-2">
+          <TabsTrigger value="site-orders" className="gap-2">
+            <ShoppingBag className="h-4 w-4" /> Sayt buyurtmalari
+          </TabsTrigger>
+          <TabsTrigger value="box-pipeline" className="gap-2">
+            <Box className="h-4 w-4" /> Quti buyurtmalari
+            {boxPipeline && boxPipeline.total > 0 && (
+              <span className="ml-1 bg-primary text-primary-foreground rounded-full px-1.5 text-xs">{boxPipeline.total}</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ─── Sayt Buyurtmalari Tab ─── */}
+        <TabsContent value="site-orders" className="space-y-4 mt-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map(s => (
           <Card key={s.label}><CardContent className="p-4 text-center"><p className={`text-2xl font-bold ${s.color}`}>{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></CardContent></Card>
@@ -369,6 +435,87 @@ export default function StoreOrders() {
           )}
         </SheetContent>
       </Sheet>
+      </TabsContent>{/* end site-orders */}
+
+      {/* ─── Quti Buyurtmalari Tab ─── */}
+      <TabsContent value="box-pipeline" className="mt-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {pipelineStages.map((stage) => {
+            const Icon = stage.icon;
+            return (
+              <div key={stage.key} className={`rounded-xl border p-4 space-y-3 ${stage.color}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon className={`h-5 w-5 ${stage.iconColor}`} />
+                    <div>
+                      <p className="font-semibold text-sm">{stage.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{stage.sublabel}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${stage.badge}`}>
+                    {stage.boxes.length} ta quti
+                  </span>
+                </div>
+                {stage.boxes.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Icon className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-xs">Hozircha bo'sh</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {stage.boxes.slice(0, 20).map((box: any) => {
+                      const itemCount = box.product_items?.length || 0;
+                      const dateField = stage.key === 'delivered' ? box.actual_arrival : box.updated_at;
+                      return (
+                        <div key={box.id} className="flex items-center justify-between bg-white/60 dark:bg-white/5 rounded-lg px-3 py-2 border border-white/40 dark:border-white/10">
+                          <div className="flex items-center gap-2">
+                            <Icon className={`h-4 w-4 ${stage.iconColor} opacity-70`} />
+                            <div>
+                              <p className="text-xs font-semibold">{box.box_number}</p>
+                              <p className="text-[10px] text-muted-foreground">{itemCount} ta mahsulot</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {box.estimated_arrival && stage.key === 'in_transit' && (
+                              <p className="text-[10px] text-blue-600">ETA: {format(new Date(box.estimated_arrival), 'dd.MM')}</p>
+                            )}
+                            <p className="text-[10px] text-muted-foreground">{dateField ? format(new Date(dateField), 'dd.MM HH:mm') : '—'}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {stage.boxes.length > 20 && (
+                      <p className="text-center text-xs text-muted-foreground py-1">+{stage.boxes.length - 20} ta yana bor</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {boxPipeline && boxPipeline.total > 0 && (
+          <Card className="mt-4">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Umumiy jarayon</span>
+                <span className="text-sm text-muted-foreground">{boxPipeline.total} ta quti</span>
+              </div>
+              <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
+                {boxPipeline.packing.length > 0 && <div className="h-full bg-yellow-400" style={{ width: `${(boxPipeline.packing.length / boxPipeline.total) * 100}%` }} />}
+                {boxPipeline.inTransit.length > 0 && <div className="h-full bg-blue-500" style={{ width: `${(boxPipeline.inTransit.length / boxPipeline.total) * 100}%` }} />}
+                {boxPipeline.delivered.length > 0 && <div className="h-full bg-green-500" style={{ width: `${(boxPipeline.delivered.length / boxPipeline.total) * 100}%` }} />}
+              </div>
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1.5">
+                <span className="text-yellow-600">📦 {boxPipeline.packing.length} qadoqlanmoqda</span>
+                <span className="text-blue-600">🚚 {boxPipeline.inTransit.length} yo'lda</span>
+                <span className="text-green-600">✅ {boxPipeline.delivered.length} yetkazildi</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+    </Tabs>
     </div>
   );
 }
+
