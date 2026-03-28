@@ -723,7 +723,7 @@ export default function MarketplaceAnalytics() {
                     : '0% daromaddan'}
                 </p>
               </div>
-              <Receipt className="h-8 w-8 text-orange-500 opacity-80" />
+
             </div>
           </CardContent>
         </Card>
