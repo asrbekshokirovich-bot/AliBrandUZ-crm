@@ -26,6 +26,7 @@ interface InTransitProduct {
   store_number: string | null;
   status: string;
   estimated_arrival: string | null;
+  quantity?: number;
 }
 
 interface InTransitBox {
@@ -165,8 +166,37 @@ export function InTransitProductsList() {
       });
 
       // Convert to array and filter out empty boxes if needed
-      const boxes = Array.from(boxMap.values());
+      const boxes = Array.from(boxMap.values()).map(box => {
+        // Group products by product_id within the box
+        const groupedProductsMap = new Map<string, InTransitProduct>();
+        box.products.forEach(p => {
+          const key = p.product_id;
+          if (groupedProductsMap.has(key)) {
+            const existing = groupedProductsMap.get(key)!;
+            existing.quantity = (existing.quantity || 1) + 1;
+          } else {
+            groupedProductsMap.set(key, { ...p, quantity: 1 });
+          }
+        });
+        return {
+          ...box,
+          products: Array.from(groupedProductsMap.values())
+        };
+      });
+      
       if (unboxedItemsBox.item_count > 0) {
+        // Group unboxed items as well
+        const groupedUnboxedMap = new Map<string, InTransitProduct>();
+        unboxedItemsBox.products.forEach(p => {
+          const key = p.product_id;
+          if (groupedUnboxedMap.has(key)) {
+            const existing = groupedUnboxedMap.get(key)!;
+            existing.quantity = (existing.quantity || 1) + 1;
+          } else {
+            groupedUnboxedMap.set(key, { ...p, quantity: 1 });
+          }
+        });
+        unboxedItemsBox.products = Array.from(groupedUnboxedMap.values());
         boxes.unshift(unboxedItemsBox);
       }
       
@@ -287,7 +317,12 @@ export function InTransitProductsList() {
                             <Package className="h-4 w-4 text-muted-foreground" />
                           )}
                         </div>
-                        <span className="text-sm font-medium flex-1 truncate">{product.product_name}</span>
+                        <span className="text-sm font-medium flex-1 truncate">
+                          {product.product_name}
+                          {product.quantity && product.quantity > 1 && (
+                            <span className="ml-2 text-xs text-muted-foreground whitespace-nowrap">({product.quantity} ta)</span>
+                          )}
+                        </span>
                         <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
                           {product.status === 'in_transit' ? t('inv_transit_in_transit', "Yo'lda") : product.status === 'packed' ? 'Qadoqlanmoqda' : (product.status === 'in_stock' || product.status === 'pending' ? 'Xitoyda kutmoqda' : product.status)}
                         </Badge>
@@ -315,7 +350,16 @@ export function InTransitProductsList() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="font-medium">{product.product_name}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <span>{product.product_name}</span>
+                              {product.quantity && product.quantity > 1 && (
+                                <Badge variant="outline" className="text-xs whitespace-nowrap">
+                                  {product.quantity} ta
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
                               {product.status === 'in_transit' ? t('inv_transit_in_transit') : product.status === 'packed' ? t('inv_transit_packed') : product.status}
