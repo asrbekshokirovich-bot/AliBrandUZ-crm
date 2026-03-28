@@ -237,14 +237,17 @@ async function toolGetMarketplaceSales(args: any) {
 }
 
 async function toolGetLogisticsStats() {
-  const boxes = await supabaseQuery('/boxes?select=box_number,status,location,weight,created_at&status=in.(packing,sealed,in_transit)&limit=100');
-  const shipments = await supabaseQuery('/shipments?select=shipment_number,status,carrier,departure_date,estimated_arrival&status=in.(pending,in_transit)&limit=50');
+  const boxesData = await supabaseQuery('/boxes?select=box_number,status,location,weight,created_at&order=created_at.desc&limit=1000') || [];
+  const boxes = boxesData.filter((b: any) => b.status !== 'arrived' && b.status !== 'delivered' && b.location !== 'uzbekistan');
+
+  const shipmentsData = await supabaseQuery('/shipments?select=shipment_number,status,carrier,departure_date,estimated_arrival&order=created_at.desc&limit=500') || [];
+  const shipments = shipmentsData.filter((s: any) => s.status !== 'arrived' && s.status !== 'delivered' && s.status !== 'completed');
   
   return {
-    active_boxes_count: boxes?.length || 0,
-    active_boxes_summary: (boxes || []).slice(0, 15).map((b: any) => `${b.box_number} (Holati: ${b.status}, Joyi: ${b.location})`),
-    active_shipments_count: shipments?.length || 0,
-    active_shipments_summary: (shipments || []).slice(0, 10).map((s: any) => `${s.shipment_number} (Tashuvchi: ${s.carrier}, Holati: ${s.status})`)
+    active_boxes_count: boxes.length,
+    active_boxes_summary: boxes.slice(0, 15).map((b: any) => `${b.box_number} (Holati: ${b.status}, Joyi: ${b.location})`),
+    active_shipments_count: shipments.length,
+    active_shipments_summary: shipments.slice(0, 10).map((s: any) => `${s.shipment_number} (Tashuvchi: ${s.carrier}, Holati: ${s.status})`)
   };
 }
 
