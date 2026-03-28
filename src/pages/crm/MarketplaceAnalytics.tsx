@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from '@/lib/fetchAllRows';
@@ -42,7 +42,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { format, subDays } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
 const COLORS = [
@@ -73,6 +73,7 @@ export default function MarketplaceAnalytics() {
   const [platformTab, setPlatformTab] = useState<PlatformTab>('all');
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch stores
   const { data: stores } = useQuery({
@@ -86,6 +87,56 @@ export default function MarketplaceAnalytics() {
       return data;
     },
   });
+
+  // Realtime subscription — auto-refresh analytics on order changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('analytics-realtime')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'marketplace_orders' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['mp-analytics-finance-summary'] });
+          queryClient.invalidateQueries({ queryKey: ['mp-analytics-today'] });
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'marketplace_orders' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['mp-analytics-finance-summary'] });
+          queryClient.invalidateQueries({ queryKey: ['mp-analytics-today'] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
+  // TODAY live stats: sales + returns breakdown per platform
+  const { data: todayStats } = useQuery({
+    queryKey: ['mp-analytics-today'],
+    queryFn: async () => {
+      const todayStart = startOfDay(new Date()).toISOString();
+      const { data, error } = await supabase
+        .from('marketplace_orders')
+        .select('store_id, total_amount, status, marketplace_stores!inner(platform)')
+        .gte('ordered_at', todayStart);
+      if (error) throw error;
+      const result = { uzum: { orders: 0, revenue: 0, returns: 0 }, yandex: { orders: 0, revenue: 0, returns: 0 } };
+      for (const o of data || []) {
+        const platform = (o.marketplace_stores as any)?.platform as 'uzum' | 'yandex';
+        if (!result[platform]) continue;
+        const st = (o.status || '').toUpperCase();
+        if (st.includes('RETURN')) {
+          result[platform].returns++;
+        } else {
+          result[platform].orders++;
+          result[platform].revenue += o.total_amount || 0;
+        }
+      }
+      return result;
+    },
+    refetchInterval: 30000,
+  });
+
 
   // PRIMARY data source: aggregate from marketplace_orders directly (no VIEW needed)
   const { data: financeSummary, isLoading: financeLoading, refetch: refetchFinance } = useQuery({
@@ -541,7 +592,72 @@ export default function MarketplaceAnalytics() {
         );
       })()}
 
+      {/* Live Today's Snapshot */}
+      {todayStats && (
+        <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-gradient-to-r from-emerald-50/60 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-emerald-200/60 dark:border-emerald-800/40">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+              </span>
+              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 tracking-wide">LIVE</span>
+              <span className="text-xs text-muted-foreground">Bugungi sotuv tahlili — {format(new Date(), 'dd.MM.yyyy HH:mm')}</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-emerald-200/60 dark:divide-emerald-800/40">
+            {/* Uzum */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-base">🟣</span>
+                <span className="text-sm font-semibold text-purple-700 dark:text-purple-400">Uzum</span>
+              </div>
+              <div className="flex gap-4 flex-wrap">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sotuvlar</p>
+                  <p className="text-xl font-bold text-purple-700 dark:text-purple-400">{todayStats.uzum.orders}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Daromad</p>
+                  <p className="text-sm font-semibold">{new Intl.NumberFormat('uz-UZ').format(Math.round(todayStats.uzum.revenue))} UZS</p>
+                </div>
+                {todayStats.uzum.returns > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Qaytarilgan</p>
+                    <p className="text-sm font-semibold text-red-500">↩ {todayStats.uzum.returns}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Yandex */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-base">🟡</span>
+                <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Yandex</span>
+              </div>
+              <div className="flex gap-4 flex-wrap">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sotuvlar</p>
+                  <p className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{todayStats.yandex.orders}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Daromad</p>
+                  <p className="text-sm font-semibold">{new Intl.NumberFormat('uz-UZ').format(Math.round(todayStats.yandex.revenue))} UZS</p>
+                </div>
+                {todayStats.yandex.returns > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Qaytarilgan</p>
+                    <p className="text-sm font-semibold text-red-500">↩ {todayStats.yandex.returns}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Stats */}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
