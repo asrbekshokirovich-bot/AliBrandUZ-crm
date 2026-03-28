@@ -236,8 +236,8 @@ function DashboardContent() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-muted-foreground">{t('balance')}</p>
-                      <p className={`text-xl sm:text-2xl font-bold truncate ${(stats?.balance || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`} title={`$${stats?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`}>
-                        ${stats?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                      <p className={`text-xl sm:text-2xl font-bold truncate ${(stats?.balance || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`} title={`${stats?.balance?.toLocaleString('en-US') || '0'} UZS`}>
+                        {stats?.balance?.toLocaleString('en-US') || '0'} UZS
                       </p>
                     </div>
                   </div>
@@ -405,8 +405,8 @@ function DashboardContent() {
                         <TrendingUp className="h-4 w-4 text-green-500" />
                         <span className="text-sm text-muted-foreground">{t('dash_total_income')}</span>
                       </div>
-                      <span className="text-base sm:text-lg font-semibold text-green-500 truncate" title={`$${stats?.totalIncome?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`}>
-                        ${stats?.totalIncome?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                      <span className="text-base sm:text-lg font-semibold text-green-500 truncate" title={`${stats?.totalIncome?.toLocaleString('en-US') || '0'} UZS`}>
+                        {stats?.totalIncome?.toLocaleString('en-US') || '0'} UZS
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-muted rounded-lg gap-2">
@@ -414,8 +414,8 @@ function DashboardContent() {
                         <TrendingDown className="h-4 w-4 text-red-500" />
                         <span className="text-sm text-muted-foreground">{t('dash_total_expense')}</span>
                       </div>
-                      <span className="text-base sm:text-lg font-semibold text-red-500 truncate" title={`$${stats?.totalExpense?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`}>
-                        ${stats?.totalExpense?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                      <span className="text-base sm:text-lg font-semibold text-red-500 truncate" title={`${stats?.totalExpense?.toLocaleString('en-US') || '0'} UZS`}>
+                        {stats?.totalExpense?.toLocaleString('en-US') || '0'} UZS
                       </span>
                     </div>
                   </div>
