@@ -335,9 +335,9 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
               }
             }
           }
-        } else {
-          unmatchedOrders.push(...parsedData.acceptedOrders.map(o => o.orderNumber));
         }
+        // NOTE: If orders are not found in marketplace_orders, stock deduction is just skipped.
+        // This is expected for standard FBS handover — orders may not be synced.
       }
 
       // Update invoice with stock deduction status
@@ -359,11 +359,12 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
       } else {
         toast({ title: 'Nakladnoy saqlandi!' });
       }
-      if (unmatchedOrders && unmatchedOrders.length > 0) {
+      if (unmatchedOrders && unmatchedOrders.length > 0 && parsedData?.isProductReceipt) {
+        // Only warn about unmatched items in product receipt (ASL SKU) mode
         toast({
-          title: `${unmatchedOrders.length} ta topilmadi`,
+          title: `${unmatchedOrders.length} ta SKU zaxirada topilmadi`,
           description: `${unmatchedOrders.slice(0, 5).join(', ')}${unmatchedOrders.length > 5 ? '...' : ''}`,
-          variant: 'destructive',
+          variant: 'default',
         });
       }
       setParsedData(null);
