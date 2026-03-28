@@ -64,7 +64,7 @@ function DashboardContent() {
           products, boxes, shipments, financeBalance, 
           recentProducts, recentBoxes, 
           packingBoxesCount, sealedBoxesCount, inTransitBoxesCount, 
-          shipmentsInTransit
+          shipmentsInTransit, marketplaceOrders
         ] = await Promise.all([
           safeQuery(supabase.from('products').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true })),
@@ -76,17 +76,27 @@ function DashboardContent() {
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'sealed')),
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'in_transit')),
           safeQuery(supabase.from('shipments').select('id', { count: 'exact', head: true }).eq('status', 'in_transit')),
+          safeQuery(supabase.from('marketplace_orders').select('total_amount, status')),
         ]);
 
+        const mpData = marketplaceOrders?.data || [];
+        const marketplaceSales = mpData.reduce((sum: number, order: any) => {
+          if (order.status !== 'RETURNED' && order.status !== 'CANCELLED' && order.status !== 'auto_cancelled') {
+            return sum + (Number(order.total_amount) || 0);
+          }
+          return sum;
+        }, 0);
+
         const balanceData = (financeBalance?.data as any) || { total_income: 0, total_expense: 0, balance: 0 };
-        const totalIncome = Number(balanceData.total_income) || 0;
+        const totalIncome = (Number(balanceData.total_income) || 0) + marketplaceSales;
         const totalExpense = Number(balanceData.total_expense) || 0;
+        const finalBalance = (Number(balanceData.balance) || 0) + marketplaceSales;
 
         return {
           productsCount: products?.count || 0,
           boxesCount: boxes?.count || 0,
           shipmentsCount: shipments?.count || 0,
-          balance: Number(balanceData.balance) || 0,
+          balance: finalBalance,
           totalIncome,
           totalExpense,
           recentProducts: recentProducts?.data || [],
