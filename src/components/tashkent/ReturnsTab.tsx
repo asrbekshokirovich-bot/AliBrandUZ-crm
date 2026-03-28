@@ -270,13 +270,13 @@ export function ReturnsTab() {
         image_url: null,
       }));
 
-      const { error: insertErr } = await supabase
-        .from('marketplace_returns')
-        .insert(rows);
+      const { error: fnErr } = await supabase.functions.invoke('save-scanned-returns', {
+        body: { rows },
+      });
 
-      if (insertErr) {
-        console.error('marketplace_returns insert error:', insertErr);
-        toast.error('Saqlashda xatolik: ' + insertErr.message);
+      if (fnErr) {
+        console.error('save-scanned-returns error:', fnErr);
+        toast.error('Saqlashda xatolik: ' + fnErr.message);
       } else {
         toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
         queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
