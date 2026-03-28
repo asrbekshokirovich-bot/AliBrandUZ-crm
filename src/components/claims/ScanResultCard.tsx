@@ -122,22 +122,34 @@ export function ScanResultCard({ result, file, onDismiss }: ScanResultCardProps)
             </p>
           )}
 
-          {/* Items as badge grid (same layout as order numbers in nakladnoy) */}
+          {/* Items as 2-column table: product name | SKU barcode */}
           {result.items && result.items.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {result.items.map((item, idx) => (
-                <Badge
-                  key={idx}
-                  variant="outline"
-                  className="text-xs font-mono max-w-[200px] truncate"
-                  title={`${item.product_name} — ${item.quantity} dona — ${fmt(item.total_price)}`}
-                >
-                  {item.product_name || `Mahsulot ${idx + 1}`}
-                  {item.quantity > 1 && (
-                    <span className="ml-1 opacity-60">×{item.quantity}</span>
-                  )}
-                </Badge>
-              ))}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-medium">Mahsulot nomi</th>
+                    <th className="text-right px-3 py-2 text-muted-foreground font-medium w-40">SKU / Barcode</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.items.map((item, idx) => (
+                    <tr key={idx} className={cn('border-t border-border/40', idx % 2 === 0 ? 'bg-background' : 'bg-muted/20')}>
+                      <td className="px-3 py-1.5 truncate max-w-0 font-medium" title={item.product_name}>
+                        <div className="flex items-center gap-2">
+                          {item.quantity > 1 && (
+                            <span className="shrink-0 text-[10px] font-bold bg-primary/10 text-primary rounded px-1">×{item.quantity}</span>
+                          )}
+                          <span className="truncate">{item.product_name || '—'}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-muted-foreground shrink-0">
+                        {item.sku || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground italic">Mahsulotlar ro'yxati mavjud emas</p>
