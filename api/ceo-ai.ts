@@ -252,7 +252,7 @@ async function toolGetRecentMovements() {
   const moves = await supabaseQuery('/inventory_movements?select=movement_type,quantity,created_at,products(name)&order=created_at.desc&limit=30');
   
   return {
-    recent_activities: (moves || []).map((m: any) => `${m.products?.name || 'Noma\\'lum'} -> ${m.movement_type} (${m.quantity} ta) - ${new Date(m.created_at).toLocaleDateString('uz-UZ')}`)
+    recent_activities: (moves || []).map((m: any) => `${m.products?.name || "Noma'lum"} -> ${m.movement_type} (${m.quantity} ta) - ${new Date(m.created_at).toLocaleDateString('uz-UZ')}`)
   };
 }
 
@@ -261,7 +261,7 @@ async function toolGetTasks() {
   
   return {
     open_tasks_count: tasks?.length || 0,
-    tasks_list: (tasks || []).map((t: any) => `[${t.priority}] ${t.title} (Holati: ${t.status}, Muddat: ${t.due_date ? new Date(t.due_date).toLocaleDateString() : 'Yo\\'q'})`)
+    tasks_list: (tasks || []).map((t: any) => `[${t.priority}] ${t.title} (Holati: ${t.status}, Muddat: ${t.due_date ? new Date(t.due_date).toLocaleDateString() : "Yo'q"})`)
   };
 }
 
@@ -332,7 +332,6 @@ const TOOL_DEFINITIONS = [
         properties: { 
           start_date: { type: "string", description: "Boshlanish sanasi (masalan, 2026-03-25)" }, 
           end_date: { type: "string", description: "Tugash sanasi (masalan, 2026-03-25)" } 
-        },
         },
         required: ["start_date", "end_date"]
       }
