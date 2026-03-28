@@ -223,10 +223,9 @@ export function NewArrivalsTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (itemIds: string[]) => {
-      const { data, error } = await supabase
-        .from('product_items')
-        .delete()
-        .in('id', itemIds);
+      const { data, error } = await supabase.rpc('delete_pending_product_items', {
+        p_item_ids: itemIds
+      });
       
       if (error) throw error;
       return data;
