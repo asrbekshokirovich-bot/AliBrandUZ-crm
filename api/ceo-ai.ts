@@ -117,13 +117,19 @@ async function toolGetFinanceSummary(args: any) {
   const { start_date, end_date } = args;
   const start = start_date || new Date().toISOString().split('T')[0];
   const end = end_date || '2099-01-01';
-  const data = await supabaseQuery(`/finance_transactions?select=transaction_type,amount,description&created_at=gte.${start}T00:00:00&created_at=lte.${end}T23:59:59&limit=50`);
+  // Removed small limit to correctly aggregate totals across hundreds of transactions
+  const data = await supabaseQuery(`/finance_transactions?select=transaction_type,amount,currency,description&created_at=gte.${start}T00:00:00&created_at=lte.${end}T23:59:59&limit=1000`);
   
   let income = 0;
   let expense = 0;
   (data || []).forEach((t: any) => {
-    if (t.transaction_type === 'income') income += Number(t.amount);
-    if (t.transaction_type === 'expense') expense += Number(t.amount);
+    let amt = Number(t.amount) || 0;
+    // Valyutalarni so'mga o'girib umumiy statistikaga qo'shamiz
+    if (t.currency === 'CNY') amt = amt * 1750;
+    if (t.currency === 'USD') amt = amt * 12600;
+
+    if (t.transaction_type === 'income') income += amt;
+    if (t.transaction_type === 'expense') expense += amt;
   });
 
   return {
@@ -131,7 +137,7 @@ async function toolGetFinanceSummary(args: any) {
     total_income_uzs: income,
     total_expense_uzs: expense,
     net_profit_uzs: income - expense,
-    recent_transactions: (data || []).slice(0, 5)
+    recent_transactions: (data || []).slice(0, 10).map((t: any) => `${t.description} -> ${t.amount} ${t.currency} (${t.transaction_type})`)
   };
 }
 
@@ -194,7 +200,8 @@ async function toolGetMarketplaceSales(args: any) {
   const { start_date, end_date } = args;
   const start = start_date || new Date().toISOString().split('T')[0];
   const end = end_date || '2099-01-01';
-  const data = await supabaseQuery(`/marketplace_orders?select=platform,total_amount,status,items&order_created_at=gte.${start}T00:00:00&order_created_at=lte.${end}T23:59:59&limit=500`);
+  // Removed small limit to correctly aggregate totals across hundreds of orders
+  const data = await supabaseQuery(`/marketplace_orders?select=platform,total_amount,status,items&order_created_at=gte.${start}T00:00:00&order_created_at=lte.${end}T23:59:59&limit=1000`);
 
   let total_sales = 0;
   const itemsSold: Record<string, { qty: number, price: number }> = {};
