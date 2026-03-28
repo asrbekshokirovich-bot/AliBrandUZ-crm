@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Package, Truck, Calculator, Info, ShoppingCart, MapPin, Box, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { Package, Truck, Calculator, Info, ShoppingCart, MapPin, Box, CheckCircle, Clock, Loader2, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { LazyImage } from '@/components/ui/lazy-image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -221,6 +221,44 @@ export function NewArrivalsTab() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const { data, error } = await supabase
+        .from('product_items')
+        .delete()
+        .in('id', itemIds);
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: '✅ O\'chirildi!',
+        description: `Tanlangan mahsulotlar o'chirildi`,
+      });
+      setSelectedItems([]);
+      queryClient.invalidateQueries({ queryKey: ['tashkent-pending-arrivals'] });
+      queryClient.invalidateQueries({ queryKey: ['tashkent-confirmed-arrivals'] });
+      queryClient.invalidateQueries({ queryKey: ['tashkent-dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['tashkent-category-counts'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Xatolik',
+        description: 'O\'chirishda xatolik yuz berdi',
+        variant: 'destructive',
+      });
+      console.error('Delete error:', error);
+    },
+  });
+
+  const handleDeleteSelected = () => {
+    if (selectedItems.length === 0) return;
+    if (window.confirm('Haqiqatan ham ushbu mahsulotlarni o\'chirmoqchimisiz? Ushbu amalni ortga qaytarib bo\'lmaydi.')) {
+      deleteMutation.mutate(selectedItems);
+    }
+  };
+
   const handleConfirmSelected = () => {
     if (selectedItems.length === 0) return;
     confirmMutation.mutate(selectedItems);
@@ -386,22 +424,37 @@ export function NewArrivalsTab() {
             </div>
             <div className="flex gap-2">
               {selectedItems.length > 0 ? (
-                <Button 
-                  onClick={handleConfirmSelected}
-                  disabled={confirmMutation.isPending}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {confirmMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                  )}
-                  Tanlanganlarni tasdiqlash ({selectedItems.length})
-                </Button>
+                <>
+                  <Button 
+                    onClick={handleDeleteSelected}
+                    disabled={deleteMutation.isPending || confirmMutation.isPending}
+                    variant="outline"
+                    className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                  >
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    O'chirish ({selectedItems.length})
+                  </Button>
+                  <Button 
+                    onClick={handleConfirmSelected}
+                    disabled={confirmMutation.isPending || deleteMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {confirmMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Tasdiqlash ({selectedItems.length})
+                  </Button>
+                </>
               ) : (
                 <Button 
                   onClick={handleConfirmAll}
-                  disabled={confirmMutation.isPending}
+                  disabled={confirmMutation.isPending || deleteMutation.isPending}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   {confirmMutation.isPending ? (
@@ -454,9 +507,14 @@ export function NewArrivalsTab() {
                     </div>
                   </div>
                   {isPending && (
-                    <Button size="sm" variant="outline" onClick={() => confirmMutation.mutate(group.itemIds)} disabled={confirmMutation.isPending} className="text-green-600 border-green-600 hover:bg-green-50 flex-shrink-0 h-8">
-                      <CheckCircle className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-2 items-center flex-shrink-0">
+                      <Button size="icon" variant="outline" onClick={() => { if(window.confirm('O\'chirmoqchimisiz?')) deleteMutation.mutate(group.itemIds); }} disabled={confirmMutation.isPending || deleteMutation.isPending} className="text-red-500 border-red-200 hover:bg-red-50 h-8 w-8">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => confirmMutation.mutate(group.itemIds)} disabled={confirmMutation.isPending || deleteMutation.isPending} className="text-green-600 border-green-600 hover:bg-green-50 flex-shrink-0 h-8">
+                        <CheckCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
@@ -583,9 +641,15 @@ export function NewArrivalsTab() {
                     </TableCell>
                     {isPending && (
                       <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => confirmMutation.mutate(group.itemIds)} disabled={confirmMutation.isPending} className="text-green-600 border-green-600 hover:bg-green-50">
-                          {confirmMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4 mr-1" />{group.quantity > 1 ? `${group.quantity} ta` : 'Tasdiqlash'}</>}
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button size="icon" variant="outline" onClick={() => { if(window.confirm('O\'chirmoqchimisiz? Ushbu amal ortga qaytmaydi.')) deleteMutation.mutate(group.itemIds); }} disabled={confirmMutation.isPending || deleteMutation.isPending} className="text-red-500 border-red-200 hover:bg-red-50 h-8 w-8 rounded-md p-0">
+                            {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => confirmMutation.mutate(group.itemIds)} disabled={confirmMutation.isPending || deleteMutation.isPending} className="text-green-600 border-green-600 hover:bg-green-50 h-8">
+                            {confirmMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                            {group.quantity > 1 ? `${group.quantity} ta` : 'Tasdiqlash'}
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
