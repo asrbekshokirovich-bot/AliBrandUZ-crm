@@ -233,13 +233,79 @@ export function ReturnsTab() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannedDocs, setScannedDocs] = useState<Array<{ id: string; result: ScanResult; file?: File }>>([]);
 
-  const handleScannerResult = (data: ScanResult, file?: File) => {
+  const handleScannerResult = async (data: ScanResult, file?: File) => {
+    // Auto-detect platform from partner name
+    const partnerLower = (data.document?.partner || '').toLowerCase();
+    const platform = partnerLower.includes('yandex') ? 'yandex'
+      : partnerLower.includes('uzum') ? 'uzum'
+      : 'uzum'; // default
+
+    // Map document_type to return_type
+    const docType = (data.document?.document_type || '').toLowerCase();
+    const returnType = docType.includes('defect') || docType.includes('brak') ? 'fbs_defect'
+      : docType.includes('fbo') ? 'fbo_return'
+      : 'fbs_seller';
+
+    // Try to parse return_date
+    const returnDate = (() => {
+      try {
+        if (!data.document?.date) return new Date().toISOString();
+        // Parse DD.MM.YYYY HH:mm or ISO
+        const raw = data.document.date.trim();
+        const match = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+        if (match) return new Date(`${match[3]}-${match[2]}-${match[1]}`).toISOString();
+        return new Date(raw).toISOString();
+      } catch { return new Date().toISOString(); }
+    })();
+
+    const nakladnoyId = data.document?.document_number || crypto.randomUUID().slice(0, 8);
+
+    if (data.items && data.items.length > 0) {
+      const rows = data.items.map((item, idx) => ({
+        external_order_id: `scan-${nakladnoyId}-${idx}`,
+        platform,
+        store_name: data.document?.partner || 'Noma\'lum',
+        product_title: item.product_name || 'Noma\'lum mahsulot',
+        sku_title: item.sku || null,
+        quantity: item.quantity || 1,
+        amount: item.total_price || null,
+        currency: 'UZS',
+        return_type: returnType,
+        return_date: returnDate,
+        nakladnoy_id: nakladnoyId,
+        resolution: 'pending',
+        image_url: null,
+      }));
+
+      const { error } = await supabase
+        .from('marketplace_returns')
+        .upsert(rows, { onConflict: 'external_order_id,store_id' });
+
+      if (error) {
+        // store_id may be required — try without conflict constraint
+        const { error: error2 } = await supabase
+          .from('marketplace_returns')
+          .insert(rows.map(r => { const { ...rest } = r; return rest; }));
+
+        if (error2) {
+          toast.error('Saqlashda xatolik: ' + error2.message);
+        } else {
+          toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
+          queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
+        }
+      } else {
+        toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
+        queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
+      }
+    }
+
     setScannedDocs(prev => [
       { id: crypto.randomUUID(), result: data, file },
       ...prev,
     ]);
     setIsScannerOpen(false);
   };
+
 
   // Sync from Uzum nakladnoy API and FBO defects
   const handleSync = async () => {
