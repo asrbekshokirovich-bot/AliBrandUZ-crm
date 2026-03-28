@@ -247,18 +247,11 @@ export function ReturnsTab() {
       : 'fbs_seller';
 
     // Try to parse return_date
-    const returnDate = (() => {
-      try {
-        if (!data.document?.date) return new Date().toISOString();
-        // Parse DD.MM.YYYY HH:mm or ISO
-        const raw = data.document.date.trim();
-        const match = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
-        if (match) return new Date(`${match[3]}-${match[2]}-${match[1]}`).toISOString();
-        return new Date(raw).toISOString();
-      } catch { return new Date().toISOString(); }
-    })();
+    // Always use current date as return_date (when registered in system)
+    // Document date is just a reference, not the filter date
+    const returnDate = new Date().toISOString();
 
-    const nakladnoyId = data.document?.document_number || crypto.randomUUID().slice(0, 8);
+    const nakladnoyId = data.document?.document_number || `scan-${Date.now()}`;
 
     if (data.items && data.items.length > 0) {
       const rows = data.items.map((item, idx) => ({
@@ -282,6 +275,7 @@ export function ReturnsTab() {
         .insert(rows);
 
       if (insertErr) {
+        console.error('marketplace_returns insert error:', insertErr);
         toast.error('Saqlashda xatolik: ' + insertErr.message);
       } else {
         toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga qo'shildi`);
