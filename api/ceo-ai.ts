@@ -236,6 +236,35 @@ async function toolGetMarketplaceSales(args: any) {
   };
 }
 
+async function toolGetLogisticsStats() {
+  const boxes = await supabaseQuery('/boxes?select=box_number,status,location_type,weight,created_at&status=in.(packing,sealed,in_transit)&limit=100');
+  const shipments = await supabaseQuery('/shipments?select=shipment_number,status,carrier,departure_date,estimated_arrival&status=in.(pending,in_transit)&limit=50');
+  
+  return {
+    active_boxes_count: boxes?.length || 0,
+    active_boxes_summary: (boxes || []).slice(0, 15).map((b: any) => `${b.box_number} (Holati: ${b.status}, Joyi: ${b.location_type})`),
+    active_shipments_count: shipments?.length || 0,
+    active_shipments_summary: (shipments || []).slice(0, 10).map((s: any) => `${s.shipment_number} (Tashuvchi: ${s.carrier}, Holati: ${s.status})`)
+  };
+}
+
+async function toolGetRecentMovements() {
+  const moves = await supabaseQuery('/inventory_movements?select=movement_type,quantity,created_at,products(name)&order=created_at.desc&limit=30');
+  
+  return {
+    recent_activities: (moves || []).map((m: any) => `${m.products?.name || 'Noma\\'lum'} -> ${m.movement_type} (${m.quantity} ta) - ${new Date(m.created_at).toLocaleDateString('uz-UZ')}`)
+  };
+}
+
+async function toolGetTasks() {
+  const tasks = await supabaseQuery('/tasks?select=id,title,status,priority,due_date&status=neq.done&limit=30');
+  
+  return {
+    open_tasks_count: tasks?.length || 0,
+    tasks_list: (tasks || []).map((t: any) => `[${t.priority}] ${t.title} (Holati: ${t.status}, Muddat: ${t.due_date ? new Date(t.due_date).toLocaleDateString() : 'Yo\\'q'})`)
+  };
+}
+
 // Map tool names to functions
 const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
   search_products: toolSearchProducts,
@@ -243,6 +272,9 @@ const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
   get_finance_summary: toolGetFinanceSummary,
   analyze_inventory: toolAnalyzeInventory,
   get_marketplace_sales: toolGetMarketplaceSales,
+  get_logistics_stats: toolGetLogisticsStats,
+  get_recent_movements: toolGetRecentMovements,
+  get_tasks: toolGetTasks,
 };
 
 // Tool Definitions for OpenAI
@@ -301,8 +333,33 @@ const TOOL_DEFINITIONS = [
           start_date: { type: "string", description: "Boshlanish sanasi (masalan, 2026-03-25)" }, 
           end_date: { type: "string", description: "Tugash sanasi (masalan, 2026-03-25)" } 
         },
+        },
         required: ["start_date", "end_date"]
       }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_logistics_stats",
+      description: "Hozirgi vaqtda faol bo'lgan (yo'ldagi, qadoqlanayotgan, tekshirilayotgan) Qutilar (Boxes) va Jo'natmalar (Shipments) ro'yxati va holati haqida ma'lumot olish. Logistika holatini so'raganda ishlatiladi.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_recent_movements",
+      description: "Ombordagi so'nggi jismoniy harakatlar (ombordan chiqish, kirish, ko'chirish, brakka chiqish) ya'ni 'Mahsulot harakatlari' haqida oxirgi amallarni olish.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_tasks",
+      description: "Jarayonda bo'lgan yoki qilinishi kerak bo'lgan Vazifalar (Tasks) ro'yxatini va ularni qanchalik muhimligini olish.",
+      parameters: { type: "object", properties: {} }
     }
   }
 ];
@@ -320,7 +377,10 @@ QOIDALAR:
 4. Keltirilgan barcha pul qoldiqlarini o'qishda osonlashtir (masalan: 12,000,000 so'm).
 5. "Sen kimsan?" deb so'rashsa: "Men AliBrand tizimining aqlli CEO yordamchisi - Ali AI - man!" deb javob qaytar.
 6. Muammo ko'rsang, darhol xabar ber va chorasini pichiqla.
-7. QAT'IY QOIDA: Agar foydalanuvchi "sotuvlar ro'yxati", "nimalar sotildi", "sotuvlar" deb so'rasa 'get_marketplace_sales' qobiliyatini ishlat! Lekin "xarajatlar", "kassa", "moliya" deb so'rasa 'get_finance_summary' ni ishlat. Ikkalasini adashtirma!
+7. QAT'IY QOIDA: Agar foydalanuvchi "sotuvlar ro'yxati", "nimalar sotildi", "sotuvlar" deb so'rasa 'get_marketplace_sales' qobiliyatini ishlat! Lekin "xarajatlar", "kassa", "moliya" deb so'rasa 'get_finance_summary' ni ishlat.
+8. "Logistika", "Qutilar", "Yoldagi posilkalar", "Jo'natmalar" desa 'get_logistics_stats' qobiliyatini ishlat.
+9. "Ombordagi harakatlar", "nima qayerga ketdi" desa 'get_recent_movements' qobiliyatini ishlat.
+10. "Qanday vazifalar bor", "ishlar", "topshiriqlar" desa 'get_tasks' qobiliyatini ishlat.
 
 TANNARX VA UMUMIY MATEMATIKA:
 Joriy Xitoy > O'zbekiston valyuta kursi (CNY_TO_UZS): ~1750 UZS.
