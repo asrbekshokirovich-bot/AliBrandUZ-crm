@@ -109,11 +109,26 @@ export function BoxVerificationDialog({ box, open, onOpenChange }: BoxVerificati
   const verifyMutation = useMutation({
     mutationFn: async () => {
       if (!boxData || !user) throw new Error('Box or user not found');
+      // Track stock decrements for items already counted in 'in_tashkent' that are now marked damaged/missing
+      const decrements: Record<string, number> = {};
 
-      // Update each product item - OK mahsulotlar uchun arrived_pending status
+      // Update each product item - OK mahsulotlar uchun arrived_pending status (yoki in_tashkent)
       const updates = Object.entries(itemStatuses).map(([itemId, status]) => {
-        // TUZATISH: 'arrived' emas, 'arrived_pending' bo'lishi kerak
-        const dbStatus = status.status === 'ok' ? 'arrived_pending' : status.status;
+        const item = boxData.product_items?.find((i: any) => i.id === itemId);
+        let dbStatus = status.status === 'ok' ? 'arrived_pending' : status.status;
+        
+        // Agar item oldindan 'in_tashkent' bo'lsa (QR yordamida qabul qilingan bo'lsa) va 'ok' yorlig'ini olsa, statusini 'in_tashkent' holatida saqlab qolamiz.
+        if (item?.status === 'in_tashkent' && status.status === 'ok') {
+          dbStatus = 'in_tashkent';
+        }
+        
+        // Agar item oldindan 'in_tashkent' bo'lsa va endi 'damaged' yoki 'missing' holatiga o'tayotgan bo'lsa, 
+        // unda uni tashkent_manual_stock dan hisobdan chiqarish kerak.
+        if (item?.status === 'in_tashkent' && (status.status === 'damaged' || status.status === 'missing')) {
+          const productId = item.product_id;
+          decrements[productId] = (decrements[productId] || 0) + 1;
+        }
+
         return supabase
           .from('product_items')
           .update({
@@ -126,6 +141,18 @@ export function BoxVerificationDialog({ box, open, onOpenChange }: BoxVerificati
       });
 
       await Promise.all(updates);
+
+      // Decrement tashkent stock for items that transitioned from 'in_tashkent' to 'damaged'/'missing'
+      const decrementPromises = Object.entries(decrements).map(([productId, quantity]) => {
+        return supabase.rpc('decrement_tashkent_stock', {
+          p_product_id: productId,
+          p_quantity: quantity
+        });
+      });
+
+      if (decrementPromises.length > 0) {
+        await Promise.all(decrementPromises);
+      }
 
       // Update box verification status AND box status to 'arrived'
       await supabase
