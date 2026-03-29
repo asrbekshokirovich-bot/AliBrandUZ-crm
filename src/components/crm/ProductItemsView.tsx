@@ -211,15 +211,21 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
 
   // Group items by box for summary
   const boxSummary = useMemo(() => {
-    if (!itemSummary) return { inBoxes: [], noBox: 0, total: 0 };
+    if (!itemSummary) return { inBoxes: [], noBox: 0, total: 0, variantPending: {}, variantTracked: {} };
 
     const boxCounts: Record<string, { boxNumber: string; count: number }> = {};
     const variantPendingCounts: Record<string, number> = {};
+    const variantTrackedCounts: Record<string, number> = {};
     let noBoxCount = 0;
 
     itemSummary.forEach(item => {
+      // Count ALL active tracked items per variant
+      if (item.variant_id && !['sold', 'damaged', 'cancelled'].includes(item.status || 'pending')) {
+        variantTrackedCounts[item.variant_id] = (variantTrackedCounts[item.variant_id] || 0) + 1;
+      }
+
       // Count ONLY pending items per variant to avoid double-counting boxed items
-      if (item.variant_id && item.status === 'pending') {
+      if (item.variant_id && (item.status === 'pending' || !item.status)) {
         variantPendingCounts[item.variant_id] = (variantPendingCounts[item.variant_id] || 0) + 1;
       }
 
@@ -241,12 +247,19 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
     return {
       inBoxes: Object.values(boxCounts),
       variantPending: variantPendingCounts,
+      variantTracked: variantTrackedCounts,
       noBox: noBoxCount,
       total: itemSummary.length
     };
   }, [itemSummary]);
 
   const isLoadingData = (isLoading && expanded) || variantsLoading;
+
+  const getDetailedVariantStock = useCallback((v: any) => {
+    const manual = v.stock_quantity || 0;
+    const tracked = boxSummary.variantTracked[v.id] || 0;
+    return manual + tracked;
+  }, [boxSummary.variantTracked]);
 
   // Grouping keys
   const groupingKeys = useMemo(() => getGroupingKeys(variants || []), [variants]);
@@ -261,15 +274,15 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
   const pieData = useMemo(() => {
     if (!variants || variants.length === 0) return [];
     return variants
-      .filter((v) => (v.stock_quantity || 0) > 0)
+      .filter((v) => getDetailedVariantStock(v) > 0)
       .map((v) => {
         const attrs = v.variant_attributes as Record<string, any>;
         return {
           name: formatVariantAttributes(attrs),
-          value: v.stock_quantity || 0,
+          value: getDetailedVariantStock(v),
         };
       });
-  }, [variants]);
+  }, [variants, getDetailedVariantStock]);
 
   if (isLoadingData && expanded) {
     return (
@@ -338,10 +351,10 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
             </div>
           </div>
           <Badge
-            variant={(variant.stock_quantity || 0) > 0 ? "default" : "secondary"}
+            variant={getDetailedVariantStock(variant) > 0 ? "default" : "secondary"}
             className="text-sm"
           >
-            {variant.stock_quantity || 0} dona
+            {getDetailedVariantStock(variant)} dona
           </Badge>
         </div>
       </Card>
@@ -356,13 +369,13 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
           {variants.map((variant) => {
             const attrs = variant.variant_attributes as Record<string, any>;
             const colorHex = getColorFromAttrs(attrs);
-            const localStock = variant.stock_quantity || 0;
+            const localStock = getDetailedVariantStock(variant);
             const pendingStock = boxSummary?.variantPending?.[variant.id] || 0;
-            const totalStock = localStock + pendingStock;
+            const totalStock = localStock; // getDetailedVariantStock includes pending if its tracked
             
             // Faol buyurtmalar bor paytida, Faol qismi 0 bo'lgan eski/nol variantlarni umuman ekrandan yashiramiz
             const hasAnyPending = Object.values(boxSummary?.variantPending || {}).some(count => count > 0);
-            if (hasAnyPending && pendingStock === 0) {
+            if (hasAnyPending && pendingStock === 0 && totalStock === 0) {
               return null;
             }
 
@@ -432,12 +445,12 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
         <Package className="h-4 w-4" />
         {hasVariants && variants ? (
           <span>
-            {itemSummary?.some(i => i.status === 'pending') 
+            {itemSummary?.some(i => i.status === 'pending' || !i.status) 
               ? `Jami faol: ${variants.reduce((sum, v) => sum + (boxSummary?.variantPending?.[v.id] || 0), 0)} dona (${variants.length} variant)`
-              : `Jami zaxira: ${variants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0)} dona (${variants.length} variant)`}
+              : `Jami zaxira: ${variants.reduce((sum, v) => sum + getDetailedVariantStock(v), 0)} dona (${variants.length} variant)`}
           </span>
         ) : (
-          <span>{itemSummary?.some(i => i.status === 'pending') ? `Faol: ${boxSummary?.total || items?.length || 0} ta` : `Jami: ${boxSummary?.total || items?.length || 0} ta`} individual mahsulot</span>
+          <span>{itemSummary?.some(i => i.status === 'pending' || !i.status) ? `Faol: ${boxSummary?.total || items?.length || 0} ta` : `Jami: ${boxSummary?.total || items?.length || 0} ta`} individual mahsulot</span>
         )}
         {itemCounts && Object.keys(itemCounts).length > 0 && (
           <span className="text-xs">
@@ -548,7 +561,7 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
                           {groupValue}
                         </p>
                         <Badge variant="secondary" className="text-xs">
-                          {groupVariants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0)} dona
+                          {groupVariants.reduce((sum, v) => sum + getDetailedVariantStock(v), 0)} dona
                         </Badge>
                       </div>
                       {groupVariants.map(renderVariantCard)}
