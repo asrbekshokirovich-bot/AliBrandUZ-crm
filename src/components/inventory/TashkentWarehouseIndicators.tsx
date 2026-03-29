@@ -1237,15 +1237,19 @@ export function TashkentWarehouseIndicators({
                                 <Package className="h-3 w-3" />
                                 {group.variants.length} variant
                               </Badge>
-                              {group.variants.slice(0, 4).map((v, i) => (
-                                <span
-                                  key={i}
-                                  className="inline-block w-3.5 h-3.5 rounded-full border-2 border-gray-400 shadow-sm"
-                                  style={{ backgroundColor: getColorHex(v.variantAttributes?.rang) }}
-                                  title={v.variantLabel || ''}
-                                />
-                              ))}
-                              {group.variants.length > 4 && <span className="text-xs text-muted-foreground">+{group.variants.length - 4}</span>}
+                              {group.variants.slice(0, 4).map((v, i) => {
+                                const vStock = v.is_tracked ? (v.tashkent_count || 0) : (v.tashkent_manual_stock ?? v.tashkent_count ?? 0);
+                                return (
+                                  <div key={i} className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 rounded-full pr-1.5 pl-0.5 py-0.5 border border-slate-200 dark:border-slate-700/50" title={v.variantLabel || ''}>
+                                    <span
+                                      className="inline-block w-3 h-3 rounded-full border border-gray-300 dark:border-gray-600 shadow-sm"
+                                      style={{ backgroundColor: getColorHex(v.variantAttributes?.rang) }}
+                                    />
+                                    <span className="text-[10px] font-medium leading-none text-slate-700 dark:text-slate-300">{vStock}</span>
+                                  </div>
+                                );
+                              })}
+                              {group.variants.length > 4 && <span className="text-xs text-muted-foreground ml-1">+{group.variants.length - 4}</span>}
                             </div>
                             {group.notes && <span className="text-xs text-amber-600 dark:text-amber-400">📝 {group.notes}</span>}
                           </div>
