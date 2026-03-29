@@ -551,10 +551,7 @@ export default function TashkentDashboard() {
             <RotateCcw className="h-4 w-4" />
             <span className="hidden sm:inline">Vozvratlar</span>
           </TabsTrigger>
-          <TabsTrigger value="supply-invoices" className="gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Yetkazib berish</span>
-          </TabsTrigger>
+
           <TabsTrigger value="handover" className="gap-2">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Nakladnoylar</span>
