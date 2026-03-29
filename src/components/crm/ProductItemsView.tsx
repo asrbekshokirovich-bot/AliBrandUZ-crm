@@ -211,17 +211,22 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
 
   // Group items by box for summary
   const boxSummary = useMemo(() => {
-    if (!itemSummary) return { inBoxes: [], noBox: 0, total: 0, variantPending: {}, variantTracked: {} };
+    if (!itemSummary) return { inBoxes: [], noBox: 0, total: 0, variantPending: {}, variantTracked: {}, unassignedVariantTracked: 0 };
 
     const boxCounts: Record<string, { boxNumber: string; count: number }> = {};
     const variantPendingCounts: Record<string, number> = {};
     const variantTrackedCounts: Record<string, number> = {};
+    let unassignedVariantTracked = 0;
     let noBoxCount = 0;
 
     itemSummary.forEach(item => {
       // Count ALL active tracked items per variant
-      if (item.variant_id && !['sold', 'damaged', 'cancelled'].includes(item.status || 'pending')) {
-        variantTrackedCounts[item.variant_id] = (variantTrackedCounts[item.variant_id] || 0) + 1;
+      if (!['sold', 'damaged', 'cancelled'].includes(item.status || 'pending')) {
+        if (item.variant_id) {
+          variantTrackedCounts[item.variant_id] = (variantTrackedCounts[item.variant_id] || 0) + 1;
+        } else {
+          unassignedVariantTracked++;
+        }
       }
 
       // Count ONLY pending items per variant to avoid double-counting boxed items
@@ -248,6 +253,7 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
       inBoxes: Object.values(boxCounts),
       variantPending: variantPendingCounts,
       variantTracked: variantTrackedCounts,
+      unassignedVariantTracked,
       noBox: noBoxCount,
       total: itemSummary.length
     };
@@ -256,8 +262,8 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
   const isLoadingData = (isLoading && expanded) || variantsLoading;
 
   const getDetailedVariantStock = useCallback((v: any) => {
-    const manual = v.stock_quantity || 0;
-    const tracked = boxSummary.variantTracked[v.id] || 0;
+    const manual = Number(v.stock_quantity) || 0;
+    const tracked = Number(boxSummary.variantTracked?.[v.id]) || 0;
     return manual + tracked;
   }, [boxSummary.variantTracked]);
 
@@ -452,6 +458,13 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
         ) : (
           <span>{itemSummary?.some(i => i.status === 'pending' || !i.status) ? `Faol: ${boxSummary?.total || items?.length || 0} ta` : `Jami: ${boxSummary?.total || items?.length || 0} ta`} individual mahsulot</span>
         )}
+        
+        {boxSummary?.unassignedVariantTracked > 0 && (
+          <Badge variant="destructive" className="ml-2 text-xs opacity-90">
+            Variantsiz tizimda: {boxSummary.unassignedVariantTracked} ta
+          </Badge>
+        )}
+
         {itemCounts && Object.keys(itemCounts).length > 0 && (
           <span className="text-xs">
             ({Object.entries(itemCounts).map(([status, count]) =>
