@@ -57,7 +57,7 @@ export default function ShipmentDetail() {
       const boxIds = links.map(l => l.box_id);
       const { data: boxes, error } = await supabase
         .from('boxes')
-        .select('*')
+        .select('*, product_items(weight_grams)')
         .in('id', boxIds)
         .order('box_number', { ascending: true });
       if (error) throw error;
@@ -152,11 +152,18 @@ export default function ShipmentDetail() {
   // Calculate aggregated stats
   const stats = {
     totalBoxes: shipmentBoxes?.length || 0,
-    totalWeight: shipmentBoxes?.reduce((sum, b) => sum + (Number(b.weight_kg) || 0), 0) || 0,
-    totalVolume: shipmentBoxes?.reduce((sum, b) => sum + (Number(b.volume_m3) || 0), 0) || 0,
-    totalCost: shipmentBoxes?.reduce((sum, b) => sum + (Number(b.shipping_cost) || 0), 0) || 0,
-    arrivedCount: shipmentBoxes?.filter(b => b.status === 'arrived' || b.status === 'delivered').length || 0,
-    inTransitCount: shipmentBoxes?.filter(b => b.status === 'in_transit').length || 0,
+    // Weight from product_items.weight_grams (boxes.weight_kg is often empty)
+    totalWeight: (shipmentBoxes?.reduce((sum, b) => {
+      const itemsWeight = ((b as any).product_items || []).reduce(
+        (s: number, i: any) => s + (Number(i.weight_grams) || 0), 0
+      );
+      // Use product_items weight if available, fallback to box.weight_kg
+      return sum + (itemsWeight > 0 ? itemsWeight / 1000 : (Number((b as any).weight_kg) || 0));
+    }, 0) || 0),
+    totalVolume: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).volume_m3) || 0), 0) || 0,
+    totalCost: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).shipping_cost) || 0), 0) || 0,
+    arrivedCount: shipmentBoxes?.filter(b => (b as any).status === 'arrived' || (b as any).status === 'delivered').length || 0,
+    inTransitCount: shipmentBoxes?.filter(b => (b as any).status === 'in_transit').length || 0,
   };
   
   return (
