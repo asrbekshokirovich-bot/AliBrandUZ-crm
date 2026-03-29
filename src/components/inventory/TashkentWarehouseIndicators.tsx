@@ -615,8 +615,9 @@ export function TashkentWarehouseIndicators({
     indicator.avg_daily_sales ?? 0;
 
   const getTotalStock = (indicator: ProductIndicator) => {
-    const tashkentStock = indicator.tashkent_manual_stock ?? indicator.tashkent_count;
-    return tashkentStock;
+    return indicator.is_tracked 
+      ? (indicator.tashkent_count || 0) 
+      : (indicator.tashkent_manual_stock ?? indicator.tashkent_count ?? 0);
   };
 
   const calculateStockoutDate = (indicator: ProductIndicator) => {
@@ -1103,7 +1104,7 @@ export function TashkentWarehouseIndicators({
                     const indicator = group.variants[0];
                     const stockoutDate = calculateStockoutDate(indicator);
                     const badgeVariant = getStockoutBadgeVariant(stockoutDate);
-                    const tashkentStock = indicator.tashkent_manual_stock ?? indicator.tashkent_count;
+                    const tashkentStock = getTotalStock(indicator);
                     const reorderQty = calculateReorderQty(indicator);
 
                     return (
@@ -1359,7 +1360,7 @@ export function TashkentWarehouseIndicators({
                       {isOpen && group.variants.map((indicator) => {
                         const stockoutDate = calculateStockoutDate(indicator);
                         const badgeVariant = getStockoutBadgeVariant(stockoutDate);
-                        const tashkentStock = indicator.tashkent_manual_stock ?? indicator.tashkent_count;
+                        const tashkentStock = getTotalStock(indicator);
                         const reorderQty = calculateReorderQty(indicator);
 
                         return (
