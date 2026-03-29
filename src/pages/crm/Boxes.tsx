@@ -1429,6 +1429,30 @@ export default function Boxes() {
                   })()}
                 </div>
 
+                {/* Xitoydan Abu Sahiy omboriga yo'lkira */}
+                <div
+                  className="mb-3 flex items-center justify-between p-2 rounded-lg border border-border/50 bg-muted/30 cursor-pointer hover:bg-muted/60 transition-colors"
+                  onClick={() => {
+                    setBoxToEditCosts(box);
+                    setEditCostsForm({
+                      shippingCost: box.shipping_cost?.toString() || '0',
+                      packagingFee: box.packaging_fee?.toString() || '0',
+                      volumeM3: box.volume_m3?.toString() || '0'
+                    });
+                    setEditCostsDialogOpen(true);
+                  }}
+                >
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Package className="h-3 w-3" />
+                    Xitoy → Abu Sahiy yo'lkira:
+                  </span>
+                  <span className={`text-xs font-semibold ${box.shipping_cost > 0 ? 'text-blue-500' : 'text-muted-foreground'}`}>
+                    {box.shipping_cost > 0
+                      ? `$${Number(box.shipping_cost).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+                      : '— Belgilang'}
+                  </span>
+                </div>
+
                 <div className="mb-3">
                   <p className="text-xs text-muted-foreground mb-1">Holat:</p>
                   <Select 
