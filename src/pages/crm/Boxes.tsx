@@ -1522,15 +1522,7 @@ export default function Boxes() {
                     <PackagePlus className="h-4 w-4" />
                     <span className="text-xs sm:text-sm">{t('box_pack')}</span>
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-1.5 min-h-[40px]"
-                    onClick={() => handleViewQR(box)}
-                  >
-                    <QrCode className="h-4 w-4" />
-                    <span className="text-xs sm:text-sm">QR</span>
-                  </Button>
+
                   {canVerifyChina && box.location === 'china' && !box.verification_complete && (
                     <Button 
                       variant="outline" 
@@ -1593,14 +1585,7 @@ export default function Boxes() {
                   )}
                 </div>
                 
-                <div style={{ display: 'none' }}>
-                  <QRCodeCanvas 
-                    id={`qr-${box.id}`}
-                    value={box.id}
-                    size={256}
-                    level="M"
-                  />
-                </div>
+
               </Card>
             )})}
           </div>
@@ -1616,42 +1601,7 @@ export default function Boxes() {
         )}
       </Card>
 
-      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-        <DialogContent className="bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">
-              QR Kod - {selectedBox?.box_number}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedBox && (
-            <div className="flex flex-col items-center gap-4">
-              <QRCodeSVG 
-                value={selectedBox.id}
-                size={200}
-                level="M"
-              />
-              <div className="text-center">
-               <p className="text-sm text-muted-foreground mb-2">
-                   {t('box_qr_location')} {selectedBox.location}
-                 </p>
-                 <p className="text-xs text-muted-foreground">
-                   {t('box_qr_created')} {new Date(selectedBox.created_at).toLocaleDateString('uz-UZ')}
-                </p>
-              </div>
-              <Button 
-                className="w-full gap-2 bg-primary hover:bg-primary/90"
-                onClick={() => {
-                  printQRCode(selectedBox);
-                  setQrDialogOpen(false);
-                }}
-              >
-                <Printer className="h-4 w-4" />
-                 {t('box_print_qr')}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
 
       <BoxPackingDialog
         box={selectedBox}
