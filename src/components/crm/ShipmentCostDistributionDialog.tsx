@@ -165,14 +165,32 @@ export function ShipmentCostDistributionDialog({
         }
       }
       
-      // Call the database function to distribute international shipping by weight
-      const { error } = await supabase.rpc('distribute_shipping_by_weight', {
-        p_box_ids: boxIds,
-        p_total_shipping_cost: shippingCost,
-      });
-      
-      if (error) throw error;
-      
+      // Distribute international shipping cost by weight (JS side — no DB function needed)
+      // Fetch updated weights from DB after saving them above
+      const { data: updatedItems, error: fetchErr } = await supabase
+        .from('product_items')
+        .select('id, weight_grams')
+        .in('box_id', boxIds);
+
+      if (fetchErr) throw fetchErr;
+
+      const items = updatedItems || [];
+      const totalW = items.reduce((s, i) => s + (Number(i.weight_grams) || 0), 0);
+
+      for (const item of items) {
+        const weight = Number(item.weight_grams) || 0;
+        const share = totalW > 0
+          ? (weight / totalW) * shippingCost
+          : shippingCost / items.length; // equal split if no weights
+
+        const { error: updateErr } = await supabase
+          .from('product_items')
+          .update({ international_shipping_cost: share })
+          .eq('id', item.id);
+
+        if (updateErr) throw updateErr;
+      }
+
       return shippingCost;
     },
     onSuccess: (cost) => {
