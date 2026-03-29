@@ -368,13 +368,32 @@ export default function Boxes() {
       if (shippingCost && shippingCost > 0) {
         const uzsRate = customRates[boxId]?.uzsRate ?? (exchangeRates?.UZS || 12850);
         
-        const { error: distError } = await supabase.rpc('auto_distribute_box_shipping_cost', {
+        let distError;
+
+        // Try the new signature with packaging_fee
+        const { error: newErr } = await supabase.rpc('auto_distribute_box_shipping_cost', {
           p_box_id: boxId,
           p_shipping_cost: shippingCost,
           p_volume_m3: volumeM3 || 0,
           p_usd_to_uzs: uzsRate,
           p_packaging_fee: packagingFee || 0,
         });
+
+        if (newErr) {
+          if (newErr.message?.includes('schema cache') || newErr.code === 'PGRST202') {
+            console.warn("Falling back to old signature because p_packaging_fee parameter was missing in DB schema cache.");
+            // Fall back to old signature
+            const { error: oldErr } = await supabase.rpc('auto_distribute_box_shipping_cost', {
+              p_box_id: boxId,
+              p_shipping_cost: shippingCost,
+              p_volume_m3: volumeM3 || 0,
+              p_usd_to_uzs: uzsRate,
+            } as any);
+            distError = oldErr;
+          } else {
+            distError = newErr;
+          }
+        }
         
         if (distError) throw distError;
       }
