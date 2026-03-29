@@ -264,7 +264,7 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
   const getDetailedVariantStock = useCallback((v: any) => {
     const manual = Number(v.stock_quantity) || 0;
     const tracked = Number(boxSummary.variantTracked?.[v.id]) || 0;
-    return manual + tracked;
+    return Math.max(manual, tracked);
   }, [boxSummary.variantTracked]);
 
   // Grouping keys
