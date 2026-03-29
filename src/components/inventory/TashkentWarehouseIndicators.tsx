@@ -193,7 +193,7 @@ export function TashkentWarehouseIndicators({
       // Get product item counts - include ALL items so we can detect if a product is actively tracked
       const { data: itemCounts } = await supabase
         .from('product_items')
-        .select('product_id, status, box_id')
+        .select('product_id, variant_id, status, box_id')
         .not('status', 'is', null);
 
       // Get full cost data per variant/product from product_items
@@ -257,6 +257,7 @@ export function TashkentWarehouseIndicators({
 
       itemCounts?.forEach(item => {
         isTrackedProduct[item.product_id] = true;
+        const key = item.variant_id || item.product_id;
         
         const isTransitBox = item.box_id && transitBoxIds.includes(item.box_id);
         const isInTransit = item.status === 'in_transit' ||
@@ -266,13 +267,13 @@ export function TashkentWarehouseIndicators({
           (item.status === 'packed' && !isTransitBox);
 
         if (isInTransit) {
-          transitCounts[item.product_id] = (transitCounts[item.product_id] || 0) + 1;
+          transitCounts[key] = (transitCounts[key] || 0) + 1;
         } else if (item.status === 'in_tashkent') {
-          tashkentCounts[item.product_id] = (tashkentCounts[item.product_id] || 0) + 1;
+          tashkentCounts[key] = (tashkentCounts[key] || 0) + 1;
         } else if (item.status === 'arrived_pending') {
-          arrivedPendingCounts[item.product_id] = (arrivedPendingCounts[item.product_id] || 0) + 1;
+          arrivedPendingCounts[key] = (arrivedPendingCounts[key] || 0) + 1;
         } else if (isChina) {
-          chinaCounts[item.product_id] = (chinaCounts[item.product_id] || 0) + 1;
+          chinaCounts[key] = (chinaCounts[key] || 0) + 1;
         }
       });
 
@@ -313,10 +314,10 @@ export function TashkentWarehouseIndicators({
               avg_daily_sales: product.avg_daily_sales,
               tashkent_manual_stock: variant.stock_quantity,
               tashkent_section: product.tashkent_section,
-              china_count: chinaCounts[product.id] || 0,
-              in_transit_count: transitCounts[product.id] || 0,
-              tashkent_count: tashkentCounts[product.id] || 0,
-              arrived_pending_count: arrivedPendingCounts[product.id] || 0,
+              china_count: chinaCounts[variant.id] || 0,
+              in_transit_count: transitCounts[variant.id] || 0,
+              tashkent_count: tashkentCounts[variant.id] || 0,
+              arrived_pending_count: arrivedPendingCounts[variant.id] || 0,
               is_tracked: isTrackedProduct[product.id] || false,
               notes: product.notes,
             });
@@ -769,9 +770,9 @@ export function TashkentWarehouseIndicators({
       main_image_url: product.main_image_url,
       tashkent_section: product.tashkent_section,
       notes: product.notes,
-      china_count: product.china_count,
-      in_transit_count: product.in_transit_count,
-      arrived_pending_count: product.arrived_pending_count,
+      china_count: variants.length > 0 ? variants.reduce((sum, v) => sum + (v.china_count || 0), 0) : product.china_count,
+      in_transit_count: variants.length > 0 ? variants.reduce((sum, v) => sum + (v.in_transit_count || 0), 0) : product.in_transit_count,
+      arrived_pending_count: variants.length > 0 ? variants.reduce((sum, v) => sum + (v.arrived_pending_count || 0), 0) : product.arrived_pending_count,
       avg_daily_sales: product.avg_daily_sales,
       variants: variants.length > 0 ? variants : [product],
       isMultiVariant: variants.length > 1,
