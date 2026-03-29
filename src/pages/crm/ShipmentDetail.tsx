@@ -57,7 +57,7 @@ export default function ShipmentDetail() {
       const boxIds = links.map(l => l.box_id);
       const { data: boxes, error } = await supabase
         .from('boxes')
-        .select('*, product_items(weight_grams)')
+        .select('*, product_items(weight_grams, product_variants(weight))')
         .in('id', boxIds)
         .order('box_number', { ascending: true });
       if (error) throw error;
@@ -152,12 +152,12 @@ export default function ShipmentDetail() {
   // Calculate aggregated stats
   const stats = {
     totalBoxes: shipmentBoxes?.length || 0,
-    // Weight from product_items.weight_grams (boxes.weight_kg is often empty)
+    // Weight from product_items.weight_grams or product_variants.weight (boxes.weight_kg is often empty)
     totalWeight: (shipmentBoxes?.reduce((sum, b) => {
       const itemsWeight = ((b as any).product_items || []).reduce(
-        (s: number, i: any) => s + (Number(i.weight_grams) || 0), 0
+        (s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0
       );
-      // Use product_items weight if available, fallback to box.weight_kg
+      // Use aggregated items weight if available, fallback to box.weight_kg
       return sum + (itemsWeight > 0 ? itemsWeight / 1000 : (Number((b as any).weight_kg) || 0));
     }, 0) || 0),
     totalVolume: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).volume_m3) || 0), 0) || 0,
@@ -340,7 +340,12 @@ export default function ShipmentDetail() {
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-foreground">{box.box_number}</h4>
                           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-1">
-                            {box.weight_kg && <span>{Number(box.weight_kg).toFixed(2)} kg</span>}
+                            {(() => {
+                              const bWeight = Number(box.weight_kg) || 0;
+                              const iWeight = ((box as any).product_items || []).reduce((s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0) / 1000;
+                              const finalW = iWeight > 0 ? iWeight : bWeight;
+                              return finalW > 0 ? <span>{finalW.toFixed(2)} kg</span> : null;
+                            })()}
                             {box.volume_m3 && <span>{Number(box.volume_m3).toFixed(4)} m³</span>}
                             {box.shipping_cost && <span>${Number(box.shipping_cost).toFixed(0)}</span>}
                             {box.product_description && (
