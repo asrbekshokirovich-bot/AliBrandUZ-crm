@@ -257,8 +257,12 @@ export default function MarketplaceOrders() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await supabase.functions.invoke('marketplace-auto-sync', {
+        body: { sync_type: 'orders', trigger_ai: false, auto: false }
+      });
       await queryClient.invalidateQueries({ queryKey: ['marketplace-orders'] });
       await queryClient.invalidateQueries({ queryKey: ['marketplace-orders-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['marketplace-platform-stats'] });
     } finally {
       setIsRefreshing(false);
     }

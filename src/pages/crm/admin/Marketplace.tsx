@@ -191,21 +191,37 @@ export default function MarketplaceAdmin() {
     let errors = 0;
 
     // Invoke all stores in parallel
-    const promises = activeStoresList.map(store =>
-      supabase.functions.invoke(getFunctionName(store.platform, syncType), {
-        body: getBody(store.id, syncType),
-      }).then(result => {
+    const promises = activeStoresList.map(async store => {
+      try {
+        const result = await supabase.functions.invoke(getFunctionName(store.platform, syncType), {
+          body: getBody(store.id, syncType),
+        });
+        
+        // Ensure FBU orders are also synced for Uzum stores
+        if (store.platform === 'uzum' && syncType === 'orders') {
+          try {
+            await supabase.functions.invoke('uzum-finance', {
+              body: { store_id: store.id, action: 'sync_fbu_orders' }
+            });
+            await supabase.functions.invoke('uzum-finance', {
+              body: { store_id: store.id, action: 'scan_recent_fbu_orders' }
+            });
+          } catch (e) {
+            console.error("FBU sync failed for " + store.id, e);
+          }
+        }
+
         completed++;
         if (result.error || result.data?.error) errors++;
         setSyncProgress(prev => prev ? { ...prev, completed, errors } : null);
         return { store, result };
-      }).catch(err => {
+      } catch (err) {
         completed++;
         errors++;
         setSyncProgress(prev => prev ? { ...prev, completed, errors } : null);
         return { store, error: err };
-      })
-    );
+      }
+    });
 
     await Promise.allSettled(promises);
 
@@ -302,6 +318,21 @@ export default function MarketplaceAdmin() {
           ...(syncType === 'stocks' ? { action: 'sync' } : {}),
         },
       });
+
+      // Ensure FBU orders are also synced for Uzum stores
+      if (platform === 'uzum' && syncType === 'orders') {
+        try {
+          await supabase.functions.invoke('uzum-finance', {
+            body: { store_id: storeId, action: 'sync_fbu_orders' }
+          });
+          await supabase.functions.invoke('uzum-finance', {
+            body: { store_id: storeId, action: 'scan_recent_fbu_orders' }
+          });
+        } catch (e) {
+          console.error("FBU sync failed for " + storeId, e);
+        }
+      }
+
       if (error) throw error;
       return data;
     },
