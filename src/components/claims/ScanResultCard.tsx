@@ -47,113 +47,128 @@ export function ScanResultCard({ result, file, onDismiss }: ScanResultCardProps)
   const descLine = [docDate, docType, partner].filter(Boolean).join('  ');
 
   return (
-    <Card className="overflow-hidden">
-      {/* ── Collapsible trigger (same style as HandoverInvoicesTab) ── */}
+    <Card className="overflow-hidden border-border/50 shadow-sm transition-all duration-300 hover:shadow-md hover:border-primary/20">
       <button
         type="button"
-        className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors text-left"
+        className="w-full px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-background to-muted/10 hover:bg-muted/30 transition-colors text-left"
         onClick={() => setExpanded(v => !v)}
       >
-        <div className="flex items-center gap-3">
-          <FileText className="h-5 w-5 text-primary shrink-0" />
-          <div>
-            <p className="font-semibold text-foreground">
-              {docNumber ? `№${docNumber}` : 'Skanerlangan hujjat'}
-            </p>
-            <p className="text-xs text-muted-foreground">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shadow-sm shrink-0 border border-primary/10">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="font-semibold text-[15px] text-foreground flex flex-wrap items-center gap-2">
+              {docNumber ? `№ ${docNumber}` : 'Skanerlangan hujjat'}
+              {docType && (
+                <Badge variant="secondary" className="text-[10px] tracking-wide uppercase font-bold bg-muted/60 border-border/40 text-muted-foreground">
+                  {docType}
+                </Badge>
+              )}
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground font-medium">
               {[fileName, fileSize].filter(Boolean).join(' · ')}
-              {partner && fileName ? ` · ${partner}` : partner}
-            </p>
+              {partner && (
+                <span className="flex items-center gap-1.5 text-foreground/70 before:content-['•'] before:text-muted/40">
+                  {partner}
+                </span>
+              )}
+              {docDate && (
+                <span className="flex items-center gap-1 text-foreground/70 justify-center before:content-['•'] before:text-muted/40 before:mr-1">
+                  <Clock className="h-3 w-3" /> {docDate}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* View button */}
+        <div className="flex flex-wrap items-center gap-3 shrink-0 self-end md:self-auto">
           {fileUrl && (
             <Button
               size="sm"
               variant="outline"
-              className="h-7 px-2 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+              className="h-8 text-xs font-semibold shadow-sm border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transition-all"
               onClick={openDocument}
             >
-              <Eye className="h-3.5 w-3.5" />
-              Hujjatni ko'rish
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              Ko'rish
             </Button>
           )}
 
-          {/* Item count badge */}
-          <Badge variant="default" className="gap-1 text-xs">
-            <Clock className="h-3 w-3" />
-            {totalItems}
+          <Badge variant="outline" className="h-8 px-3 gap-1.5 text-sm font-semibold bg-background shadow-sm border-border/60">
+            <span className="text-foreground">{totalItems} <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider ml-0.5">ta</span></span>
+            {(result.total_value ?? 0) > 0 && (
+              <>
+                <span className="text-muted/30">|</span>
+                <span className="text-primary">{fmt(result.total_value)} UZS</span>
+              </>
+            )}
           </Badge>
 
-          {/* Dismiss */}
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            className="h-8 w-8 p-0 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors ml-1"
             onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-            title="Yopish"
+            title="O'chirish"
           >
             <X className="h-4 w-4" />
           </Button>
 
-          {/* Expand chevron */}
-          {expanded
-            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/40 border border-border/40">
+            {expanded ? <ChevronDown className="h-4 w-4 text-foreground/60" /> : <ChevronRight className="h-4 w-4 text-foreground/60" />}
+          </div>
         </div>
       </button>
 
-      {/* ── Expanded content (same pattern as nakladnoy orders) ── */}
       {expanded && (
-        <div className="px-4 pb-4 border-t pt-3 space-y-3">
-          {/* Description line */}
-          {descLine && (
-            <p className="text-xs text-muted-foreground">
-              {descLine}
-            </p>
-          )}
-
-          {/* Jami summa */}
-          {(result.total_value ?? 0) > 0 && (
-            <p className="text-xs font-semibold text-foreground">
-              Jami: {fmt(result.total_value)} UZS
-            </p>
-          )}
-
-          {/* Items as 2-column table: product name | SKU barcode */}
-          {result.items && result.items.length > 0 ? (
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/50 border-b border-border">
-                  <tr>
-                    <th className="text-left px-3 py-2 text-muted-foreground font-medium">Mahsulot nomi</th>
-                    <th className="text-right px-3 py-2 text-muted-foreground font-medium w-40">SKU / Barcode</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.items.map((item, idx) => (
-                    <tr key={idx} className={cn('border-t border-border/40', idx % 2 === 0 ? 'bg-background' : 'bg-muted/20')}>
-                      <td className="px-3 py-1.5 truncate max-w-0 font-medium" title={item.product_name}>
-                        <div className="flex items-center gap-2">
-                          {item.quantity > 1 && (
-                            <span className="shrink-0 text-[10px] font-bold bg-primary/10 text-primary rounded px-1">×{item.quantity}</span>
-                          )}
-                          <span className="truncate">{item.product_name || '—'}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-mono text-muted-foreground shrink-0">
-                        {item.sku || '—'}
-                      </td>
+        <div className="bg-[#fcfdff] dark:bg-background border-t border-border/40 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="p-5 md:px-6">
+            {result.items && result.items.length > 0 ? (
+              <div className="rounded-xl border border-border/50 bg-background overflow-hidden shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 border-b border-border/50">
+                    <tr>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Mahsulot nomi</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-widest w-40">Miqdor</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-widest w-44">SKU / Barcode</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">Mahsulotlar ro'yxati mavjud emas</p>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {result.items.map((item, idx) => (
+                      <tr 
+                        key={idx} 
+                        className="group hover:bg-primary/[0.02] transition-colors duration-150"
+                      >
+                        <td className="py-3 px-4 font-medium text-foreground/90">
+                          {item.product_name || 'Noma\'lum mahsulot'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Badge variant="secondary" className={cn(
+                            "px-2 py-0.5 text-xs font-bold border-border/40 shadow-sm",
+                            item.quantity > 1 ? "bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400" : "bg-muted/60 text-muted-foreground"
+                          )}>
+                            {item.quantity > 1 ? `× ${item.quantity}` : `${item.quantity} dona`}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-[13px] text-muted-foreground/80 group-hover:text-foreground/70 transition-colors">
+                          {item.sku || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-8 text-center flex flex-col items-center justify-center space-y-2">
+                <div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-1">
+                  <FileText className="h-5 w-5 text-muted-foreground/60" />
+                </div>
+                <p className="text-sm font-medium text-foreground">Mahsulotlar ro'yxati topilmadi</p>
+                <p className="text-xs text-muted-foreground">Scan qilingan faylda mahsulotlar aniqlanmadi.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </Card>
