@@ -581,7 +581,7 @@ export default function Shipments() {
                       </p>
                       {((shipment as any).total_weight_kg || (shipment as any).total_volume_m3) && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          {(shipment as any).total_weight_kg && `${Number((shipment as any).total_weight_kg).toFixed(2)} kg`}
+                          {(shipment as any).total_weight_kg && `${(Number((shipment as any).total_weight_kg) * 1000).toFixed(0)} g`}
                           {(shipment as any).total_weight_kg && (shipment as any).total_volume_m3 && ' • '}
                           {(shipment as any).total_volume_m3 && `${Number((shipment as any).total_volume_m3).toFixed(4)} m³`}
                         </p>
@@ -1107,7 +1107,7 @@ export default function Shipments() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {box.weight_kg && `${Number(box.weight_kg).toFixed(2)} kg`}
+                            {box.weight_kg && `${(Number(box.weight_kg) * 1000).toFixed(0)} g`}
                             {box.weight_kg && box.volume_m3 && ' • '}
                             {box.volume_m3 && `${Number(box.volume_m3).toFixed(4)} m³`}
                           </p>

@@ -1209,7 +1209,7 @@ export default function Boxes() {
                       {(box as any).weight_kg && (
                         <div>
                           <span className="text-muted-foreground">{t('box_weight')}</span>
-                          <span className="ml-1 text-foreground">{(box as any).weight_kg} kg</span>
+                          <span className="ml-1 text-foreground">{(Number((box as any).weight_kg) * 1000).toFixed(0)} g</span>
                         </div>
                       )}
                       {(box as any).volume_m3 && (

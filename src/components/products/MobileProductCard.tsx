@@ -110,7 +110,7 @@ export function MobileProductCard({
           </div>
         )}
         {product.weight && (
-          <span>{product.weight}kg</span>
+          <span>{product.weight} g</span>
         )}
         {product.price && (
           <span className="font-medium text-foreground">{product.price.toLocaleString()} so'm</span>

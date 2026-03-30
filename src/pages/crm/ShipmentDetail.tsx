@@ -157,8 +157,8 @@ export default function ShipmentDetail() {
       const itemsWeight = ((b as any).product_items || []).reduce(
         (s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0
       );
-      // Use aggregated items weight if available, fallback to box.weight_kg
-      return sum + (itemsWeight > 0 ? itemsWeight / 1000 : (Number((b as any).weight_kg) || 0));
+      // Use aggregated items weight if available, fallback to box.weight_kg converted to grams
+      return sum + (itemsWeight > 0 ? itemsWeight : (Number((b as any).weight_kg) * 1000 || 0));
     }, 0) || 0),
     totalVolume: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).volume_m3) || 0), 0) || 0,
     totalCost: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).shipping_cost) || 0), 0) || 0,
@@ -235,8 +235,8 @@ export default function ShipmentDetail() {
                   <Scale className="h-5 w-5 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{stats.totalWeight.toFixed(1)}</p>
-                  <p className="text-xs text-muted-foreground">kg jami</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.totalWeight.toFixed(0)}</p>
+                  <p className="text-xs text-muted-foreground">g jami</p>
                 </div>
               </div>
             </Card>
@@ -341,10 +341,10 @@ export default function ShipmentDetail() {
                           <h4 className="font-medium text-foreground">{box.box_number}</h4>
                           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-1">
                             {(() => {
-                              const bWeight = Number(box.weight_kg) || 0;
-                              const iWeight = ((box as any).product_items || []).reduce((s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0) / 1000;
+                              const bWeight = (Number(box.weight_kg) || 0) * 1000;
+                              const iWeight = ((box as any).product_items || []).reduce((s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0);
                               const finalW = iWeight > 0 ? iWeight : bWeight;
-                              return finalW > 0 ? <span>{finalW.toFixed(2)} kg</span> : null;
+                              return finalW > 0 ? <span>{finalW.toFixed(0)} g</span> : null;
                             })()}
                             {box.volume_m3 && <span>{Number(box.volume_m3).toFixed(4)} m³</span>}
                             {box.shipping_cost && <span>${Number(box.shipping_cost).toFixed(0)}</span>}

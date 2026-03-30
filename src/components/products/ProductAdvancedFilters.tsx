@@ -103,7 +103,7 @@ export function ProductAdvancedFilters({ filters, onFiltersChange, brands }: Pro
 
           {/* Weight Range */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Vazn oralig'i (kg)</Label>
+            <Label className="text-sm font-medium">Vazn oralig'i (g)</Label>
             <div className="flex gap-2">
               <Input
                 type="number"
