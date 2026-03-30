@@ -518,18 +518,29 @@ export function ExcelImportDialog({ open, onOpenChange }: ExcelImportDialogProps
     let completed = 0;
     
     try {
+      // Barcha mavjud jo'natmalar ID'larini BITTA so'rovda olish (N+1 oldini olish)
+      const existingReceiptNums = parsedData.filter(s => s.isExisting).map(s => s.receiptNumber);
+      const excelShipmentsMap = new Map<string, string>();
+      if (existingReceiptNums.length > 0) {
+        const { data: batchShipments } = await supabase
+          .from('shipments')
+          .select('id, shipment_number')
+          .in('shipment_number', existingReceiptNums);
+        batchShipments?.forEach(s => excelShipmentsMap.set(s.shipment_number, s.id));
+      }
+
       for (const shipment of parsedData) {
         let shipmentId: string;
         
         // Create or update shipment
         if (shipment.isExisting) {
-          const { data: existing } = await supabase
-            .from('shipments')
-            .select('id')
-            .eq('shipment_number', shipment.receiptNumber)
-            .single();
-          
-          shipmentId = existing!.id;
+          // Map lookup - alohida query yo'q
+          shipmentId = excelShipmentsMap.get(shipment.receiptNumber)!;
+          if (!shipmentId) {
+            failed++;
+            warnings.push(`Jo'natma topilmadi: ${shipment.receiptNumber}`);
+            continue;
+          }
           
           await supabase
             .from('shipments')
@@ -565,6 +576,7 @@ export function ExcelImportDialog({ open, onOpenChange }: ExcelImportDialogProps
           
           shipmentId = newShipment.id;
         }
+
         
         completed++;
         setImportProgress(Math.floor((completed / totalOperations) * 100));

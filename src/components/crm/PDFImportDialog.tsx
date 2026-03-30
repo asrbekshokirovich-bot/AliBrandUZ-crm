@@ -525,6 +525,17 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
         .from('boxes')
         .select('id, store_number, abusaxiy_receipt_number');
       
+      // BATCH: Barcha mavjud jo'natmalarni BIR SO'ROV bilan olish (N+1 muammosini hal qilish)
+      const receiptNumbers = Object.keys(shipmentGroups);
+      const { data: existingShipments } = await supabase
+        .from('shipments')
+        .select('id, shipment_number')
+        .in('shipment_number', receiptNumbers);
+      
+      // O(1) lookup map yaratish
+      const existingShipmentsMap = new Map<string, string>();
+      existingShipments?.forEach(s => existingShipmentsMap.set(s.shipment_number, s.id));
+      
       // Trek raqamlar map'ini yaratish - box_track_codes dan (yangi tizim)
       const trackCodeToBoxId = new Map<string, string>();
       allTrackCodes?.forEach(tc => {
@@ -579,12 +590,9 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
       };
       
       for (const [receiptNumber, rows] of Object.entries(shipmentGroups)) {
-        // Check if shipment exists
-        const { data: existingShipment } = await supabase
-          .from('shipments')
-          .select('id')
-          .eq('shipment_number', receiptNumber)
-          .maybeSingle();
+        // N+1 muammo hal qilindi: batch query dan Map lookup ishlatish
+        const existingShipmentId = existingShipmentsMap.get(receiptNumber);
+
         
         const firstRow = rows[0];
         const hasActualArrival = rows.some(r => r['Дата прибытия'] && r['Дата прибытия'] !== '');
@@ -715,7 +723,7 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
             totalShippingCost: shipmentTotalCost,
             estimatedArrival: parseDate(firstRow['Расчётная дата прибытия'] || firstRow['Дата прибытия']),
             boxes: parsedBoxes,
-            isExisting: !!existingShipment,
+            isExisting: !!existingShipmentId,
           });
         }
       }
@@ -767,18 +775,29 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
     let completed = 0;
     
     try {
+      // Barcha mavjud jo'natmalar ID'larini BITTA so'rovda olish (N+1 oldini olish)
+      const existingReceiptNumbers = parsedData.filter(s => s.isExisting).map(s => s.receiptNumber);
+      const importShipmentsMap = new Map<string, string>();
+      if (existingReceiptNumbers.length > 0) {
+        const { data: batchShipments } = await supabase
+          .from('shipments')
+          .select('id, shipment_number')
+          .in('shipment_number', existingReceiptNumbers);
+        batchShipments?.forEach(s => importShipmentsMap.set(s.shipment_number, s.id));
+      }
+
       for (const shipment of parsedData) {
         let shipmentId: string;
         
         // Create or update shipment
         if (shipment.isExisting) {
-          const { data: existing } = await supabase
-            .from('shipments')
-            .select('id')
-            .eq('shipment_number', shipment.receiptNumber)
-            .single();
-          
-          shipmentId = existing!.id;
+          // Map lookup o'rniga alohida query yo'q
+          shipmentId = importShipmentsMap.get(shipment.receiptNumber)!;
+          if (!shipmentId) {
+            failed++;
+            warnings.push(`Jo'natma topilmadi: ${shipment.receiptNumber}`);
+            continue;
+          }
           
           await supabase
             .from('shipments')
@@ -814,6 +833,7 @@ export function PDFImportDialog({ open, onOpenChange }: PDFImportDialogProps) {
           
           shipmentId = newShipment.id;
         }
+
         
         completed++;
         setImportProgress(Math.floor((completed / totalOperations) * 100));

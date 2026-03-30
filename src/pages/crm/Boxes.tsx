@@ -150,8 +150,7 @@ export default function Boxes() {
                 final_cost_usd,
                 exchange_rate_at_purchase,
                 products(name, uuid, main_image_url),
-                product_variants(id, variant_attributes, cost_price, cost_price_currency),
-                verification_items(status, defect_type, notes)
+                product_variants(id, variant_attributes, cost_price, cost_price_currency)
               ),
               shipment_boxes(shipment:shipments(id, shipment_number, status))
             `)
@@ -177,8 +176,7 @@ export default function Boxes() {
                 final_cost_usd,
                 exchange_rate_at_purchase,
                 products(name, uuid, main_image_url),
-                product_variants(id, variant_attributes, cost_price, cost_price_currency),
-                verification_items(status, defect_type, notes)
+                product_variants(id, variant_attributes, cost_price, cost_price_currency)
               ),
               shipment_boxes(shipment:shipments(id, shipment_number, status))
             `)
@@ -188,12 +186,13 @@ export default function Boxes() {
         return rows.map((box: any) => ({ ...box, box_track_codes: [] }));
       }
     },
-    staleTime: 0,
-    gcTime: 2 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds - prevent constant re-fetching
+    gcTime: 5 * 60 * 1000,
   });
 
-  // Real-time subscription for boxes
+  // Real-time subscription for boxes - debounced to prevent excessive re-fetching
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout>;
     const channel = supabase
       .channel('boxes-changes')
       .on(
@@ -204,15 +203,21 @@ export default function Boxes() {
           table: 'boxes'
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['boxes'] });
+          // Debounce: wait 300ms before invalidating to prevent multiple rapid invalidations
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['boxes'] });
+          }, 300);
         }
       )
       .subscribe();
 
     return () => {
+      clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
 
 
   const handlePackBox = (box: any) => {

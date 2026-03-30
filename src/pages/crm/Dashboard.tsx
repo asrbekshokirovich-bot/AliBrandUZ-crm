@@ -76,15 +76,12 @@ function DashboardContent() {
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'sealed')),
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'in_transit')),
           safeQuery(supabase.from('shipments').select('id', { count: 'exact', head: true }).eq('status', 'in_transit')),
-          safeQuery(supabase.from('marketplace_orders').select('total_amount, status')),
+          safeQuery(supabase.from('marketplace_orders').select('total_amount').not('status', 'in', '("RETURNED","CANCELLED","auto_cancelled")')),
         ]);
 
         const mpData = marketplaceOrders?.data || [];
         const marketplaceSales = mpData.reduce((sum: number, order: any) => {
-          if (order.status !== 'RETURNED' && order.status !== 'CANCELLED' && order.status !== 'auto_cancelled') {
-            return sum + (Number(order.total_amount) || 0);
-          }
-          return sum;
+          return sum + (Number(order.total_amount) || 0);
         }, 0);
 
         const balanceData = (financeBalance?.data as any) || { total_income: 0, total_expense: 0, balance: 0 };
@@ -115,29 +112,31 @@ function DashboardContent() {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Real-time subscriptions for dashboard stats
+  // Real-time subscriptions for dashboard stats - debounced to prevent rapid re-fetching
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout>;
+    const invalidate = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      }, 500);
+    };
+
     const channels = [
-      supabase.channel('dashboard-products').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      }),
-      supabase.channel('dashboard-boxes').on('postgres_changes', { event: '*', schema: 'public', table: 'boxes' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      }),
-      supabase.channel('dashboard-shipments').on('postgres_changes', { event: '*', schema: 'public', table: 'shipments' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      }),
-      supabase.channel('dashboard-finance').on('postgres_changes', { event: '*', schema: 'public', table: 'finance_transactions' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      }),
+      supabase.channel('dashboard-products').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, invalidate),
+      supabase.channel('dashboard-boxes').on('postgres_changes', { event: '*', schema: 'public', table: 'boxes' }, invalidate),
+      supabase.channel('dashboard-shipments').on('postgres_changes', { event: '*', schema: 'public', table: 'shipments' }, invalidate),
+      supabase.channel('dashboard-finance').on('postgres_changes', { event: '*', schema: 'public', table: 'finance_transactions' }, invalidate),
     ];
 
     channels.forEach(channel => channel.subscribe());
 
     return () => {
+      clearTimeout(debounceTimer);
       channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [queryClient]);
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
