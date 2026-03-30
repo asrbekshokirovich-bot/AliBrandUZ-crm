@@ -24,11 +24,11 @@ Rules:
 - order_id = any document number, order number, or invoice number
 - product_name = name of the returned product or item
 
-Text:
-`;
+Text:\n`;
 
 const VISION_PROMPT = `You are a return document scanner. Examine this document and extract return information.
-Return ONLY this exact JSON — no markdown, no explanation, no extra fields:
+Return ONLY this exact JSON — no markdown, no explanation, no extra fields.
+Use this schema strictly:
 ${TARGET_SCHEMA}
 
 Rules:
@@ -47,7 +47,6 @@ function extractFirstJSON(raw: string): string | null {
   return raw.slice(start, end + 1);
 }
 
-/** Recursively walk ANY JSON structure and map common field aliases to our 5 target keys */
 function extractTargetFields(obj: Record<string, unknown>): Record<string, string> {
   const result: Record<string, string> = {
     product_name: "",
@@ -115,47 +114,11 @@ function extractTargetFields(obj: Record<string, unknown>): Record<string, strin
 
   flatten(obj);
 
-  // Clean price — keep digits and decimal point only
   if (result.price) {
     result.price = result.price.replace(/[^0-9.]/g, "");
   }
 
   return result;
-}
-
-// ── Gemini REST API caller ────────────────────────────────────────────────────
-
-interface GeminiPart {
-  text?: string;
-  inline_data?: { mime_type: string; data: string };
-}
-
-async function callGemini(
-  apiKey: string,
-  parts: GeminiPart[],
-  model = "gemini-1.5-flash"
-): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.05,
-        maxOutputTokens: 600,
-      },
-    }),
-  });
-
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => resp.statusText);
-    throw new Error(`Gemini API error ${resp.status}: ${txt.slice(0, 200)}`);
-  }
-
-  const data = await resp.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -165,10 +128,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-  if (!GEMINI_API_KEY) {
+  // Use OpenAI API key instead of Gemini
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "AI service not configured", success: false, hasData: false }),
+      JSON.stringify({ error: "OpenAI service not configured", success: false, hasData: false }),
       { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -193,26 +157,63 @@ serve(async (req) => {
       );
     }
 
-    let rawContent: string;
+    let requestBody: any;
 
     if (imageBase64) {
-      // Vision mode — image or PDF via inline_data
-      const parts: GeminiPart[] = [
-        { text: VISION_PROMPT },
-        {
-          inline_data: {
-            mime_type: mimeType || "image/jpeg",
-            data: imageBase64,
-          },
-        },
-      ];
-      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-1.5-flash");
+      // Vision format
+      requestBody = {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: VISION_PROMPT },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType || "image/jpeg"};base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ],
+        temperature: 0.05,
+        max_tokens: 600,
+        response_format: { type: "json_object" }
+      };
     } else {
-      // Text mode — DOCX / XLSX extracted text
+      // Text format
       const truncated = (text || "").slice(0, 12000);
-      const parts: GeminiPart[] = [{ text: TEXT_PROMPT + truncated }];
-      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-1.5-flash");
+      requestBody = {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: TEXT_PROMPT + truncated
+          }
+        ],
+        temperature: 0.05,
+        max_tokens: 600,
+        response_format: { type: "json_object" }
+      };
     }
+
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => resp.statusText);
+      throw new Error(`OpenAI API error ${resp.status}: ${txt.slice(0, 200)}`);
+    }
+
+    const data = await resp.json();
+    const rawContent = data.choices?.[0]?.message?.content ?? "";
 
     if (!rawContent.trim()) {
       return new Response(
@@ -221,7 +222,6 @@ serve(async (req) => {
       );
     }
 
-    // Extract JSON from AI response (handles markdown fences, nested objects, etc.)
     const jsonStr = extractFirstJSON(rawContent);
     if (!jsonStr) {
       return new Response(
@@ -246,7 +246,6 @@ serve(async (req) => {
       );
     }
 
-    // Extract target fields from ANY JSON structure (flat or deeply nested)
     const extracted = extractTargetFields(parsed);
     const hasData = Object.values(extracted).some((v) => v.trim() !== "");
 
