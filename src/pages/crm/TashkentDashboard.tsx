@@ -136,28 +136,35 @@ export default function TashkentDashboard() {
   const { data: categoryCounts = {} } = useQuery({
     queryKey: ['tashkent-category-counts'],
     queryFn: async () => {
-      // 1. Get all active products with their categories and manual stock
+      // 1. Get all NON-ARCHIVED products with their categories and manual stock
+      // BUGFIX: was .eq('status','active') → misses products with status=null or other
+      // Now uses .neq('status','archived') — matches CRM Products page logic
       const { data: products, error: prodError } = await supabase
         .from('products')
         .select('id, category_id, tashkent_manual_stock')
-        .eq('status', 'active')
+        .neq('status', 'archived')
         .neq('source', 'marketplace_auto')
         .not('category_id', 'is', null);
       
       if (prodError) throw prodError;
       
       // 2. Get product_items count in Tashkent
+      // BUGFIX: was only 'in_tashkent' status → misses in_stock, received, arrived, arrived_pending
+      // Now matches the same statuses used in the productItems display query (line ~202)
       const { data: itemCounts, error: itemError } = await supabase
         .from('product_items')
         .select('product_id')
-        .eq('status', 'in_tashkent');
+        .eq('location', 'uzbekistan')
+        .in('status', ['in_stock', 'received', 'arrived', 'in_tashkent', 'arrived_pending']);
       
       if (itemError) throw itemError;
       
       // 3. Count product_items per product
       const tashkentItemCounts: Record<string, number> = {};
       itemCounts?.forEach(item => {
-        tashkentItemCounts[item.product_id] = (tashkentItemCounts[item.product_id] || 0) + 1;
+        if (item.product_id) {
+          tashkentItemCounts[item.product_id] = (tashkentItemCounts[item.product_id] || 0) + 1;
+        }
       });
       
       // 4. Calculate TOTAL quantity per category
@@ -168,12 +175,16 @@ export default function TashkentDashboard() {
           const itemCount = tashkentItemCounts[product.id] || 0;
           const totalStock = manualStock + itemCount;
           
-          counts[product.category_id] = (counts[product.category_id] || 0) + totalStock;
+          // Only add to count if there's actual stock
+          if (totalStock > 0) {
+            counts[product.category_id] = (counts[product.category_id] || 0) + totalStock;
+          }
         }
       });
       
       return counts;
     },
+    staleTime: 30 * 1000, // 30 seconds cache
   });
 
   // Map categories to sections format for UI compatibility
