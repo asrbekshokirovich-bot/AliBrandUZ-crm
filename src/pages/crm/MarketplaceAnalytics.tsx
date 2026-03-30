@@ -1041,13 +1041,44 @@ export default function MarketplaceAnalytics() {
                         />
                       </RechartsPieChart>
                     </ResponsiveContainer>
-                    <div className="flex gap-6 mt-2">
-                      {finalDonutData.map(d => (
-                         <div key={d.name} className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full shadow-sm" style={{backgroundColor: d.fill}}></div>
-                            <span className="text-sm font-medium">{d.name}</span>
-                         </div>
-                      ))}
+                    <div className="flex gap-4 mt-2">
+                      {finalDonutData.map(d => {
+                        const pt: PlatformTab = d.name === 'Uzum' ? 'uzum' : d.name === 'Yandex' ? 'yandex' : 'all';
+                        const isActive = platformTab === pt;
+                        return (
+                          <button
+                            key={d.name}
+                            onClick={() => {
+                              setPlatformTab(isActive ? 'all' : pt);
+                              setSelectedStoreId(null);
+                            }}
+                            title={isActive ? `Filterni olib tashlash` : `Faqat ${d.name} ko'rsatish`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
+                              isActive
+                                ? 'border-current shadow-sm scale-105'
+                                : 'border-transparent hover:border-border/60 hover:bg-muted/40 opacity-70 hover:opacity-100'
+                            }`}
+                            style={{ color: d.fill }}
+                          >
+                            <div
+                              className={`w-3 h-3 rounded-full shadow-sm transition-all ${isActive ? 'scale-125' : ''}`}
+                              style={{ backgroundColor: d.fill }}
+                            />
+                            <span className="text-sm font-semibold">{d.name}</span>
+                            {isActive && (
+                              <span className="text-[10px] font-bold opacity-70">✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {platformTab !== 'all' && (
+                        <button
+                          onClick={() => { setPlatformTab('all'); setSelectedStoreId(null); }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] text-muted-foreground border border-border/40 hover:border-muted-foreground/50 transition-all"
+                        >
+                          ✕ Barchasi
+                        </button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
