@@ -147,22 +147,26 @@ export default function TashkentDashboard() {
 
       if (prodError) throw prodError;
 
-      // 2. Toshkentdagi tracked product_items
+      // 2. Tracked product_items (global holatda trackingni aniqlash uchun barchasi olinadi)
       const { data: itemCounts, error: itemError } = await supabase
         .from('product_items')
-        .select('product_id')
-        .eq('location', 'uzbekistan')
-        .in('status', ['in_stock', 'received', 'arrived', 'in_tashkent', 'arrived_pending']);
+        .select('product_id, location, status');
 
       if (itemError) throw itemError;
 
-      // "Tracked" = product_items bor mahsulot
+      // "Tracked" = hududdan qat'iy nazar product_items bor mahsulot
       const trackedProductIds = new Set<string>();
       const tashkentItemCounts: Record<string, number> = {};
+      
+      const tashkentStatuses = ['in_stock', 'received', 'arrived', 'in_tashkent', 'arrived_pending'];
+      
       itemCounts?.forEach(item => {
         if (item.product_id) {
           trackedProductIds.add(item.product_id);
-          tashkentItemCounts[item.product_id] = (tashkentItemCounts[item.product_id] || 0) + 1;
+          // Faqat O'zbekistondagilarini va mos statuslilarni Toshkent (Kategoriya) zaxirasiga qo'shamiz
+          if (item.location === 'uzbekistan' && tashkentStatuses.includes(item.status)) {
+            tashkentItemCounts[item.product_id] = (tashkentItemCounts[item.product_id] || 0) + 1;
+          }
         }
       });
 
