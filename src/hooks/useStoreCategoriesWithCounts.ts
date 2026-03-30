@@ -19,14 +19,14 @@ export function useStoreCategoriesWithCounts() {
       if (error) throw error;
 
       // ✅ DB-darajada COUNT hisoblash - 1000 ta default limit muammosini hal qiladi
-      // Oldingi usul: barcha mahsulotlarni fetch qilib client-da hisoblash (1000 ta limit bor edi!)
-      // Yangi usul: har bir kategoriya uchun { head: true } bilan faqat COUNT olish
+      // MUHIM: status='active' emas, neq('status','archived') - CRM bilan bir xil logika
+      // Chunki ba'zi mahsulotlarda status null yoki boshqa qiymat bo'lishi mumkin
       const countResults = await Promise.all(
         (categories as StoreCategory[]).map(async (cat) => {
           const { count } = await supabase
             .from('products')
             .select('id', { count: 'exact', head: true })
-            .eq('status', 'active')
+            .neq('status', 'archived')
             .eq('store_category_id', cat.id);
           return { id: cat.id, count: count ?? 0 };
         })
