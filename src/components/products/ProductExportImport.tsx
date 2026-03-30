@@ -581,7 +581,7 @@ export function ProductExportImport({ products, categories }: ProductExportImpor
               // Check if variant with SKU exists for this product
               const { data: existingVariant } = await supabase
                 .from('product_variants')
-                .select('id')
+                .select('id, stock_quantity')
                 .eq('product_id', productId)
                 .eq('sku', sku)
                 .single();
@@ -600,6 +600,9 @@ export function ProductExportImport({ products, categories }: ProductExportImpor
               let variantId: string;
 
               if (existingVariant) {
+                // Qo'shish rejimida: mavjud zaxiraga yangi zaxirani qo'shamiz
+                variantData.stock_quantity = (existingVariant.stock_quantity || 0) + (isNaN(stock) ? 0 : stock);
+
                 // Update existing variant
                 const { error } = await supabase
                   .from('product_variants')
@@ -641,16 +644,8 @@ export function ProductExportImport({ products, categories }: ProductExportImpor
 
               // Create product_items for stock
               if (stock > 0 && isActive) {
-                // Check existing items for this variant
-                const { data: existingItems } = await supabase
-                  .from('product_items')
-                  .select('id')
-                  .eq('product_id', productId)
-                  .eq('variant_id', variantId)
-                  .is('box_id', null);
-
-                const existingCount = existingItems?.length || 0;
-                const diff = stock - existingCount;
+                // Qo'shish rejimida: to'g'ridan-to'g'ri yangi qo'shilayotgan miqdor (stock) qadar item vujudga keltiramiz
+                const diff = stock;
 
                 if (diff > 0) {
                   const productData = uuidToProductData.get(productUuid) || {};

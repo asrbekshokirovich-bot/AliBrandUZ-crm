@@ -76,6 +76,7 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [currentNakladnoyId, setCurrentNakladnoyId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { scanFiles, isScanning, result, error, progress, reset } = useReturnScanner();
@@ -107,7 +108,7 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
   // Auto-save to marketplace_returns when scan result arrives
   useEffect(() => {
     if (!result) return;
-    setItemClass({}); setExpandedRow(null); setSavedCount(null);
+    setItemClass({}); setExpandedRow(null); setSavedCount(null); setCurrentNakladnoyId(null);
 
     if (!result.items || result.items.length === 0) return;
 
@@ -121,6 +122,7 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
 
     const returnDate = new Date().toISOString();
     const nakladnoyId = result.document?.document_number || `scan-${Date.now()}`;
+    setCurrentNakladnoyId(nakladnoyId);
 
     const rows = result.items.map((item, idx) => ({
       external_order_id: `scan-${nakladnoyId}-${idx}-${Date.now()}`,
@@ -174,7 +176,7 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
     });
   };
 
-  const handleUseData = () => {
+  const handleUseData = async () => {
     if (!result) return;
     const s = calcSummary(result.items ?? [], itemClass);
     const enriched = {
@@ -192,20 +194,29 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
       if (c?.unfixable_qty) unfixable_qty_map[item.product_name] = c.unfixable_qty;
     });
 
-    // Fire-and-forget save to inventory_transactions
-    supabase.functions.invoke('save-inventory-tx', {
-      body: {
-        scan_result: enriched,
-        classification: enriched.classification,
-        fixable_qty_map,
-        unfixable_qty_map,
-      },
-    }).then(({ error }) => {
-      if (error) console.error('[save-inventory-tx]', error.message);
-    });
-
-    onResult(enriched, files[0]);
-    handleClose();
+    setIsSaving(true);
+    // Wait for save-inventory-tx to apply stock updates and resolve marketplace_returns
+    try {
+      const { error } = await supabase.functions.invoke('save-inventory-tx', {
+        body: {
+          scan_result: enriched,
+          classification: enriched.classification,
+          fixable_qty_map,
+          unfixable_qty_map,
+          nakladnoy_id: currentNakladnoyId,
+        },
+      });
+      if (error) {
+        console.error('[save-inventory-tx]', error.message);
+        toast.error('Zaxirani yangilashda xatolik yuz berdi: ' + error.message);
+      } else {
+        toast.success(`Tovarlar omborga muvaffaqiyatli qo'shildi!`);
+      }
+    } finally {
+      setIsSaving(false);
+      onResult(enriched, files[0]);
+      handleClose();
+    }
   };
 
   const summary = result?.items ? calcSummary(result.items, itemClass) : null;
