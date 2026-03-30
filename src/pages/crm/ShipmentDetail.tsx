@@ -149,22 +149,60 @@ export default function ShipmentDetail() {
     }
   };
   
-  // Calculate aggregated stats
-  const stats = {
-    totalBoxes: shipmentBoxes?.length || 0,
-    // Weight from product_items.weight_grams or product_variants.weight (boxes.weight_kg is often empty)
-    totalWeight: (shipmentBoxes?.reduce((sum, b) => {
-      const itemsWeight = ((b as any).product_items || []).reduce(
-        (s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0
-      );
-      // Use aggregated items weight if available, fallback to box.weight_kg converted to grams
-      return sum + (itemsWeight > 0 ? itemsWeight : (Number((b as any).weight_kg) * 1000 || 0));
-    }, 0) || 0),
-    totalVolume: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).volume_m3) || 0), 0) || 0,
-    totalCost: shipmentBoxes?.reduce((sum, b) => sum + (Number((b as any).shipping_cost) || 0), 0) || 0,
-    arrivedCount: shipmentBoxes?.filter(b => (b as any).status === 'arrived' || (b as any).status === 'delivered').length || 0,
-    inTransitCount: shipmentBoxes?.filter(b => (b as any).status === 'in_transit').length || 0,
-  };
+  // =============================================
+  // LOGISTICS STATS — hisoblash mantig'i
+  // =============================================
+  // og'irlik manba'lari (prioritet tartibida):
+  //   1. product_items.weight_grams (eng aniq)
+  //   2. product_variants.weight (variantdan)
+  //   3. box.weight_kg * 1000 (fallback)
+  // =============================================
+  const stats = (() => {
+    const totalBoxes = shipmentBoxes?.length || 0;
+
+    let totalWeightGrams = 0;
+    for (const b of (shipmentBoxes || [])) {
+      const items: any[] = (b as any).product_items || [];
+      let boxItemWeight = 0;
+      for (const item of items) {
+        // 1. product_items.weight_grams
+        if (item.weight_grams && Number(item.weight_grams) > 0) {
+          boxItemWeight += Number(item.weight_grams);
+        }
+        // 2. product_variants.weight (variant darajasida gramm)
+        else if (item.product_variants?.weight && Number(item.product_variants.weight) > 0) {
+          boxItemWeight += Number(item.product_variants.weight);
+        }
+      }
+      // 3. box.weight_kg fallback
+      const boxWeightGrams = (Number((b as any).weight_kg) || 0) * 1000;
+      totalWeightGrams += boxItemWeight > 0 ? boxItemWeight : boxWeightGrams;
+    }
+
+    const totalVolume = (shipmentBoxes || []).reduce(
+      (sum, b) => sum + (Number((b as any).volume_m3) || 0), 0
+    );
+    const totalCost = (shipmentBoxes || []).reduce(
+      (sum, b) => sum + (Number((b as any).shipping_cost) || 0), 0
+    );
+    const arrivedCount = (shipmentBoxes || []).filter(
+      b => (b as any).status === 'arrived' || (b as any).status === 'delivered'
+    ).length;
+    const inTransitCount = (shipmentBoxes || []).filter(
+      b => (b as any).status === 'in_transit'
+    ).length;
+
+    return {
+      totalBoxes,
+      totalWeightGrams,                          // gramda (aniq)
+      totalWeightKg: totalWeightGrams / 1000,    // kg da (ko'rsatish uchun)
+      totalVolume,
+      totalCost,
+      arrivedCount,
+      inTransitCount,
+    };
+  })();
+
   
   return (
     <div className="space-y-6">
@@ -235,8 +273,21 @@ export default function ShipmentDetail() {
                   <Scale className="h-5 w-5 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{stats.totalWeight.toFixed(0)}</p>
-                  <p className="text-xs text-muted-foreground">g jami</p>
+                  {stats.totalWeightKg >= 1 ? (
+                    <p className="text-2xl font-bold text-foreground">
+                      {stats.totalWeightKg.toFixed(2)}
+                    </p>
+                  ) : (
+                    <p className="text-2xl font-bold text-foreground">
+                      {stats.totalWeightGrams.toFixed(0)}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {stats.totalWeightKg >= 1 ? 'kg jami' : 'g jami'}
+                    {stats.totalWeightGrams === 0 && (
+                      <span className="text-amber-500 ml-1">⚠ og\'irlik kiritilmagan</span>
+                    )}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -341,11 +392,22 @@ export default function ShipmentDetail() {
                           <h4 className="font-medium text-foreground">{box.box_number}</h4>
                           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-1">
                             {(() => {
-                              const bWeight = (Number(box.weight_kg) || 0) * 1000;
-                              const iWeight = ((box as any).product_items || []).reduce((s: number, i: any) => s + (Number(i.weight_grams) || Number(i.product_variants?.weight) || 0), 0);
-                              const finalW = iWeight > 0 ? iWeight : bWeight;
-                              return finalW > 0 ? <span>{finalW.toFixed(0)} g</span> : null;
+                              const items: any[] = (box as any).product_items || [];
+                              let itemW = 0;
+                              for (const i of items) {
+                                if (i.weight_grams && Number(i.weight_grams) > 0)
+                                  itemW += Number(i.weight_grams);
+                                else if (i.product_variants?.weight && Number(i.product_variants.weight) > 0)
+                                  itemW += Number(i.product_variants.weight);
+                              }
+                              const boxW = (Number((box as any).weight_kg) || 0) * 1000;
+                              const finalW = itemW > 0 ? itemW : boxW;
+                              if (finalW <= 0) return <span className="text-amber-500">⚠ og\'irlik yo'q</span>;
+                              return finalW >= 1000
+                                ? <span>{(finalW / 1000).toFixed(2)} kg</span>
+                                : <span>{finalW.toFixed(0)} g</span>;
                             })()}
+
                             {box.volume_m3 && <span>{Number(box.volume_m3).toFixed(4)} m³</span>}
                             {box.shipping_cost && <span>${Number(box.shipping_cost).toFixed(0)}</span>}
                             {box.product_description && (
