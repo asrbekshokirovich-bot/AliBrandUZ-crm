@@ -59,7 +59,6 @@ serve(async (req) => {
       unit_price: item.unit_price,
       currency: doc.currency || "UZS",
       platform: cls.platform || null,
-      logistics_model: cls.logistics_model || null,
       location_from: doc.warehouse_from || null,
       location_to: doc.warehouse_to || cls.platform || null,
       fixable_qty: fixable_qty_map?.[item.product_name] ?? 0,
@@ -129,7 +128,11 @@ serve(async (req) => {
       }
     }
 
-    await txPromise; // ensure transactions are also inserted
+    const { error: txError } = await txPromise;
+    if (txError) {
+      console.error('[save-inventory-tx] Transaction log insert failed:', txError.message);
+      // We still return success but note the failure to avoid blocking the workflow
+    }
 
     return new Response(
       JSON.stringify({ 
