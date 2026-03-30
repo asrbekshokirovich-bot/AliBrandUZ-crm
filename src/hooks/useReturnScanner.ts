@@ -166,15 +166,30 @@ async function callScanFunction(body: Record<string, string>): Promise<ScanResul
   }
 
   const doc: FinancialDocument = data.document || {};
-  const items: FinancialItem[] = Array.isArray(data.items) ? data.items : [];
+  const rawItems: FinancialItem[] = Array.isArray(data.items) ? data.items : [];
   const summary = data.summary || {};
+
+  // AI modellar ko'pincha hisob-kitoblarda (math) adashadi. O'zimiz qayta hisoblaymiz:
+  const items = rawItems.map(item => {
+    const qty = Number(item.quantity) || 1;
+    const up = Number(item.unit_price) || 0;
+    return {
+      ...item,
+      quantity: qty,
+      unit_price: up,
+      total_price: qty * up, // overriding AI math
+    };
+  });
+
+  const calcTotalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+  const calcTotalValue = items.reduce((sum, i) => sum + i.total_price, 0);
 
   // Map new schema → ScanResult (backward compat + new fields)
   return {
     // Legacy
     product_name: items[0]?.product_name || '',
     order_id: doc.document_number || '',
-    price: String(summary.total_value ?? items[0]?.total_price ?? ''),
+    price: String(calcTotalValue || summary.total_value || ''),
     reason_for_return: doc.document_type || '',
     date: doc.date || '',
     // New
@@ -188,8 +203,8 @@ async function callScanFunction(body: Record<string, string>): Promise<ScanResul
       partner: doc.partner || '',
     },
     items,
-    total_items: summary.total_items ?? items.length,
-    total_value: summary.total_value ?? 0,
+    total_items: calcTotalItems || summary.total_items || items.length,
+    total_value: calcTotalValue || summary.total_value || 0,
     errors: data.errors || [],
   };
 }
