@@ -133,7 +133,7 @@ interface GeminiPart {
 async function callGemini(
   apiKey: string,
   parts: GeminiPart[],
-  model = "gemini-2.0-flash"
+  model = "gemini-1.5-flash"
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -206,12 +206,12 @@ serve(async (req) => {
           },
         },
       ];
-      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-2.0-flash");
+      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-1.5-flash");
     } else {
       // Text mode — DOCX / XLSX extracted text
       const truncated = (text || "").slice(0, 12000);
       const parts: GeminiPart[] = [{ text: TEXT_PROMPT + truncated }];
-      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-2.0-flash");
+      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-1.5-flash");
     }
 
     if (!rawContent.trim()) {
