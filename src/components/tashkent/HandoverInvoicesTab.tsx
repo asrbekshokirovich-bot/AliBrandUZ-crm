@@ -154,6 +154,9 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
           .from('handover-invoices')
           .getPublicUrl(fileName);
         pdfUrl = urlData.publicUrl;
+      } else {
+        console.error('Document Upload Error:', uploadError.message);
+        toast({ title: 'PDF serverga saqlanmadi (Storage topilmadi)', description: uploadError.message, variant: 'destructive' });
       }
 
       // Parse date
