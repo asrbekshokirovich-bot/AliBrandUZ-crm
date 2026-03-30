@@ -10,7 +10,7 @@ export function useStoreCategoriesWithCounts() {
   return useQuery({
     queryKey: ['store-categories-with-counts'],
     queryFn: async () => {
-      // Fetch categories
+      // Kategoriyalarni olish
       const { data: categories, error } = await supabase
         .from('store_categories')
         .select('*')
@@ -18,18 +18,22 @@ export function useStoreCategoriesWithCounts() {
         .order('sort_order');
       if (error) throw error;
 
-      // Fetch product counts per category
-      const { data: products } = await supabase
-        .from('products')
-        .select('store_category_id')
-        .eq('status', 'active');
+      // ✅ DB-darajada COUNT hisoblash - 1000 ta default limit muammosini hal qiladi
+      // Oldingi usul: barcha mahsulotlarni fetch qilib client-da hisoblash (1000 ta limit bor edi!)
+      // Yangi usul: har bir kategoriya uchun { head: true } bilan faqat COUNT olish
+      const countResults = await Promise.all(
+        (categories as StoreCategory[]).map(async (cat) => {
+          const { count } = await supabase
+            .from('products')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'active')
+            .eq('store_category_id', cat.id);
+          return { id: cat.id, count: count ?? 0 };
+        })
+      );
 
       const countMap = new Map<string, number>();
-      products?.forEach(p => {
-        if (p.store_category_id) {
-          countMap.set(p.store_category_id, (countMap.get(p.store_category_id) || 0) + 1);
-        }
-      });
+      countResults.forEach(r => countMap.set(r.id, r.count));
 
       return (categories as StoreCategory[])
         .map(c => ({ ...c, product_count: countMap.get(c.id) || 0 }))
