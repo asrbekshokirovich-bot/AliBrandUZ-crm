@@ -277,11 +277,10 @@ export default function TashkentDashboard() {
           .gte('actual_arrival', today.toISOString())
           .lt('actual_arrival', tomorrow.toISOString()),
         
-        // Product items in Tashkent
+        // Product items (Global - to determine tracking and calculate Tashkent stock)
         supabase
           .from('product_items')
-          .select('id, status, sold_at')
-          .eq('location', 'uzbekistan'),
+          .select('product_id, location, status'),
         
         // Boxes pending receive
         supabase
@@ -289,8 +288,7 @@ export default function TashkentDashboard() {
           .select('id, box_number, created_at, product_items(id)')
           .not('status', 'in', '("arrived","delivered")')
           .not('location', 'eq', 'uzbekistan')
-          .order('created_at', { ascending: false })
-          .limit(5),
+          .order('created_at', { ascending: false }),
         
         // Product items received today in Tashkent
         supabase
@@ -316,13 +314,12 @@ export default function TashkentDashboard() {
           .not('location', 'eq', 'uzbekistan')
           .order('estimated_arrival', { ascending: true }),
         
-        // FIX #2: Get manual stock from products table
+        // FIX #2: Get manual stock from products table (including variants)
         supabase
           .from('products')
-          .select('tashkent_manual_stock')
+          .select('id, tashkent_manual_stock, has_variants, product_variants(stock_quantity)')
           .neq('status', 'archived')
-          .neq('source', 'marketplace_auto')
-          .gt('tashkent_manual_stock', 0),
+          .neq('source', 'marketplace_auto'),
         
         // FIX #4 & #5: Get all direct sales for total sold
         supabase
@@ -350,17 +347,34 @@ export default function TashkentDashboard() {
       const allSales = allSalesResult.data || [];
       const todaySales = todaySalesResult.data || [];
 
-      // Calculate tracked items in warehouse
-      const trackedItemsCount = items.filter(i => 
-        i.status === 'in_stock' || i.status === 'received' || 
-        i.status === 'arrived' || i.status === 'in_tashkent' ||
-        i.status === 'arrived_pending'
-      ).length;
+      // Calculate tracked items in warehouse & find globally tracked products
+      const trackedProductIds = new Set<string>();
+      let trackedItemsCount = 0;
+      
+      const tashkentStatuses = ['in_stock', 'received', 'arrived', 'in_tashkent', 'arrived_pending'];
+      
+      items.forEach((item: any) => {
+        if (item.product_id) {
+          trackedProductIds.add(item.product_id); // Any product_item globally means it's tracked
+          if (item.location === 'uzbekistan' && tashkentStatuses.includes(item.status)) {
+            trackedItemsCount++;
+          }
+        }
+      });
 
-      // Calculate manual stock total
-      const manualStockTotal = manualStockItems.reduce((sum, p) => 
-        sum + (p.tashkent_manual_stock || 0), 0
-      );
+      // Calculate manual stock total ONLY for non-tracked products
+      const manualStockTotal = manualStockItems.reduce((sum, p) => {
+        if (p.id && trackedProductIds.has(p.id)) return sum; // Ignore manual stock if tracked globally
+
+        let productStock = 0;
+        if (p.has_variants) {
+          const variants = p.product_variants || [];
+          productStock = variants.reduce((vSum: number, v: any) => vSum + (v.stock_quantity || 0), 0);
+        } else {
+          productStock = p.tashkent_manual_stock || 0;
+        }
+        return sum + productStock;
+      }, 0);
 
       // TOTAL in warehouse = tracked items + manual stock
       const totalInWarehouse = trackedItemsCount + manualStockTotal;
@@ -379,7 +393,7 @@ export default function TashkentDashboard() {
         manualStock: manualStockTotal,
         soldItems: totalSoldFromSales,
         pendingReceive: pendingBoxes.length,
-        pendingBoxes: pendingBoxes,
+        pendingBoxes: pendingBoxes.slice(0, 5),
         receivedTodayCount: receivedToday.length,
         soldTodayCount: soldTodayFromSales,
         totalVerifications: verifications.length,
