@@ -38,7 +38,7 @@ Rules:
 - order_id = any document number, order number, or nakladnoy number you see
 - product_name = name of the returned product or item`;
 
-// ── JSON extraction helpers ───────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function extractFirstJSON(raw: string): string | null {
   const start = raw.indexOf("{");
@@ -47,7 +47,7 @@ function extractFirstJSON(raw: string): string | null {
   return raw.slice(start, end + 1);
 }
 
-/** Try to extract our 5 target fields from ANY JSON structure (flat or nested) */
+/** Recursively walk ANY JSON structure and map common field aliases to our 5 target keys */
 function extractTargetFields(obj: Record<string, unknown>): Record<string, string> {
   const result: Record<string, string> = {
     product_name: "",
@@ -57,8 +57,7 @@ function extractTargetFields(obj: Record<string, unknown>): Record<string, strin
     date: "",
   };
 
-  // Field aliases — map common alternative key names to our target keys
-  const aliases: Record<string, string> = {
+  const aliases: Record<string, keyof typeof result> = {
     product_name: "product_name",
     product: "product_name",
     item: "product_name",
@@ -75,7 +74,6 @@ function extractTargetFields(obj: Record<string, unknown>): Record<string, strin
     nakladnoy: "order_id",
     invoice_number: "order_id",
     ref: "order_id",
-    id: "order_id",
     number: "order_id",
 
     price: "price",
@@ -101,16 +99,14 @@ function extractTargetFields(obj: Record<string, unknown>): Record<string, strin
     created: "date",
   };
 
-  // Recursively flatten the object, picking up aliased fields
   function flatten(o: Record<string, unknown>, depth = 0) {
-    if (depth > 3) return; // Don't go too deep
+    if (depth > 3) return;
     for (const [key, val] of Object.entries(o)) {
       const lower = key.toLowerCase().replace(/[^a-z_]/g, "_");
       const target = aliases[lower];
       if (target && !result[target] && val !== null && val !== undefined) {
         result[target] = String(val).trim();
       }
-      // Also recurse into nested objects
       if (val && typeof val === "object" && !Array.isArray(val)) {
         flatten(val as Record<string, unknown>, depth + 1);
       }
@@ -119,12 +115,47 @@ function extractTargetFields(obj: Record<string, unknown>): Record<string, strin
 
   flatten(obj);
 
-  // Clean price — keep digits and decimal only
+  // Clean price — keep digits and decimal point only
   if (result.price) {
     result.price = result.price.replace(/[^0-9.]/g, "");
   }
 
   return result;
+}
+
+// ── Gemini REST API caller ────────────────────────────────────────────────────
+
+interface GeminiPart {
+  text?: string;
+  inline_data?: { mime_type: string; data: string };
+}
+
+async function callGemini(
+  apiKey: string,
+  parts: GeminiPart[],
+  model = "gemini-2.0-flash"
+): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        temperature: 0.05,
+        maxOutputTokens: 600,
+      },
+    }),
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => resp.statusText);
+    throw new Error(`Gemini API error ${resp.status}: ${txt.slice(0, 200)}`);
+  }
+
+  const data = await resp.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -134,8 +165,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  if (!GEMINI_API_KEY) {
     return new Response(
       JSON.stringify({ error: "AI service not configured", success: false, hasData: false }),
       { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -162,61 +193,26 @@ serve(async (req) => {
       );
     }
 
-    const isPDF = mimeType === "application/pdf";
-    const isImage = mimeType?.startsWith("image/") ?? false;
-
-    let requestBody: Record<string, unknown>;
+    let rawContent: string;
 
     if (imageBase64) {
-      // Vision mode for both images and PDFs
-      requestBody = {
-        model: "google/gemini-2.0-flash-exp",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: VISION_PROMPT },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${isPDF ? "application/pdf" : (mimeType || "image/jpeg")};base64,${imageBase64}`,
-                },
-              },
-            ],
+      // Vision mode — image or PDF via inline_data
+      const parts: GeminiPart[] = [
+        { text: VISION_PROMPT },
+        {
+          inline_data: {
+            mime_type: mimeType || "image/jpeg",
+            data: imageBase64,
           },
-        ],
-        max_tokens: 600,
-        temperature: 0.05,
-      };
+        },
+      ];
+      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-2.0-flash");
     } else {
-      // Text mode for DOCX / XLSX extracted text
+      // Text mode — DOCX / XLSX extracted text
       const truncated = (text || "").slice(0, 12000);
-      requestBody = {
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          { role: "user", content: TEXT_PROMPT + truncated },
-        ],
-        max_tokens: 600,
-        temperature: 0.05,
-      };
+      const parts: GeminiPart[] = [{ text: TEXT_PROMPT + truncated }];
+      rawContent = await callGemini(GEMINI_API_KEY, parts, "gemini-2.0-flash");
     }
-
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!aiResp.ok) {
-      const errText = await aiResp.text().catch(() => aiResp.statusText);
-      throw new Error(`AI API error ${aiResp.status}: ${errText.slice(0, 200)}`);
-    }
-
-    const aiData = await aiResp.json();
-    const rawContent: string = aiData.choices?.[0]?.message?.content ?? "";
 
     if (!rawContent.trim()) {
       return new Response(
@@ -225,7 +221,7 @@ serve(async (req) => {
       );
     }
 
-    // Extract JSON from the response (handle markdown fences, plain text, etc.)
+    // Extract JSON from AI response (handles markdown fences, nested objects, etc.)
     const jsonStr = extractFirstJSON(rawContent);
     if (!jsonStr) {
       return new Response(
@@ -237,12 +233,12 @@ serve(async (req) => {
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(jsonStr);
-    } catch (parseErr) {
-      console.error("JSON.parse failed, raw:", rawContent.slice(0, 300));
+    } catch (e) {
+      console.error("JSON.parse failed:", rawContent.slice(0, 300));
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Response parse failed: ${String(parseErr).slice(0, 100)}`,
+          error: `Response parse failed: ${String(e).slice(0, 100)}`,
           extracted: null,
           hasData: false,
         }),
@@ -250,7 +246,7 @@ serve(async (req) => {
       );
     }
 
-    // Extract target fields from ANY JSON structure (flat or nested)
+    // Extract target fields from ANY JSON structure (flat or deeply nested)
     const extracted = extractTargetFields(parsed);
     const hasData = Object.values(extracted).some((v) => v.trim() !== "");
 
@@ -258,7 +254,6 @@ serve(async (req) => {
       JSON.stringify({ success: true, extracted, hasData }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("scan-return-document fatal error:", message);
