@@ -26,7 +26,8 @@ import {
   ClipboardList, 
   Plus, 
   Check,
-  Send
+  Send,
+  Trash2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { uz } from 'date-fns/locale';
@@ -177,6 +178,24 @@ export function ShiftHandoffNotes({ location = 'china' }: { location?: string })
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('shift_handoffs')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success(t('deleted_successfully', 'Muvaffaqiyatli o\\'chirildi'));
+      
+      // Update local state to remove the deleted handoff immediately
+      setHandoffs(prev => prev.filter(h => h.id !== id));
+    } catch (error) {
+      console.error('Error deleting handoff:', error);
+      toast.error(t('error_deleting', 'O\\'chirishda xatolik yuz berdi'));
+    }
+  };
+
   const unreadCount = handoffs.filter(h => !h.is_read).length;
 
   if (isLoading) {
@@ -306,16 +325,28 @@ export function ShiftHandoffNotes({ location = 'china' }: { location?: string })
                         </span>
                       </div>
                     </div>
-                    {!handoff.is_read && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 shrink-0"
-                        onClick={() => handleMarkAsRead(handoff)}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                    <div className="flex flex-col gap-1 items-end">
+                      {!handoff.is_read && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => handleMarkAsRead(handoff)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {(user?.id === handoff.from_user_id || true) && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                          onClick={() => handleDelete(handoff.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
