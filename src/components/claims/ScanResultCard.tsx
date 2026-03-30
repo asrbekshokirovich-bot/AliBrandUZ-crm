@@ -11,7 +11,15 @@ import { cn } from '@/lib/utils';
 interface ScanResultCardProps {
   result: ScanResult;
   file?: File;
+  dbDoc?: {
+    id: string;
+    file_url?: string;
+    file_name?: string;
+    file_size?: number;
+    status?: string;
+  };
   onDismiss: () => void;
+  onApply?: () => void;
 }
 
 function fmt(n: number | string): string {
@@ -19,16 +27,20 @@ function fmt(n: number | string): string {
   return isNaN(v) ? String(n) : v.toLocaleString('uz-UZ');
 }
 
-export function ScanResultCard({ result, file, onDismiss }: ScanResultCardProps) {
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
+export function ScanResultCard({ result, file, dbDoc, onDismiss, onApply }: ScanResultCardProps) {
+  const [fileUrl, setFileUrl] = useState<string | null>(dbDoc?.file_url || null);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
+    if (dbDoc?.file_url) {
+      setFileUrl(dbDoc.file_url);
+      return;
+    }
     if (!file) return;
     const url = URL.createObjectURL(file);
     setFileUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
+  }, [file, dbDoc]);
 
   const openDocument = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -40,8 +52,10 @@ export function ScanResultCard({ result, file, onDismiss }: ScanResultCardProps)
   const partner = result.document?.partner || '';
   const docType = result.classification?.document_type || result.document?.document_type || '';
   const totalItems = result.total_items ?? result.items?.length ?? 0;
-  const fileName = file?.name ?? '';
-  const fileSize = file ? `${(file.size / 1024).toFixed(0)}KB` : '';
+  const fileName = dbDoc?.file_name || file?.name || '';
+  const fSize = dbDoc?.file_size || file?.size || 0;
+  const fileSize = fSize ? `${(fSize / 1024).toFixed(0)}KB` : '';
+  const isApplied = dbDoc?.status === 'applied';
 
   // Description line (like nakladnoy expanded line)
   const descLine = [docDate, docType, partner].filter(Boolean).join('  ');

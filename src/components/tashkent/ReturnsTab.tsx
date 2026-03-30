@@ -231,15 +231,72 @@ export function ReturnsTab() {
 
   const [isSyncingYandex, setIsSyncingYandex] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scannedDocs, setScannedDocs] = useState<Array<{ id: string; result: ScanResult; file?: File }>>([]);
 
-  const handleScannerResult = (data: ScanResult, file?: File) => {
-    // Save already happened auto in ReturnScannerDialog — just refresh the list
+  // --- Abadiy saqlanadigan Skanerlangan hujjatlar fetch ---
+  const { data: scannedDocs = [], refetch: refetchScannedDocs } = useQuery({
+    queryKey: ['scanned_documents'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('scanned_documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error fetching scanned documents:', error.message);
+        return [];
+      }
+      return data || [];
+    }
+  });
+
+  const handleScannerResult = async (data: ScanResult, file?: File) => {
+    // 1. Upload to storage if file exists
+    let fileUrl = '';
+    let fileName = '';
+    let fileSize = 0;
+    
+    if (file) {
+      fileName = file.name;
+      fileSize = file.size;
+      const fileExt = file.name.split('.').pop() || 'tmp';
+      const filePath = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('return-documents')
+        .upload(filePath, file);
+      
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage
+          .from('return-documents')
+          .getPublicUrl(filePath);
+        fileUrl = publicUrl;
+      } else {
+        console.error('File upload error:', uploadError);
+      }
+    }
+
+    // 2. Save document metadata & raw AI JSON to DB
+    const { error: dbError } = await supabase
+      .from('scanned_documents')
+      .insert({
+        file_name: fileName,
+        file_size: fileSize,
+        file_url: fileUrl || null,
+        document_number: data.document?.document_number || '',
+        document_type: data.document?.document_type || '',
+        partner: data.document?.partner || '',
+        doc_date: data.document?.date || '',
+        total_items: data.total_items || data.items?.length || 0,
+        total_value: data.total_value || 0,
+        status: 'applied', // Users click "Bu ma'lumotlardan foydalanish", so it's already applied
+        raw_result: data as any,
+      });
+
+    if (dbError) {
+      console.error('Failed to save scanned document permanently:', dbError.message);
+    }
+
+    // Refresh UI
     queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
-    setScannedDocs(prev => [
-      { id: crypto.randomUUID(), result: data, file },
-      ...prev,
-    ]);
+    refetchScannedDocs();
     setIsScannerOpen(false);
   };
 
@@ -667,9 +724,12 @@ export function ReturnsTab() {
           {scannedDocs.map(doc => (
             <ScanResultCard
               key={doc.id}
-              result={doc.result}
-              file={doc.file}
-              onDismiss={() => setScannedDocs(prev => prev.filter(d => d.id !== doc.id))}
+              result={doc.raw_result}
+              dbDoc={doc}
+              onDismiss={async () => {
+                await supabase.from('scanned_documents').delete().eq('id', doc.id);
+                refetchScannedDocs();
+              }}
             />
           ))}
         </div>
