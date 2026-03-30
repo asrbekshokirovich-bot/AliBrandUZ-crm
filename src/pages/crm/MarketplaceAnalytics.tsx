@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+
 import {
   TrendingUp,
   TrendingDown,
@@ -27,6 +28,8 @@ import {
   Percent,
   Receipt,
   Store,
+  Calendar,
+  ChevronDown,
 } from "lucide-react";
 import {
   AreaChart,
@@ -42,8 +45,10 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays, startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
+
+type PeriodPreset = 'today' | '7d' | '30d' | '90d' | 'custom';
 
 const COLORS = [
   'hsl(var(--chart-1))',
@@ -74,6 +79,57 @@ export default function MarketplaceAnalytics() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
+
+  // === Period filter state ===
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d');
+  const [customFrom, setCustomFrom] = useState<string>('');
+  const [customTo, setCustomTo] = useState<string>('');
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  // Derived start/end dates from preset
+  const { startDate, endDate, periodLabel, shortLabel } = useMemo(() => {
+    const now = new Date();
+    switch (periodPreset) {
+      case 'today':
+        return {
+          startDate: startOfDay(now),
+          endDate: now,
+          periodLabel: 'Bugun — ' + format(now, 'dd.MM.yyyy'),
+          shortLabel: 'Bugun',
+        };
+      case '7d':
+        return {
+          startDate: subDays(now, 7),
+          endDate: now,
+          periodLabel: format(subDays(now, 7), 'dd.MM') + ' – ' + format(now, 'dd.MM.yyyy'),
+          shortLabel: 'Oxirgi 7 kun',
+        };
+      case '30d':
+        return {
+          startDate: subDays(now, 30),
+          endDate: now,
+          periodLabel: format(subDays(now, 30), 'dd.MM') + ' – ' + format(now, 'dd.MM.yyyy'),
+          shortLabel: 'Oxirgi 30 kun',
+        };
+      case '90d':
+        return {
+          startDate: subDays(now, 90),
+          endDate: now,
+          periodLabel: format(subDays(now, 90), 'dd.MM') + ' – ' + format(now, 'dd.MM.yyyy'),
+          shortLabel: 'Oxirgi 90 kun',
+        };
+      case 'custom': {
+        const from = customFrom ? new Date(customFrom) : subDays(now, 30);
+        const to = customTo ? new Date(customTo) : now;
+        return {
+          startDate: from,
+          endDate: to,
+          periodLabel: format(from, 'dd.MM.yyyy') + ' – ' + format(to, 'dd.MM.yyyy'),
+          shortLabel: format(from, 'dd.MM') + ' – ' + format(to, 'dd.MM'),
+        };
+      }
+    }
+  }, [periodPreset, customFrom, customTo]);
 
   // Fetch stores
   const { data: stores } = useQuery({
@@ -138,18 +194,18 @@ export default function MarketplaceAnalytics() {
   });
 
 
-  // PRIMARY data source: aggregate from marketplace_orders directly (no VIEW needed)
+  // PRIMARY data source: aggregate from marketplace_orders with dynamic date range
   const { data: financeSummary, isLoading: financeLoading, refetch: refetchFinance } = useQuery({
-    queryKey: ['mp-analytics-finance-summary'],
+    queryKey: ['mp-analytics-finance-summary', startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
-      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from('marketplace_orders')
         .select('store_id, ordered_at, total_amount, commission, status')
-        .gte('ordered_at', thirtyDaysAgo);
+        .gte('ordered_at', startDate.toISOString())
+        .lte('ordered_at', endDate.toISOString());
       if (error) throw error;
 
-      // Aggregate by store + date (same structure as marketplace_finance_summary)
+      // Aggregate by store + date
       const map: Record<string, {
         store_id: string; period_date: string; period_type: string;
         orders_count: number; gross_revenue: number; commission_total: number;
@@ -535,7 +591,6 @@ export default function MarketplaceAnalytics() {
         {/* Store chips — shown only when uzum or yandex is selected */}
         {platformTab !== 'all' && platformStores.length > 0 && (
           <div className="flex flex-wrap gap-2 pl-1">
-            {/* "Barchasi" chip */}
             <button
               onClick={() => setSelectedStoreId(null)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${!selectedStoreId
@@ -545,8 +600,6 @@ export default function MarketplaceAnalytics() {
             >
               Barchasi ({platformStores.length})
             </button>
-
-            {/* Individual store chips */}
             {platformStores.map(store => {
               const rev = baseStoreRevenue[store.id] || 0;
               const isSelected = selectedStoreId === store.id;
@@ -568,6 +621,80 @@ export default function MarketplaceAnalytics() {
                 </button>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* ===== PERIOD FILTER BAR ===== */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          {(
+            [['today', 'Bugun'], ['7d', '7 kun'], ['30d', '30 kun'], ['90d', '90 kun']] as [PeriodPreset, string][]
+          ).map(([preset, label]) => (
+            <button
+              key={preset}
+              onClick={() => { setPeriodPreset(preset); setShowCustomPicker(false); }}
+              className={`px-4 py-1.5 rounded-xl text-sm font-semibold border transition-all ${
+                periodPreset === preset && !showCustomPicker
+                  ? 'bg-foreground text-background border-foreground shadow-sm'
+                  : 'border-border text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {/* Custom date range button */}
+          <button
+            onClick={() => { setShowCustomPicker(v => !v); if (!showCustomPicker) setPeriodPreset('custom'); }}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-semibold border transition-all ${
+              periodPreset === 'custom'
+                ? 'bg-foreground text-background border-foreground shadow-sm'
+                : 'border-border text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground'
+            }`}
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            {periodPreset === 'custom' && customFrom && customTo
+              ? shortLabel
+              : 'Boshqa sana'}
+            <ChevronDown className={`h-3 w-3 transition-transform ${showCustomPicker ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Active period label */}
+          <span className="ml-auto text-xs text-muted-foreground font-medium border border-border/50 rounded-lg px-2.5 py-1 bg-muted/30">
+            📅 {periodLabel}
+          </span>
+        </div>
+
+        {/* Custom date inputs — inline */}
+        {showCustomPicker && (
+          <div className="flex items-center gap-3 pl-6 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Dan:</span>
+              <input
+                type="date"
+                value={customFrom}
+                max={customTo || format(new Date(), 'yyyy-MM-dd')}
+                onChange={e => { setCustomFrom(e.target.value); setPeriodPreset('custom'); }}
+                className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Gacha:</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom}
+                max={format(new Date(), 'yyyy-MM-dd')}
+                onChange={e => { setCustomTo(e.target.value); setPeriodPreset('custom'); }}
+                className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            {customFrom && customTo && (
+              <Badge variant="outline" className="text-xs text-green-600 border-green-600/30 bg-green-50 dark:bg-green-900/20">
+                ✓ {periodLabel}
+              </Badge>
+            )}
           </div>
         )}
       </div>
@@ -656,29 +783,39 @@ export default function MarketplaceAnalytics() {
         </div>
       )}
 
-      {/* Quick Stats */}
-
+      {/* Quick Stats — KPI Cards with period label */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+        {/* Period date badge shown on top of each card group */}
+        <div className="col-span-2 md:col-span-4 flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Davr ko'rsatkichlari</span>
+          <div className="flex-1 h-px bg-border/40" />
+          <span className="text-xs text-muted-foreground bg-muted/40 border border-border/50 rounded-lg px-2.5 py-1 font-medium">
+            📅 {periodLabel}
+          </span>
+        </div>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-400 to-green-500" />
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">{t('mpa_total_revenue')}</p>
                 <p className="text-2xl font-bold">{formatCurrency(netRevenue)}</p>
-                <p className="text-xs text-muted-foreground">{cfg.label} • {t('mpa_last_30_days')}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{cfg.label} • {shortLabel}</p>
               </div>
-
+              <DollarSign className="h-8 w-8 text-emerald-500 opacity-70" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-blue-400 to-blue-600" />
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">{t('mpa_total_orders')}</p>
                 <p className="text-2xl font-bold">{analytics.totalOrders}</p>
-                <div className="flex gap-2 text-xs">
+                <div className="flex gap-2 text-xs mt-0.5">
                   <span className="text-green-600">{analytics.completedOrders} ✓</span>
                   <span className="text-yellow-600">{analytics.pendingOrders} ⏳</span>
                 </div>
@@ -688,13 +825,14 @@ export default function MarketplaceAnalytics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-purple-400 to-purple-600" />
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">{t('mpa_active_listings')}</p>
                 <p className="text-2xl font-bold">{analytics.activeListings}</p>
-                <div className="flex gap-2 text-xs">
+                <div className="flex gap-2 text-xs mt-0.5">
                   <span className="text-yellow-600">{analytics.lowStockListings} {t('mpa_low')}</span>
                   <span className="text-red-600">{analytics.outOfStockListings} {t('mpa_ended')}</span>
                 </div>
@@ -704,17 +842,17 @@ export default function MarketplaceAnalytics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-400 to-red-500" />
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Komissiya</p>
                 <p className="text-2xl font-bold">{formatCurrency(analytics.totalCommission)}</p>
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-red-600 mt-0.5">
                   {analytics.totalRevenue > 0
                     ? (() => {
                       const comm = analytics.totalCommission;
-                      // Defensive guard against historical DB corruption (absolute UZS stored as %)
                       if (comm > analytics.totalRevenue * 0.45) {
                         return `${(20).toFixed(1)}% daromaddan (taxminiy)*`;
                       }
@@ -723,7 +861,7 @@ export default function MarketplaceAnalytics() {
                     : '0% daromaddan'}
                 </p>
               </div>
-
+              <Receipt className="h-8 w-8 text-orange-500 opacity-80" />
             </div>
           </CardContent>
         </Card>
@@ -1233,7 +1371,7 @@ export default function MarketplaceAnalytics() {
             <CardHeader>
               <CardTitle>{t('mpa_financial_summary')}</CardTitle>
               <CardDescription>
-                {cfg.label} • {t('mpa_last_30')}
+                {cfg.label} • {periodLabel}
               </CardDescription>
             </CardHeader>
             <CardContent>
