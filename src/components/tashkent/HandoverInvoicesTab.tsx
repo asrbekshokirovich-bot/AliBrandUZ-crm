@@ -982,18 +982,31 @@ export function HandoverInvoicesTab({ marketplace: propMarketplace }: HandoverIn
                         </Badge>
                       ))}
                     </div>
-                    {inv.stock_deducted && (
-                      <div className="mt-3 pt-3 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => { e.stopPropagation(); setUndoConfirmId(inv.id); }}
-                          disabled={undoStockMutation.isPending}
-                          className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
-                        >
-                          <Undo2 className="h-3.5 w-3.5" />
-                          Zaxirani qaytarish ({inv.matched_items_count || 0} birlik)
-                        </Button>
+                    {(inv.stock_deducted || inv.pdf_url) && (
+                      <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-2">
+                        {inv.pdf_url && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); window.open(inv.pdf_url, '_blank'); }}
+                            className="gap-2"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            Hujjatni ko'rish
+                          </Button>
+                        )}
+                        {inv.stock_deducted && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); setUndoConfirmId(inv.id); }}
+                            disabled={undoStockMutation.isPending}
+                            className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                            Zaxirani qaytarish ({inv.matched_items_count || 0} birlik)
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
