@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -316,7 +316,7 @@ export default function TashkentDashboard() {
         supabase
           .from('products')
           .select('tashkent_manual_stock')
-          .eq('status', 'active')
+          .neq('status', 'archived')
           .neq('source', 'marketplace_auto')
           .gt('tashkent_manual_stock', 0),
         

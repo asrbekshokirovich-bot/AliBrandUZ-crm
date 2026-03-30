@@ -169,7 +169,7 @@ export function TashkentWarehouseIndicators({
             image_url
           )
         `)
-        .eq('status', 'active')
+        .neq('status', 'archived')
         .neq('source', 'marketplace_auto')
         .order('name');
 
