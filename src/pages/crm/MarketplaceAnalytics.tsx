@@ -1055,12 +1055,43 @@ export default function MarketplaceAnalytics() {
                 {/* 2. TOP 5 STORES */}
                 <Card className="border-border/60 shadow-md bg-gradient-to-br from-card to-muted/20 overflow-hidden">
                   <CardHeader className="pb-2 border-b border-border/30">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2 flex-wrap">
                       <CardTitle className="text-sm font-bold tracking-wider uppercase flex items-center gap-2 text-muted-foreground">
                         <Target className="h-4 w-4" /> Top 5 Do'konlar
                       </CardTitle>
-                      <Badge variant="outline" className="text-[10px] tracking-wider uppercase">Daromad bo'yicha</Badge>
+                      <div className="flex items-center gap-1">
+                        {(['today', '7d', '30d', '90d'] as PeriodPreset[]).map((preset) => {
+                          const label = preset === 'today' ? 'Bugun' : preset === '7d' ? '7k' : preset === '30d' ? '30k' : '90k';
+                          return (
+                            <button
+                              key={preset}
+                              onClick={() => { setPeriodPreset(preset); setShowCustomPicker(false); }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                periodPreset === preset && !showCustomPicker
+                                  ? 'bg-foreground text-background border-foreground shadow-sm'
+                                  : 'border-border/60 text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground bg-muted/30'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => { setShowCustomPicker(v => !v); if (!showCustomPicker) setPeriodPreset('custom'); }}
+                          title="Boshqa sana"
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            periodPreset === 'custom'
+                              ? 'bg-foreground text-background border-foreground shadow-sm'
+                              : 'border-border/60 text-muted-foreground hover:border-muted-foreground/60 bg-muted/30'
+                          }`}
+                        >
+                          <Calendar className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
+                    <p className="text-[10px] text-muted-foreground/70 mt-1.5 font-medium">
+                      📅 {periodLabel}
+                    </p>
                   </CardHeader>
                   <CardContent className="pt-6">
                     {storeChartData.length === 0 ? (
@@ -1101,14 +1132,47 @@ export default function MarketplaceAnalytics() {
                 {/* 3. TREND ANALYSIS */}
                 <Card className="border-border/60 shadow-md bg-gradient-to-br from-card to-muted/20 overflow-hidden lg:col-span-2">
                   <CardHeader className="pb-2 border-b border-border/30">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2 flex-wrap">
                       <CardTitle className="text-sm font-bold tracking-wider uppercase flex items-center gap-2 text-muted-foreground">
                         <LineChart className="h-4 w-4" /> Daromad tendensiyasi
                       </CardTitle>
-                      <div className="flex gap-4 text-xs font-medium">
-                        <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary/80 shadow-sm" /> Daromad</span>
+                      <div className="flex items-center gap-1">
+                        {(['today', '7d', '30d', '90d'] as PeriodPreset[]).map((preset) => {
+                          const label = preset === 'today' ? 'Bugun' : preset === '7d' ? '7k' : preset === '30d' ? '30k' : '90k';
+                          return (
+                            <button
+                              key={preset}
+                              onClick={() => { setPeriodPreset(preset); setShowCustomPicker(false); }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                periodPreset === preset && !showCustomPicker
+                                  ? 'bg-foreground text-background border-foreground shadow-sm'
+                                  : 'border-border/60 text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground bg-muted/30'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => { setShowCustomPicker(v => !v); if (!showCustomPicker) setPeriodPreset('custom'); }}
+                          title="Boshqa sana"
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            periodPreset === 'custom'
+                              ? 'bg-foreground text-background border-foreground shadow-sm'
+                              : 'border-border/60 text-muted-foreground hover:border-muted-foreground/60 bg-muted/30'
+                          }`}
+                        >
+                          <Calendar className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="flex items-center gap-1.5 ml-2 pl-2 border-l border-border/60">
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary/80 shadow-sm" /> 
+                          <span className="text-xs font-medium">Daromad</span>
+                        </span>
                       </div>
                     </div>
+                    <p className="text-[10px] text-muted-foreground/70 mt-1.5 font-medium">
+                      📅 {periodLabel}
+                    </p>
                   </CardHeader>
                   <CardContent className="pt-6">
                     <ResponsiveContainer width="100%" height={260}>
