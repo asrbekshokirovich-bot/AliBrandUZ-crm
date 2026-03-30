@@ -971,9 +971,45 @@ export default function MarketplaceAnalytics() {
                 {/* 1. PROPORTION OF TYPE (Uzum vs Yandex) */}
                 <Card className="border-border/60 shadow-md bg-gradient-to-br from-card to-muted/20 overflow-hidden">
                   <CardHeader className="pb-2 border-b border-border/30">
-                    <CardTitle className="text-sm font-bold tracking-wider uppercase flex items-center gap-2 text-muted-foreground">
-                      <PieChart className="h-4 w-4" /> Platforma taqsimoti
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <CardTitle className="text-sm font-bold tracking-wider uppercase flex items-center gap-2 text-muted-foreground">
+                        <PieChart className="h-4 w-4" /> Platforma taqsimoti
+                      </CardTitle>
+                      {/* Compact period selector */}
+                      <div className="flex items-center gap-1">
+                        {(['today', '7d', '30d', '90d'] as PeriodPreset[]).map((preset) => {
+                          const label = preset === 'today' ? 'Bugun' : preset === '7d' ? '7k' : preset === '30d' ? '30k' : '90k';
+                          return (
+                            <button
+                              key={preset}
+                              onClick={() => { setPeriodPreset(preset); setShowCustomPicker(false); }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                periodPreset === preset && !showCustomPicker
+                                  ? 'bg-foreground text-background border-foreground shadow-sm'
+                                  : 'border-border/60 text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground bg-muted/30'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => { setShowCustomPicker(v => !v); if (!showCustomPicker) setPeriodPreset('custom'); }}
+                          title="Boshqa sana"
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            periodPreset === 'custom'
+                              ? 'bg-foreground text-background border-foreground shadow-sm'
+                              : 'border-border/60 text-muted-foreground hover:border-muted-foreground/60 bg-muted/30'
+                          }`}
+                        >
+                          <Calendar className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Active period label under header */}
+                    <p className="text-[10px] text-muted-foreground/70 mt-1.5 font-medium">
+                      📅 {periodLabel}
+                    </p>
                   </CardHeader>
                   <CardContent className="pt-6 relative flex flex-col items-center justify-center min-h-[280px]">
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
