@@ -45,7 +45,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { format, subDays, startOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
 type PeriodPreset = 'today' | '7d' | '30d' | '90d' | 'custom';
@@ -151,14 +151,14 @@ export default function MarketplaceAnalytics() {
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'marketplace_orders' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['mp-analytics-finance-summary'] });
+          queryClient.invalidateQueries({ queryKey: ['mp-analytics-finance-summary'], exact: false });
           queryClient.invalidateQueries({ queryKey: ['mp-analytics-today'] });
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'marketplace_orders' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['mp-analytics-finance-summary'] });
+          queryClient.invalidateQueries({ queryKey: ['mp-analytics-finance-summary'], exact: false });
           queryClient.invalidateQueries({ queryKey: ['mp-analytics-today'] });
         }
       )
@@ -370,8 +370,8 @@ export default function MarketplaceAnalytics() {
     }
     return Object.entries(trendByDate)
       .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-14);
+      .sort((a, b) => a.date.localeCompare(b.date));
+    // No .slice() — show all data points for the selected period
   }, [platformSummary]);
 
   // === Base store revenue for chips (platform filtered, NOT store filtered) ===
