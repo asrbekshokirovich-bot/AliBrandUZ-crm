@@ -12,7 +12,7 @@ interface ExchangeRateBannerProps {
 }
 
 export function ExchangeRateBanner({ showEdit = true, compact = false, className }: ExchangeRateBannerProps) {
-  const { usdToUzs, cnyToUzs, isManualRate, rateSource, saveManualRate, resetToAutoRate } = useFinanceCurrency();
+  const { usdToUzs, cnyToUzs, isManualRate, rateSource, saveManualRate } = useFinanceCurrency();
   const [editing, setEditing] = useState(false);
   const [draftUsd, setDraftUsd] = useState('');
   const [draftCny, setDraftCny] = useState('');
@@ -36,13 +36,6 @@ export function ExchangeRateBanner({ showEdit = true, compact = false, className
   };
 
   const handleCancel = () => {
-    setEditing(false);
-  };
-
-  const handleReset = async () => {
-    setSaving(true);
-    await resetToAutoRate();
-    setSaving(false);
     setEditing(false);
   };
 
@@ -91,11 +84,6 @@ export function ExchangeRateBanner({ showEdit = true, compact = false, className
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleCancel} disabled={saving}>
               <X className="h-3.5 w-3.5" />
             </Button>
-            {isManualRate && (
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={handleReset} disabled={saving} title="Bank kursiga qaytarish">
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1">* Ushbu kurs bazaga saqlanadi va barcha bo'limlarda qo'llaniladi.</p>
@@ -136,19 +124,6 @@ export function ExchangeRateBanner({ showEdit = true, compact = false, className
         >
           <Pencil className="h-3 w-3" />
           Tahrirlash
-        </Button>
-      )}
-      {isManualRate && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 px-1.5 text-[11px] gap-1 text-primary/70 hover:text-primary"
-          onClick={handleReset}
-          disabled={saving}
-        >
-          <RotateCcw className="h-3 w-3" />
-          Bank kursiga qaytarish
         </Button>
       )}
     </div>
