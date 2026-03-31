@@ -280,6 +280,14 @@ export default function Products() {
     return [...new Set(brands)].sort();
   }, [products]);
 
+  // Extract unique statuses for filter
+  const uniqueStatuses = useMemo(() => {
+    if (!products) return [];
+    const statuses = products.map(p => p.status).filter((s): s is string => !!s);
+    const standard = ['pending', 'packed', 'in_transit', 'arrived', 'sold'];
+    return Array.from(new Set([...standard, ...statuses]));
+  }, [products]);
+
   const filteredProducts = products?.filter(product => {
     // Search filter
     if (searchQuery) {
@@ -459,11 +467,11 @@ export default function Products() {
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="all">{t('prod_all_statuses')}</SelectItem>
-                  <SelectItem value="pending">{t('prod_status_pending')}</SelectItem>
-                  <SelectItem value="packed">{t('prod_status_packed')}</SelectItem>
-                  <SelectItem value="in_transit">{t('prod_status_in_transit')}</SelectItem>
-                  <SelectItem value="arrived">{t('prod_status_arrived')}</SelectItem>
-                  <SelectItem value="sold">{t('prod_status_sold')}</SelectItem>
+                  {uniqueStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {t(`prod_status_${status}`, { defaultValue: status })}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
