@@ -174,7 +174,9 @@ export function TashkentWarehouseIndicators({
         .order('name');
 
       // Filter by category if selected
-      if (selectedCategoryId) {
+      if (selectedCategoryId === 'uncategorized') {
+        query = query.is('category_id', null);
+      } else if (selectedCategoryId) {
         query = query.eq('category_id', selectedCategoryId);
       }
 

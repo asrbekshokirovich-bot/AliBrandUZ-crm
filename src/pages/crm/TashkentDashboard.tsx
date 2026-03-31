@@ -142,8 +142,7 @@ export default function TashkentDashboard() {
         .from('products')
         .select('id, category_id, tashkent_manual_stock, has_variants, product_variants(id, stock_quantity)')
         .neq('status', 'archived')
-        .neq('source', 'marketplace_auto')
-        .not('category_id', 'is', null);
+        .neq('source', 'marketplace_auto');
 
       if (prodError) throw prodError;
 
@@ -176,7 +175,7 @@ export default function TashkentDashboard() {
       //    oddiy -> tashkent_manual_stock
       const counts: Record<string, number> = {};
       products?.forEach(product => {
-        if (!product.category_id) return;
+        const catId = product.category_id || 'uncategorized';
         const isTracked = trackedProductIds.has(product.id);
         let totalStock = 0;
         if (isTracked) {
@@ -188,7 +187,7 @@ export default function TashkentDashboard() {
           totalStock = product.tashkent_manual_stock || 0;
         }
         if (totalStock > 0) {
-          counts[product.category_id] = (counts[product.category_id] || 0) + totalStock;
+          counts[catId] = (counts[catId] || 0) + totalStock;
         }
       });
 
@@ -206,6 +205,18 @@ export default function TashkentDashboard() {
     current_count: categoryCounts[cat.id] || 0,
     icon: cat.icon,
   }));
+
+  // Add uncategorized section if there are items
+  if (categoryCounts['uncategorized'] > 0) {
+    sections.push({
+      id: 'uncategorized',
+      zone: 'Boshqa',
+      shelf: 'Kategoriyasiz mahsulotlar',
+      capacity: 100,
+      current_count: categoryCounts['uncategorized'],
+      icon: null,
+    });
+  }
 
   // Fetch product items in Tashkent - filter by category when a section (category) is selected
   const { data: productItems = [] } = useQuery({
