@@ -323,6 +323,10 @@ async function toolGetWarehouseStats(args: any) {
   // 4. China Waiting Items
   const chinaItemsCount = await getTableCount('product_items', 'status=in.(pending,ordered,in_china,packing)&box_id=is.null');
 
+  // China Verifications (Today)
+  const today = new Date().toISOString().split('T')[0];
+  const verificationsToday = await getTableCount('verification_sessions', `status=eq.completed&created_at=gte.${today}T00:00:00`);
+
   // 5. In Transit Items
   const inTransitCount = await getTableCount('product_items', 'status=eq.in_transit');
 
@@ -338,7 +342,8 @@ async function toolGetWarehouseStats(args: any) {
     },
     china_warehouse_stock: {
       total_items_waiting: chinaItemsCount,
-      detail: "Bu tovarlar qadoqlanmagan va xitoyda jo'natilishini kutmoqda."
+      today_verifications: verificationsToday,
+      detail: `Kutayotgan tovarlar: ${chinaItemsCount}. Bugun yakunlangan tekshiruvlar (tekshirilgan): ${verificationsToday} ta.`
     },
     logistics: {
       total_items_in_transit: inTransitCount,
