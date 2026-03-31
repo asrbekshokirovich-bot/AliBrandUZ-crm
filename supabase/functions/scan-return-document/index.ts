@@ -40,10 +40,10 @@ Text:\n`;
 const VISION_PROMPT = `You are a highly precise data extraction scanner. Deeply analyze the provided return document image.
 CRITICAL INSTRUCTIONS:
 1. First, inside the "step_by_step_thinking" field, you MUST create a strict anchor map for all 13 rows.
-2. SPATIAL ALIGNMENT TRICK: To avoid shifting numbers up or down, look at the Row Number (№) on the far left, then scan horizontally to the "Кол-во (шт.)" column (second from right). Transcribe exactly like this: "No 1 -> Qty 2", "No 2 -> Qty 2", ..., "No 9 -> Qty 1", "No 10 -> Qty 10", "No 11 -> Qty 3", "No 12 -> Qty 3", "No 13 -> Qty 1".
-3. After building this map, match each product name (including its color/variant in brackets) to the exact Row Number you just mapped.
-4. Extract the SKU or barcode in the "sku" field if present.
-5. DO NOT skip any rows! Check your numbering sequence from 1 to 13.
+2. CRITICAL OCR MULTI-LINE WARNING: The "Описание товара" (Product Name) often wraps into TWO lines (e.g., the color like "(Rang: Jigarrang)" is on the second line). HOWEVER, the numbers on the far right (like Quantity) are aligned with the FIRST line of the product name. 
+3. DO NOT trace horizontally from the second line of the description! If you do, your eyes will hit the Quantity of the NEXT row below it! Always read the Quantity horizontally from the "Xalqaro passport..." text, NOT from the "(Rang:...)" text.
+4. Scan the Row Number (№) on the far left, then scan horizontally aligned with the FIRST line of text to the "Кол-во (шт.)" column. Transcribe exactly like this: "No 1 -> Qty 2", "No 9 -> Qty 1", "No 10 -> Qty 10", "No 11 -> Qty 3".
+5. Match each product name (including its color/variant in brackets) to the exact Row Number mapped.
 6. The sum of all quantities in your items array MUST EQUAL the mathematical total visible of those rows (sum is usually 37).
 Return ONLY this exact JSON — no extra fields, no markdown.
 
