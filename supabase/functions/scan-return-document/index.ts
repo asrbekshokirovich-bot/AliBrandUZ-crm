@@ -9,12 +9,13 @@ const TARGET_SCHEMA = `{
   "document": {
     "document_type": "brak or yaroqli or return",
     "document_number": "string",
-    "date": "string (YYYY-MM-DD or whatever is seen)",
-    "partner": "string (vendor, sender or customer)"
+    "date": "string (YYYY-MM-DD)",
+    "partner": "string"
   },
   "items": [
     {
-      "product_name": "string",
+      "product_name": "string (MUST include color/variation if written in brackets)",
+      "sku": "string (if available)",
       "quantity": 1,
       "unit_price": 0,
       "total_price": 0
@@ -35,7 +36,12 @@ ${TARGET_SCHEMA}
 
 Text:\n`;
 
-const VISION_PROMPT = `You are a return document scanner. Examine this document and extract return logistics or financial information.
+const VISION_PROMPT = `You are a highly precise data extraction scanner. Deeply analyze the provided return document image.
+CRITICAL INSTRUCTIONS:
+1. READ EVERY SINGLE ROW CAREFULLY. DO NOT skip or merge any rows! Match the exact table structure.
+2. Pay extreme attention to the "Кол-во (шт.)" (Quantity) column. Extract the EXACT mathematical number written for each row, do not guess.
+3. If a row has a generic name but a specific color/variant attribute in brackets (e.g. "(Rang: Yashil)"), include it entirely in the product_name so it is distinguishable.
+4. Extract the SKU or barcode in the "sku" field if present.
 Return ONLY this exact JSON — no markdown, no explanation, no extra fields.
 For document_type, try to classify if the items are defective ("brak"), normal ("yaroqli" or "sog'lom"), or general return.
 
@@ -60,6 +66,9 @@ serve(async (req) => {
   }
 
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  const OPENAI_API_BASE_URL = Deno.env.get("OPENAI_API_BASE_URL") || "https://api.openai.com/v1";
+  const AI_MODEL = Deno.env.get("AI_MODEL") || "gpt-4o";
+
   if (!OPENAI_API_KEY) {
     return new Response(
       JSON.stringify({ error: "OpenAI service not configured", success: false, hasData: false }),
@@ -91,7 +100,7 @@ serve(async (req) => {
 
     if (imageBase64) {
       requestBody = {
-        model: "gpt-4o-mini",
+        model: AI_MODEL,
         messages: [
           {
             role: "user",
@@ -100,7 +109,8 @@ serve(async (req) => {
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:${mimeType || "image/jpeg"};base64,${imageBase64}`
+                  url: `data:${mimeType || "image/jpeg"};base64,${imageBase64}`,
+                  detail: "high"
                 }
               }
             ]
@@ -113,7 +123,7 @@ serve(async (req) => {
     } else {
       const truncated = (text || "").slice(0, 12000);
       requestBody = {
-        model: "gpt-4o-mini",
+        model: AI_MODEL,
         messages: [
           {
             role: "user",
@@ -126,7 +136,7 @@ serve(async (req) => {
       };
     }
 
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    const resp = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
