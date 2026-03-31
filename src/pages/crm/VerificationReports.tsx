@@ -42,11 +42,27 @@ interface DailySummary {
 function SessionDetailsRow({ session }: { session: any }) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'verified' | 'pending'>('all');
   
   const { data: items, isLoading } = useQuery({
-    queryKey: ['session-items-detail', session.id],
+    queryKey: ['session-items-detail', session.id, session.box_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 1. Fetch ALL items belonging to this box 
+      let boxItems: any[] = [];
+      if (session.box_id) {
+        const { data, error } = await supabase
+          .from('product_items')
+          .select(`
+            id, item_uuid,
+            products (name),
+            product_variants (sku)
+          `)
+          .eq('box_id', session.box_id);
+        if (!error && data) boxItems = data;
+      }
+
+      // 2. Fetch the verified items specific to this session
+      const { data: verifiedItems, error } = await supabase
         .from('verification_items')
         .select(`
           id, status, defect_type, notes,
@@ -59,10 +75,44 @@ function SessionDetailsRow({ session }: { session: any }) {
         `)
         .eq('session_id', session.id);
       if (error) throw error;
-      return data;
+      
+      const verifiedMap = new Map();
+      (verifiedItems || []).forEach(vi => {
+        if (vi.product_item_id) verifiedMap.set(vi.product_item_id, vi);
+      });
+
+      const finalList: any[] = [];
+      
+      // 3. Mark items that are in the box but haven't been verified in this session as pending
+      boxItems.forEach(bi => {
+        if (!verifiedMap.has(bi.id)) {
+          finalList.push({
+            id: 'pending-' + bi.id,
+            status: 'pending',
+            defect_type: null,
+            notes: null,
+            product_items: bi
+          });
+        }
+      });
+      
+      // 4. Add all verified items
+      (verifiedItems || []).forEach(vi => finalList.push(vi));
+
+      return finalList;
     },
     enabled: isExpanded,
   });
+
+  const filteredItems = items?.filter(item => {
+    if (filter === 'all') return true;
+    if (filter === 'verified') return item.status !== 'pending';
+    if (filter === 'pending') return item.status === 'pending';
+    return true;
+  });
+
+  const pendingCount = items?.filter(i => i.status === 'pending').length || 0;
+  const verifiedCount = items?.filter(i => i.status !== 'pending').length || 0;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden transition-all bg-card">
@@ -116,15 +166,49 @@ function SessionDetailsRow({ session }: { session: any }) {
       </button>
 
       {isExpanded && (
-        <div className="p-4 bg-muted/20 border-t border-border">
+        <div className="p-4 bg-muted/20 border-t border-border focus:outline-none">
           {isLoading ? (
             <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : items && items.length > 0 ? (
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold">{t('vrpt_verified_products', 'Sessiyadagi tekshirilgan maxsulotlar')} ({items.length})</h4>
+            <div className="space-y-4">
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-2 border-b border-border px-1">
+                <button 
+                  onClick={() => setFilter('all')}
+                  className={`px-3 py-2 text-sm font-medium transition-colors relative ${
+                    filter === 'all' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t('vrpt_all', 'Barchasi')} ({items.length})
+                  {filter === 'all' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-full" />}
+                </button>
+                <button 
+                  onClick={() => setFilter('verified')}
+                  className={`px-3 py-2 text-sm font-medium transition-colors relative ${
+                    filter === 'verified' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t('vrpt_verified', 'Tekshirilgan')} ({verifiedCount})
+                  {filter === 'verified' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-full" />}
+                </button>
+                {pendingCount > 0 && (
+                  <button 
+                    onClick={() => setFilter('pending')}
+                    className={`px-3 py-2 text-sm font-medium transition-colors relative flex items-center gap-1.5 ${
+                      filter === 'pending' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {t('vrpt_unverified', 'Tekshirilmagan')} 
+                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px] bg-muted/50">{pendingCount}</Badge>
+                    {filter === 'pending' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-full" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Products List */}
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                {items.map((item: any) => (
-                   <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-background rounded-md border text-sm gap-3 hover:border-primary/30 transition-colors">
+                {filteredItems?.length ? filteredItems.map((item: any) => (
+                   <div key={item.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-background rounded-md border text-sm gap-3 hover:border-primary/30 transition-colors ${item.status === 'pending' ? 'opacity-80 border-dashed' : ''}`}>
                      <div className="flex-1 min-w-0">
                        <p className="font-medium truncate">{item.product_items?.products?.name || t('vrpt_unknown_product', "Noma'lum maxsulot")}</p>
                        <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">
@@ -138,9 +222,13 @@ function SessionDetailsRow({ session }: { session: any }) {
                        <Badge variant="outline" className={
                          item.status === 'ok' ? 'text-green-600 border-green-500/30 bg-green-50/50 dark:bg-green-950/20' : 
                          item.status === 'defective' ? 'text-yellow-600 border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-950/20' : 
-                         'text-red-600 border-red-500/30 bg-red-50/50 dark:bg-red-950/20'
+                         item.status === 'missing' ? 'text-red-600 border-red-500/30 bg-red-50/50 dark:bg-red-950/20' :
+                         'text-muted-foreground border-border bg-muted/30'
                        }>
-                         {item.status === 'ok' ? 'OK' : item.status === 'defective' ? t('vrpt_defective', 'Nuqsonli') : t('vrpt_missing', "Yo'q")}
+                         {item.status === 'ok' ? 'OK' : 
+                          item.status === 'defective' ? t('vrpt_defective', 'Nuqsonli') : 
+                          item.status === 'missing' ? t('vrpt_missing', "Yo'q") :
+                          t('vrpt_pending', 'Kutilmoqda')}
                        </Badge>
                        {item.defect_type && (
                          <Badge variant="secondary" className="text-xs bg-muted">
@@ -149,7 +237,11 @@ function SessionDetailsRow({ session }: { session: any }) {
                        )}
                      </div>
                    </div>
-                ))}
+                )) : (
+                  <div className="text-center py-6 text-sm text-muted-foreground italic">
+                    {t('vrpt_filter_no_results', "Bu bo'limda xech qanday mahsulot topilmadi")}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
