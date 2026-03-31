@@ -198,12 +198,14 @@ export default function MarketplaceAnalytics() {
   const { data: financeSummary, isLoading: financeLoading, refetch: refetchFinance } = useQuery({
     queryKey: ['mp-analytics-finance-summary', startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('marketplace_orders')
-        .select('store_id, ordered_at, total_amount, commission, status')
-        .gte('ordered_at', startDate.toISOString())
-        .lte('ordered_at', endDate.toISOString());
-      if (error) throw error;
+      const data = await fetchAllRows(
+        () => supabase
+          .from('marketplace_orders')
+          .select('store_id, ordered_at, total_amount, commission, status')
+          .gte('ordered_at', startDate.toISOString())
+          .lte('ordered_at', endDate.toISOString())
+      );
+      if (!data) throw new Error("No data returned");
 
       // Aggregate by store + date
       const map: Record<string, {
@@ -230,11 +232,11 @@ export default function MarketplaceAnalytics() {
         r.gross_revenue += order.total_amount || 0;
         r.commission_total += order.commission || 0;
         const st = (order.status || '').toUpperCase();
-        if (['DELIVERED','COMPLETED','DONE','ARRIVED'].some(s => st.includes(s))) r.delivered_count++;
-        else if (['CANCELLED','CANCELED','REJECTED'].some(s => st.includes(s))) r.cancelled_count++;
-        else if (st.includes('RETURN')) r.returned_count++;
-        else if (['CREATED','PENDING','PACKING','PROCESSING','PENDING_DELIVERY'].some(s => st.includes(s))) r.pending_count++;
-        // Note: orders that don't match any category are counted in orders_count but not in any sub-count
+        if (['DELIVERED','COMPLETED','DONE','ARRIVED','HANDED_'].some(s => st.includes(s))) r.delivered_count++;
+        else if (['CANCELLED','CANCELED','REJECTED','NOT_'].some(s => st.includes(s))) r.cancelled_count++;
+        else if (st.includes('RETURN') || st.includes('VOSVRAT')) r.returned_count++;
+        else r.pending_count++;
+        // Now ALL orders are strictly binned into exactly one category!
       }
       return Object.values(map);
     },
@@ -249,7 +251,7 @@ export default function MarketplaceAnalytics() {
     queryKey: ['marketplace-listings-analytics'],
     queryFn: async () => {
       return await fetchAllRows(
-        supabase
+        () => supabase
           .from('marketplace_listings')
           .select(`
             id, title, price, stock, status, product_rank, store_id, external_sku,
@@ -507,8 +509,8 @@ export default function MarketplaceAnalytics() {
     fill: rank === 'A' ? '#22c55e' : rank === 'B' ? '#3b82f6' : rank === 'C' ? '#eab308' : rank === 'D' ? '#ef4444' : '#94a3b8',
   }));
 
-  const topProducts = listings?.filter(l => l.product_rank === 'A').slice(0, 5) || [];
-  const worstProducts = listings?.filter(l => l.product_rank === 'D' || (l.stock === 0 && l.status === 'active')).slice(0, 5) || [];
+  const topProducts = listings?.filter(l => l.product_rank === 'A') || [];
+  const worstProducts = listings?.filter(l => l.product_rank === 'D' || (l.stock === 0 && l.status === 'active')) || [];
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1393,7 +1395,7 @@ export default function MarketplaceAnalytics() {
                 ) : topProducts.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">{t('mpa_no_a_rank')}</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                     {topProducts.map((product, index) => (
                       <div key={product.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                         <div className="flex items-center gap-2">
@@ -1427,17 +1429,17 @@ export default function MarketplaceAnalytics() {
               ) : worstProducts.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">{t('mpa_no_problems')}</p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                   {worstProducts.map((product) => (
                     <div key={product.id} className="flex items-center justify-between p-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20">
                       <div>
                         <p className="font-medium text-sm line-clamp-1">{product.title || product.external_sku}</p>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-1">
                           {product.product_rank === 'D' && <Badge variant="destructive">D-Rank</Badge>}
                           {product.stock === 0 && <Badge variant="outline" className="text-red-600">{t('mpa_out_of_stock')}</Badge>}
                         </div>
                       </div>
-                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                      <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
                     </div>
                   ))}
                 </div>
