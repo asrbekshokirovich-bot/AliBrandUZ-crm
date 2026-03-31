@@ -75,7 +75,12 @@ export default function ChinaDashboard() {
         ascending: false
       }).limit(10),
       // Pending items - product items not assigned to any box (waiting to be packed)
-      supabase.from('product_items').select('id').is('box_id', null).in('status', ['pending', 'ordered', 'in_china']),
+      supabase.from('product_items')
+        .select('id, products!inner(id, status, source)')
+        .is('box_id', null)
+        .in('status', ['pending', 'ordered', 'in_china'])
+        .neq('products.status', 'archived')
+        .neq('products.source', 'marketplace_auto'),
       // Verified boxes at China warehouse
       supabase.from('boxes').select('id').eq('location', 'china').eq('verification_complete', true)
     ]);
