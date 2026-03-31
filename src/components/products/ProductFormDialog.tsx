@@ -1342,15 +1342,15 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full sm:max-w-4xl max-h-[90vh] p-0 overflow-hidden" aria-describedby={undefined}>
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="w-full sm:max-w-4xl max-h-[90vh] h-[90vh] flex flex-col p-0 overflow-hidden" aria-describedby={undefined}>
+        <DialogHeader className="p-6 pb-0 shrink-0">
           <DialogTitle className="text-xl">
             {editingProduct ? "Mahsulotni tahrirlash" : "Yangi mahsulot qo'shish"}
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-          <div className="px-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <div className="px-6 shrink-0 pt-4">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="basic" className="gap-2">
                 <Package className="h-4 w-4" />
@@ -1367,7 +1367,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1 px-6 py-4" style={{ height: "calc(90vh - 200px)" }}>
+          <ScrollArea className="flex-1 px-6 py-4 min-h-0">
             <TabsContent value="basic" className="mt-0 space-y-4">
               {/* === LINK MODE TOGGLE === */}
               {!editingProduct && (
@@ -2247,7 +2247,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           </ScrollArea>
         </Tabs>
 
-        <div className="flex justify-end gap-2 p-6 pt-4 border-t">
+        <div className="flex justify-end gap-2 p-4 border-t bg-background shrink-0 mt-auto">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Bekor qilish
           </Button>
