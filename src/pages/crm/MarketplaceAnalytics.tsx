@@ -1013,8 +1013,8 @@ export default function MarketplaceAnalytics() {
                   </CardHeader>
                   <CardContent className="pt-6 relative flex flex-col items-center justify-center min-h-[280px]">
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="text-center px-4 w-[160px]">
-                        <p className="text-xl md:text-2xl font-black text-foreground tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                      <div className="text-center w-full max-w-[170px] px-1">
+                        <p className="text-xl md:text-[22px] font-black text-foreground tracking-tighter whitespace-nowrap">
                           {hasAnyRevenue ? formatCurrency(analytics.totalRevenue).split(' ')[0] : (uzumStores.length + yandexStores.length)}
                         </p>
                         <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">
