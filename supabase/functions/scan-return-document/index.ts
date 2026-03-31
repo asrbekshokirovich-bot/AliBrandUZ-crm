@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 const TARGET_SCHEMA = `{
+  "step_by_step_thinking": "Write a line-by-line transcription of every single row you see in the table, stating the row number, product name, and exact 'Кол-во' before filling the items array.",
   "document": {
     "document_type": "brak or yaroqli or return",
     "document_number": "string",
@@ -38,12 +39,13 @@ Text:\n`;
 
 const VISION_PROMPT = `You are a highly precise data extraction scanner. Deeply analyze the provided return document image.
 CRITICAL INSTRUCTIONS:
-1. READ EVERY SINGLE ROW CAREFULLY. DO NOT skip or merge any rows! Match the exact table structure.
-2. Pay extreme attention to the "Кол-во (шт.)" (Quantity) column. Extract the EXACT mathematical number written for each row, do not guess.
-3. If a row has a generic name but a specific color/variant attribute in brackets (e.g. "(Rang: Yashil)"), include it entirely in the product_name so it is distinguishable.
-4. Extract the SKU or barcode in the "sku" field if present.
-Return ONLY this exact JSON — no markdown, no explanation, no extra fields.
-For document_type, try to classify if the items are defective ("brak"), normal ("yaroqli" or "sog'lom"), or general return.
+1. First, inside the "step_by_step_thinking" field, explicitly transcribe EVERY row you see in the image sequentially (Row 1: ..., Row 2: ..., etc.) with its EXACT 'Кол-во (шт.)' mathematical value.
+2. DO NOT skip or merge any rows! There are often 13 or more rows. Capture all of them.
+3. Pay extreme attention to the "Кол-во (шт.)" (Quantity) column. Extract the EXACT mathematical number written for each row, do not guess.
+4. If a row has a generic name but a specific color/variant attribute in brackets (e.g. "(Rang: Yashil)"), include it entirely in the product_name so it is distinguishable.
+5. Extract the SKU or barcode in the "sku" field if present.
+6. The sum of all quantities in your items array MUST EQUAL the mathematical total visible of those rows.
+Return ONLY this exact JSON — no markdown, no extra fields.
 
 Schema:
 ${TARGET_SCHEMA}
@@ -116,8 +118,8 @@ serve(async (req) => {
             ]
           }
         ],
-        temperature: 0.05,
-        max_tokens: 1000,
+        temperature: 0.0,
+        max_tokens: 4000,
         response_format: { type: "json_object" }
       };
     } else {
@@ -130,8 +132,8 @@ serve(async (req) => {
             content: TEXT_PROMPT + truncated
           }
         ],
-        temperature: 0.05,
-        max_tokens: 1000,
+        temperature: 0.0,
+        max_tokens: 4000,
         response_format: { type: "json_object" }
       };
     }
