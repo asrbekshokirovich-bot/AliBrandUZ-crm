@@ -48,7 +48,7 @@ const entityIcons: Record<string, typeof Package> = {
 
 export function TaskCard({ task, onClick, onDragStart, onDragEnd, onDelete }: TaskCardProps) {
   const { t } = useTranslation();
-  const priority = priorityConfig[task.priority];
+  const priority = priorityConfig[task.priority] || priorityConfig['medium'];
   const PriorityIcon = priority.icon;
   const EntityIcon = task.entity_type ? entityIcons[task.entity_type] : null;
 

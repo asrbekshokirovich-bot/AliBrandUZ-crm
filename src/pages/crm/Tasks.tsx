@@ -79,7 +79,7 @@ export default function Tasks() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Task[];
+      return (data || []) as Task[];
     },
   });
 
@@ -88,7 +88,7 @@ export default function Tasks() {
     queryKey: ['profiles-for-tasks', tasks],
     queryFn: async () => {
       const userIds = new Set<string>();
-      tasks.forEach(task => {
+      (tasks || []).forEach(task => {
         if (task.assigned_to) userIds.add(task.assigned_to);
         if (task.created_by) userIds.add(task.created_by);
       });
@@ -103,19 +103,21 @@ export default function Tasks() {
       if (error) throw error;
 
       const profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-      data.forEach(p => {
-        profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
-      });
+      if (data) {
+        data.forEach(p => {
+          profileMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+        });
+      }
       return profileMap;
     },
     enabled: tasks.length > 0,
   });
 
   // Enrich tasks with profile data
-  const enrichedTasks = tasks.map(task => ({
+  const enrichedTasks = (tasks || []).map(task => ({
     ...task,
-    assignee: task.assigned_to ? profiles[task.assigned_to] : null,
-    creator: task.created_by ? profiles[task.created_by] : null,
+    assignee: task.assigned_to && profiles ? profiles[task.assigned_to] : null,
+    creator: task.created_by && profiles ? profiles[task.created_by] : null,
   }));
 
   // Update task mutation with activity logging
@@ -168,9 +170,9 @@ export default function Tasks() {
   });
 
   // Filter tasks by search query
-  const filteredTasks = enrichedTasks.filter(task =>
-    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    task.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTasks = (enrichedTasks || []).filter(task =>
+    (task?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (task?.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Real-time subscription
