@@ -144,10 +144,13 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
 
     setIsSaving(true);
     supabase.functions.invoke('save-scanned-returns', { body: { rows } })
-      .then(({ error: fnErr }) => {
+      .then(({ data, error: fnErr }) => {
         if (fnErr) {
           console.error('[auto-save-returns]', fnErr);
           toast.error('Saqlashda xatolik: ' + fnErr.message);
+        } else if (data && data.success === false) {
+          console.error('[auto-save-returns] database error:', data.error);
+          toast.error('Saqlashda xatolik: ' + data.error);
         } else {
           setSavedCount(rows.length);
           toast.success(`${rows.length} ta tovar "Kutilayotgan qaytarishlar" ga saqlandi ✓`);
@@ -197,12 +200,11 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
     });
 
     setIsSaving(true);
-    // Wait for save-inventory-tx to apply stock updates and resolve marketplace_returns
     try {
-      const { error } = await supabase.functions.invoke('save-inventory-tx', {
+      const { data, error } = await supabase.functions.invoke('save-inventory-tx', {
         body: {
-          scan_result: enriched,
-          classification: enriched.classification,
+          scan_result: result,
+          classification: itemClass,
           fixable_qty_map,
           unfixable_qty_map,
           nakladnoy_id: currentNakladnoyId,
@@ -211,8 +213,13 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
       if (error) {
         console.error('[save-inventory-tx]', error.message);
         toast.error('Zaxirani yangilashda xatolik yuz berdi: ' + error.message);
+      } else if (data && data.success === false) {
+        console.error('[save-inventory-tx] db error:', data.error);
+        toast.error('Zaxirani yangilashda xatolik yuz berdi: ' + data.error);
       } else {
         toast.success(`Tovarlar omborga muvaffaqiyatli qo'shildi!`);
+        onResult(result, files[0]);
+        handleClose();
       }
     } finally {
       setIsSaving(false);

@@ -17,8 +17,8 @@ Deno.serve(async (req: Request) => {
     const { rows } = await req.json();
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
-      return new Response(JSON.stringify({ error: 'rows array is required' }), {
-        status: 400,
+      return new Response(JSON.stringify({ success: false, error: 'rows array is required' }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -29,8 +29,8 @@ Deno.serve(async (req: Request) => {
 
     if (error) {
       console.error('[save-scanned-returns] Insert error:', error.message);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
+      return new Response(JSON.stringify({ success: false, error: error.message }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -41,8 +41,8 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err: any) {
     console.error('[save-scanned-returns] Error:', err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
