@@ -61,12 +61,13 @@ function DashboardContent() {
 
         // All queries run in parallel for faster loading, wrapped in safeQuery to prevent full crash
         const [
-          products, boxes, shipments, financeBalance, 
+          products, productItems, boxes, shipments, financeBalance, 
           recentProducts, recentBoxes, 
           packingBoxesCount, sealedBoxesCount, inTransitBoxesCount, 
           shipmentsInTransit, marketplaceOrders
         ] = await Promise.all([
           safeQuery(supabase.from('products').select('id', { count: 'exact', head: true })),
+          safeQuery(supabase.from('product_items').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.from('shipments').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.rpc('get_finance_balance')),
@@ -91,6 +92,7 @@ function DashboardContent() {
 
         return {
           productsCount: products?.count || 0,
+          totalItemsCount: productItems?.count || 0,
           boxesCount: boxes?.count || 0,
           shipmentsCount: shipments?.count || 0,
           balance: finalBalance,
@@ -203,7 +205,10 @@ function DashboardContent() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs sm:text-sm text-muted-foreground">{t('products')}</p>
-                      <p className="text-xl sm:text-2xl font-bold text-foreground">{stats?.productsCount || 0}</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-xl sm:text-2xl font-bold text-foreground">{stats?.totalItemsCount || 0}</p>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline-block">({stats?.productsCount || 0} xil)</span>
+                      </div>
                     </div>
                   </div>
                 </Card>
