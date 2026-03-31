@@ -20,7 +20,8 @@ import {
   User,
   ChevronDown,
   ChevronUp,
-  ShieldAlert
+  ShieldAlert,
+  Loader2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
@@ -36,6 +37,131 @@ interface DailySummary {
   missingCount: number;
   defectRate: number;
   boxes: string[];
+}
+
+function SessionDetailsRow({ session }: { session: any }) {
+  const { t } = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const { data: items, isLoading } = useQuery({
+    queryKey: ['session-items-detail', session.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('verification_items')
+        .select(`
+          id, status, defect_type, notes,
+          product_item_id,
+          product_items (
+            item_uuid,
+            products (name),
+            product_variants (sku)
+          )
+        `)
+        .eq('session_id', session.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isExpanded,
+  });
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden transition-all bg-card">
+      <button 
+        className="w-full p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 text-left transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium text-foreground truncate">
+              {session.boxes?.box_number || t('vrpt_unknown_box')}
+            </p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+              <span className="flex items-center gap-1 shrink-0"><Clock className="h-3 w-3" />
+              {format(new Date(session.created_at || ''), 'dd MMM yyyy HH:mm')}</span>
+              {session.verifier_full_name && (
+                <span className="flex items-center gap-1 shrink-0 border-l border-border pl-2">
+                  <User className="h-3 w-3" />
+                  {session.verifier_full_name}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+          <Badge 
+            variant={session.status === 'completed' ? 'default' : 'secondary'}
+            className={session.status === 'completed' ? 'bg-green-500' : ''}
+          >
+            {session.status === 'completed' ? t('vrpt_completed', 'Tugallandi') : t('vrpt_in_progress', 'Jarayonda')}
+          </Badge>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-sm font-medium">
+              <span className="text-green-500">{session.ok_count || 0}</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-yellow-500">{session.defective_count || 0}</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-red-500">{session.missing_count || 0}</span>
+            </div>
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+          </div>
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="p-4 bg-muted/20 border-t border-border">
+          {isLoading ? (
+            <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : items && items.length > 0 ? (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold">{t('vrpt_verified_products', 'Sessiyadagi tekshirilgan maxsulotlar')} ({items.length})</h4>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {items.map((item: any) => (
+                   <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-background rounded-md border text-sm gap-3 hover:border-primary/30 transition-colors">
+                     <div className="flex-1 min-w-0">
+                       <p className="font-medium truncate">{item.product_items?.products?.name || t('vrpt_unknown_product', "Noma'lum maxsulot")}</p>
+                       <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">
+                         {item.product_items?.item_uuid || item.product_items?.product_variants?.sku}
+                       </p>
+                       {item.notes && (
+                         <p className="text-xs text-muted-foreground mt-1.5 py-1.5 px-2 bg-muted rounded-md italic border-l-2 border-foreground/20">Izoh: {item.notes}</p>
+                       )}
+                     </div>
+                     <div className="flex items-center justify-end gap-2 shrink-0">
+                       <Badge variant="outline" className={
+                         item.status === 'ok' ? 'text-green-600 border-green-500/30 bg-green-50/50 dark:bg-green-950/20' : 
+                         item.status === 'defective' ? 'text-yellow-600 border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-950/20' : 
+                         'text-red-600 border-red-500/30 bg-red-50/50 dark:bg-red-950/20'
+                       }>
+                         {item.status === 'ok' ? 'OK' : item.status === 'defective' ? t('vrpt_defective', 'Nuqsonli') : t('vrpt_missing', "Yo'q")}
+                       </Badge>
+                       {item.defect_type && (
+                         <Badge variant="secondary" className="text-xs bg-muted">
+                           {item.defect_type}
+                         </Badge>
+                       )}
+                     </div>
+                   </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+               <Package className="h-10 w-10 mb-2 opacity-30" />
+               <p className="text-sm">{t('vr_no_products', 'Maxsulotlar topilmadi')}</p>
+             </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function VerificationReports() {
@@ -492,50 +618,7 @@ export default function VerificationReports() {
         ) : sessions && sessions.length > 0 ? (
           <div className="space-y-3">
             {sessions.slice(0, 10).map((session) => (
-              <div 
-                key={session.id} 
-                className="p-4 border border-border rounded-lg hover:bg-muted/30 transition-colors"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Package className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {(session as any).boxes?.box_number || t('vrpt_unknown_box')}
-                      </p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {format(new Date(session.created_at || ''), 'dd MMM yyyy HH:mm')}
-                        {(session as any).verifier_full_name && (
-                          <>
-                            <span>•</span>
-                            <User className="h-3 w-3" />
-                            {(session as any).verifier_full_name}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Badge 
-                      variant={session.status === 'completed' ? 'default' : 'secondary'}
-                      className={session.status === 'completed' ? 'bg-green-500' : ''}
-                    >
-                      {session.status === 'completed' ? t('vrpt_completed') : t('vrpt_in_progress')}
-                    </Badge>
-                    <div className="flex items-center gap-1.5 text-sm">
-                      <span className="text-green-500">{session.ok_count || 0}</span>
-                      <span className="text-muted-foreground">/</span>
-                      <span className="text-yellow-500">{session.defective_count || 0}</span>
-                      <span className="text-muted-foreground">/</span>
-                      <span className="text-red-500">{session.missing_count || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SessionDetailsRow key={session.id} session={session} />
             ))}
           </div>
         ) : (
