@@ -448,6 +448,58 @@ export default function TashkentDashboard() {
   const content = (
     <div className="space-y-6">
       {/* Header */}
+      
+      {/* TEMPORARY FIX BUTTON */}
+      <div className="bg-yellow-500/20 p-4 rounded-lg border border-yellow-500 mb-6 flex items-center justify-between">
+         <div>
+            <h3 className="font-bold text-yellow-500">Duplikatni to'g'irlash (Atir idish)</h3>
+            <p className="text-sm text-muted-foreground">"atr idish" va "Atir idish" dagi xatolikni birlashtirish uchi shu tugmani bosing!</p>
+         </div>
+         <Button 
+            className="bg-yellow-500 hover:bg-yellow-600 font-bold"
+            onClick={async () => {
+              try {
+                // 1. Find correct product
+                console.log("Qidirilmoqda...");
+                const { data: pData } = await supabase.from('products').select('*').ilike('name', '%atir idish%');
+                const correctP = pData?.find(p => p.name.startsWith('Atir Idish'));
+                const wrongP = pData?.find(p => p.name === 'atr idish');
+                
+                if (!correctP || !wrongP) {
+                  alert('Mahsulotlar topilmadi!');
+                  return;
+                }
+                
+                // 2. Find variant qora alyumin
+                const { data: vData } = await supabase.from('product_variants').select('*').eq('product_id', correctP.id);
+                const correctV = vData?.find(v => v.variant_attributes?.rang === 'qora' && v.variant_attributes?.material === 'alyumin');
+                
+                if (!correctV) {
+                  alert('Qora alyumin varianti topilmadi!');
+                  return;
+                }
+
+                // 3. Update all items
+                const { error: updErr } = await supabase.from('product_items').update({
+                   product_id: correctP.id,
+                   variant_id: correctV.id
+                }).eq('product_id', wrongP.id);
+                
+                if (updErr) throw updErr;
+
+                // 4. Delete wrong product
+                await supabase.from('products').delete().eq('id', wrongP.id);
+
+                alert('UDDAR! 100 ta tovar muvaffaqiyatli "Atir Idish (qora alyumin)" ichiga o\'tdi! Sahifani yangilang!');
+              } catch(e: any) {
+                alert('XATOLIK: ' + e.message);
+              }
+            }}
+         >
+           Ikkovini Birlashtirish!
+         </Button>
+      </div>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-3">
