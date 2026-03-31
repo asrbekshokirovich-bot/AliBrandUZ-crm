@@ -268,6 +268,69 @@ async function toolGetTasks() {
   };
 }
 
+// ──────────────────────────────────────────────────────────
+// Custom Count Helper
+// ──────────────────────────────────────────────────────────
+async function getTableCount(table: string, filterQuery: string = '') {
+  const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${filterQuery}`;
+  const res = await fetch(url, {
+    method: 'HEAD',
+    headers: {
+      'apikey': key,
+      'Authorization': `Bearer ${key}`,
+      'Prefer': 'count=exact'
+    }
+  });
+  if (!res.ok) return 0;
+  const range = res.headers.get('content-range');
+  return range ? parseInt(range.split('/')[1] || "0", 10) : 0;
+}
+
+async function toolGetWarehouseStats(args: any) {
+  const { include_archived } = args;
+  
+  // 1. Tashkent Items
+  const tashkentItemsCount = await getTableCount('product_items', 'status=in.(in_stock,arrived)');
+  
+  // 2. Manual stock sum
+  const productsQuery = '/products?select=id,tashkent_manual_stock' + (include_archived ? '' : '&status=neq.archived');
+  const products = await supabaseQuery(productsQuery) || [];
+  let manualStockTashkent = 0;
+  products.forEach((p: any) => {
+    manualStockTashkent += (p.tashkent_manual_stock || 0);
+  });
+
+  // 3. China Waiting Items
+  const chinaItemsCount = await getTableCount('product_items', 'status=in.(pending,ordered,in_china)&box_id=is.null');
+
+  // 4. In Transit Items
+  const inTransitCount = await getTableCount('product_items', 'status=eq.in_transit');
+
+  // 5. Sold Items
+  const soldCount = await getTableCount('product_items', 'status=eq.sold');
+
+  return {
+    tashkent_warehouse_stock: {
+      total_items: tashkentItemsCount + manualStockTashkent,
+      breakdown: `Trek-kodli kiritilgan tovarlar: ${tashkentItemsCount} ta. Qo'shimcha/Mayda va boshqa zaxiralar: ${manualStockTashkent} ta.`
+    },
+    china_warehouse_stock: {
+      total_items_waiting: chinaItemsCount,
+      detail: "Bu tovarlar qadoqlanmagan va xitoyda jo'natilishini kutmoqda."
+    },
+    logistics: {
+      total_items_in_transit: inTransitCount,
+      detail: "Toshkent omboriga yo'l olyotgan tovarlar."
+    },
+    sales: {
+      total_items_sold: soldCount,
+      detail: "Tizim bo'yicha hozirgacha to'liq sotilgan tovarlar soni."
+    },
+    note: include_archived ? "Arxivlangan mahsulotlar zaxiralarga hisobga olindi." : "Arxivlangan mahsulotlar chiqarib tashlandi."
+  };
+}
+
 // Map tool names to functions
 const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
   search_products: toolSearchProducts,
@@ -278,6 +341,7 @@ const AVAILABLE_TOOLS: Record<string, (args: any) => Promise<any>> = {
   get_logistics_stats: toolGetLogisticsStats,
   get_recent_movements: toolGetRecentMovements,
   get_tasks: toolGetTasks,
+  get_warehouse_stats: toolGetWarehouseStats,
 };
 
 // Tool Definitions for OpenAI
@@ -363,6 +427,19 @@ const TOOL_DEFINITIONS = [
       description: "Jarayonda bo'lgan yoki qilinishi kerak bo'lgan Vazifalar (Tasks) ro'yxatini va ularni qanchalik muhimligini olish.",
       parameters: { type: "object", properties: {} }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_warehouse_stats",
+      description: "Xitoy va Toshkent omborlaridagi to'liq va umumiy zaxira (jami nechta tovar bor umuman nimalar bor), shuningdek sotilgan ('sold') tovarlar haqida umumiy to'liq statistikani olish. Agar aniq bir mahsulot haqida emas, OMbordagi umumiy holat / jami sanoq haqida so'ralsa shu ishlatilsin.",
+      parameters: {
+        type: "object",
+        properties: {
+          include_archived: { type: "boolean", description: "Foydalanuvchi aynan arxivdagi tovarlarni ham hisoblashni xohlasa true qilinadi. Standart: false." }
+        }
+      }
+    }
   }
 ];
 
@@ -383,6 +460,9 @@ QOIDALAR:
 8. "Logistika", "Qutilar", "Yoldagi posilkalar", "Jo'natmalar" desa 'get_logistics_stats' qobiliyatini ishlat.
 9. "Ombordagi harakatlar", "nima qayerga ketdi" desa 'get_recent_movements' qobiliyatini ishlat.
 10. "Qanday vazifalar bor", "ishlar", "topshiriqlar" desa 'get_tasks' qobiliyatini ishlat.
+11. UMUMIY OMBO R RAQAMLARI: Agar foydalanuvchi "Omborda nimalar bor", "Toshkent omborida nechta narsa bor", "Xitoyda holat qanday?", "Sotilganlar nechta" kabi umumlashgan inventar statistikasini so'rasa albatta 'get_warehouse_stats' instrumentini ishga tushir.
+12. "Arxivlangan tovarlarni ko'rsat" desa 'get_warehouse_stats' da include_archived: true yubor.
+
 
 TANNARX VA UMUMIY MATEMATIKA:
 Joriy Xitoy > O'zbekiston valyuta kursi (CNY_TO_UZS): ~1750 UZS.
