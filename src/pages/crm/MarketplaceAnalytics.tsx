@@ -210,6 +210,7 @@ export default function MarketplaceAnalytics() {
         store_id: string; period_date: string; period_type: string;
         orders_count: number; gross_revenue: number; commission_total: number;
         delivered_count: number; cancelled_count: number; returned_count: number;
+        pending_count: number;
       }> = {};
 
       for (const order of data || []) {
@@ -221,6 +222,7 @@ export default function MarketplaceAnalytics() {
             store_id: order.store_id, period_date: date, period_type: 'daily',
             orders_count: 0, gross_revenue: 0, commission_total: 0,
             delivered_count: 0, cancelled_count: 0, returned_count: 0,
+            pending_count: 0,
           };
         }
         const r = map[key];
@@ -229,8 +231,10 @@ export default function MarketplaceAnalytics() {
         r.commission_total += order.commission || 0;
         const st = (order.status || '').toUpperCase();
         if (['DELIVERED','COMPLETED','DONE','ARRIVED'].some(s => st.includes(s))) r.delivered_count++;
-        if (['CANCELLED','CANCELED','REJECTED'].some(s => st.includes(s))) r.cancelled_count++;
-        if (st.includes('RETURN')) r.returned_count++;
+        else if (['CANCELLED','CANCELED','REJECTED'].some(s => st.includes(s))) r.cancelled_count++;
+        else if (st.includes('RETURN')) r.returned_count++;
+        else if (['CREATED','PENDING','PACKING','PROCESSING','PENDING_DELIVERY'].some(s => st.includes(s))) r.pending_count++;
+        // Note: orders that don't match any category are counted in orders_count but not in any sub-count
       }
       return Object.values(map);
     },
@@ -238,19 +242,7 @@ export default function MarketplaceAnalytics() {
   });
 
 
-  // Lightweight: pending count only
-  const { data: pendingCount } = useQuery({
-    queryKey: ['mp-analytics-pending-count'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('marketplace_orders')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['CREATED', 'PENDING', 'PACKING', 'PENDING_DELIVERY']);
-      if (error) throw error;
-      return count || 0;
-    },
-    staleTime: 60000,
-  });
+
 
   // Fetch listings for product analytics
   const { data: listings, isLoading: listingsLoading } = useQuery({
@@ -358,11 +350,12 @@ export default function MarketplaceAnalytics() {
     completedOrders: platformSummary.reduce((s, r) => s + (r.delivered_count || 0), 0),
     cancelledOrders: platformSummary.reduce((s, r) => s + (r.cancelled_count || 0), 0),
     returnedOrders: platformSummary.reduce((s, r) => s + (r.returned_count || 0), 0),
-    pendingOrders: pendingCount || 0,
+    // pendingOrders is now date-filtered (from main aggregation, not a separate query)
+    pendingOrders: platformSummary.reduce((s, r) => s + ((r as any).pending_count || 0), 0),
     activeListings: filteredActiveListings,
     lowStockListings: filteredLowStock,
     outOfStockListings: filteredOutOfStock,
-  }), [platformSummary, pendingCount, filteredActiveListings, filteredLowStock, filteredOutOfStock]);
+  }), [platformSummary, filteredActiveListings, filteredLowStock, filteredOutOfStock]);
 
   const netRevenue = analytics.totalRevenue - analytics.totalCommission;
 
@@ -1270,10 +1263,18 @@ export default function MarketplaceAnalytics() {
                         <div className="relative w-full md:w-[45%] lg:w-[40%] flex justify-center">
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="text-center">
-                              <p className="text-4xl font-black text-foreground">{analytics.totalOrders}</p>
+                              {/* Show categorized sum so center matches slices */}
+                              <p className="text-4xl font-black text-foreground">
+                                {orderStatusData.reduce((s, d) => s + d.value, 0)}
+                              </p>
                               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest mt-1">
                                 JAMI BUYURTMA
                               </p>
+                              {analytics.totalOrders > orderStatusData.reduce((s, d) => s + d.value, 0) && (
+                                <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                                  ({analytics.totalOrders} ga qayd)
+                                </p>
+                              )}
                             </div>
                           </div>
                           <ResponsiveContainer width="100%" height={260}>
@@ -1299,26 +1300,31 @@ export default function MarketplaceAnalytics() {
                           </ResponsiveContainer>
                         </div>
                         <div className="w-full md:w-[55%] lg:w-[60%] flex flex-col justify-center gap-4 py-4 pr-6">
-                          {orderStatusData.map((d) => {
-                            const pct = ((d.value / analytics.totalOrders) * 100).toFixed(1);
-                            return (
-                              <div key={d.name} className="flex items-center gap-4 group">
-                                <div className="w-4 h-4 rounded-full shadow-sm flex-shrink-0" style={{backgroundColor: d.fill}} />
-                                <div className="flex-1">
-                                  <div className="flex justify-between items-end mb-1">
-                                    <span className="text-sm font-bold text-foreground/80">{d.name}</span>
-                                    <span className="text-sm font-bold bg-muted/50 px-2 py-0.5 rounded-md">{d.value}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                      <div className="h-full rounded-full transition-all duration-1000 shadow-inner" style={{width: `${pct}%`, backgroundColor: d.fill}} />
+                          {(() => {
+                            // Use sum of categorized orders as denominator → foizlar 100% ga to'planadi
+                            const categorizedTotal = orderStatusData.reduce((s, d) => s + d.value, 0);
+                            const denom = categorizedTotal || 1;
+                            return orderStatusData.map((d) => {
+                              const pct = ((d.value / denom) * 100).toFixed(1);
+                              return (
+                                <div key={d.name} className="flex items-center gap-4 group">
+                                  <div className="w-4 h-4 rounded-full shadow-sm flex-shrink-0" style={{backgroundColor: d.fill}} />
+                                  <div className="flex-1">
+                                    <div className="flex justify-between items-end mb-1">
+                                      <span className="text-sm font-bold text-foreground/80">{d.name}</span>
+                                      <span className="text-sm font-bold bg-muted/50 px-2 py-0.5 rounded-md">{d.value}</span>
                                     </div>
-                                    <span className="text-xs font-semibold text-muted-foreground w-12 text-right tracking-tight">{pct}%</span>
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                        <div className="h-full rounded-full transition-all duration-1000 shadow-inner" style={{width: `${pct}%`, backgroundColor: d.fill}} />
+                                      </div>
+                                      <span className="text-xs font-semibold text-muted-foreground w-12 text-right tracking-tight">{pct}%</span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            });
+                          })()}
                         </div>
                       </>
                     )}
