@@ -328,7 +328,7 @@ async function toolGetWarehouseStats(args: any) {
   d.setUTCHours(d.getUTCHours() + 5);
   d.setUTCHours(0, 0, 0, 0);
   d.setUTCHours(d.getUTCHours() - 5);
-  const startOfDay = d.toISOString();
+  const startOfDay = encodeURIComponent(d.toISOString());
   
   const verificationsToday = await getTableCount('verification_sessions', `status=eq.completed&created_at=gte.${startOfDay}`);
 
@@ -348,7 +348,7 @@ async function toolGetWarehouseStats(args: any) {
     china_warehouse_stock: {
       total_items_waiting: chinaItemsCount,
       today_verifications: verificationsToday,
-      detail: `Kutayotgan tovarlar: ${chinaItemsCount}. Bugun yakunlangan tekshiruvlar (tekshirilgan): ${verificationsToday} ta.`
+      detail: `Kutayotgan tovarlar: ${chinaItemsCount} ta. Bugun tekshirilgan tovarlar soni (Tekshiriluvlar): ${verificationsToday} ta.`
     },
     logistics: {
       total_items_in_transit: inTransitCount,
