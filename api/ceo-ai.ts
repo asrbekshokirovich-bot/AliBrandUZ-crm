@@ -290,30 +290,51 @@ async function getTableCount(table: string, filterQuery: string = '') {
 async function toolGetWarehouseStats(args: any) {
   const { include_archived } = args;
   
-  // 1. Tashkent Items
-  const tashkentItemsCount = await getTableCount('product_items', 'status=in.(in_stock,arrived)');
-  
-  // 2. Manual stock sum
-  const productsQuery = '/products?select=id,tashkent_manual_stock' + (include_archived ? '' : '&status=neq.archived');
-  const products = await supabaseQuery(productsQuery) || [];
-  let manualStockTashkent = 0;
-  products.forEach((p: any) => {
-    manualStockTashkent += (p.tashkent_manual_stock || 0);
+  // 1. Fetch tracked products to know which ones to exclude from manual count
+  // We grab product_ids to replicate `getTotalStock` behavior
+  const itemsData = await supabaseQuery('/product_items?select=product_id&limit=50000') || [];
+  const trackedProductIds = new Set<string>();
+  itemsData.forEach((item: any) => {
+    if (item.product_id) trackedProductIds.add(item.product_id);
   });
 
-  // 3. China Waiting Items
-  const chinaItemsCount = await getTableCount('product_items', 'status=in.(pending,ordered,in_china)&box_id=is.null');
+  // 2. Fetch all products with their variants
+  const productsQuery = '/products?select=id,tashkent_manual_stock,has_variants,product_variants(stock_quantity)&source=neq.marketplace_auto' + (include_archived ? '' : '&status=neq.archived');
+  const products = await supabaseQuery(productsQuery) || [];
+  
+  let manualStockTashkent = 0;
+  let variantStockTashkent = 0;
 
-  // 4. In Transit Items
+  products.forEach((p: any) => {
+    if (!trackedProductIds.has(p.id)) {
+      if (p.has_variants) {
+        let vSum = 0;
+        (p.product_variants || []).forEach((v: any) => vSum += (v.stock_quantity || 0));
+        variantStockTashkent += vSum;
+      } else {
+        manualStockTashkent += (p.tashkent_manual_stock || 0);
+      }
+    }
+  });
+
+  // 3. Tashkent Tracked Items
+  const tashkentItemsCount = await getTableCount('product_items', 'status=in.(in_stock,received,arrived,in_tashkent,arrived_pending)&location=eq.uzbekistan');
+  
+  // 4. China Waiting Items
+  const chinaItemsCount = await getTableCount('product_items', 'status=in.(pending,ordered,in_china,packing)&box_id=is.null');
+
+  // 5. In Transit Items
   const inTransitCount = await getTableCount('product_items', 'status=eq.in_transit');
 
-  // 5. Sold Items
+  // 6. Sold Items
   const soldCount = await getTableCount('product_items', 'status=eq.sold');
+
+  const totalTashkent = tashkentItemsCount + manualStockTashkent + variantStockTashkent;
 
   return {
     tashkent_warehouse_stock: {
-      total_items: tashkentItemsCount + manualStockTashkent,
-      breakdown: `Trek-kodli kiritilgan tovarlar: ${tashkentItemsCount} ta. Qo'shimcha/Mayda va boshqa zaxiralar: ${manualStockTashkent} ta.`
+      total_items: totalTashkent,
+      breakdown: `Trek-kodli kiritilgan tovarlar: ${tashkentItemsCount} ta. Qo'shimcha/Mayda zaxiralar: ${manualStockTashkent + variantStockTashkent} ta.`
     },
     china_warehouse_stock: {
       total_items_waiting: chinaItemsCount,
