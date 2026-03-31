@@ -186,13 +186,13 @@ export function ShiftHandoffNotes({ location = 'china' }: { location?: string })
         .eq('id', id);
 
       if (error) throw error;
-      toast.success(t('deleted_successfully', 'Muvaffaqiyatli o\\'chirildi'));
+      toast.success(t('deleted_successfully', "Muvaffaqiyatli o'chirildi"));
       
       // Update local state to remove the deleted handoff immediately
       setHandoffs(prev => prev.filter(h => h.id !== id));
     } catch (error) {
       console.error('Error deleting handoff:', error);
-      toast.error(t('error_deleting', 'O\\'chirishda xatolik yuz berdi'));
+      toast.error(t('error_deleting', "O'chirishda xatolik yuz berdi"));
     }
   };
 
