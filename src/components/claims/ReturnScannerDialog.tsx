@@ -120,7 +120,9 @@ export function ReturnScannerDialog({ open, onOpenChange, onResult }: ReturnScan
       : docType.includes('fbo') ? 'fbo_return'
       : 'fbs_seller';
 
-    const returnDate = new Date().toISOString();
+    const nowUzb = new Date();
+    nowUzb.setUTCHours(nowUzb.getUTCHours() + 5);
+    const returnDate = nowUzb.toISOString();
     const nakladnoyId = result.document?.document_number || `scan-${Date.now()}`;
     setCurrentNakladnoyId(nakladnoyId);
 

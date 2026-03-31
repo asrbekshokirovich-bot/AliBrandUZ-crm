@@ -46,7 +46,11 @@ serve(async (req) => {
     const cls = classification ?? scan_result.classification ?? {};
     const docType = cls.document_type || doc.document_type || "kirim";
     
-    let finalDocDate = new Date().toISOString().slice(0, 10);
+    let finalDocDate = "";
+    const nowUzb = new Date();
+    nowUzb.setUTCHours(nowUzb.getUTCHours() + 5);
+    const todayUzbStr = nowUzb.toISOString().slice(0, 10);
+    
     try {
       if (doc.date) {
         let d = new Date(doc.date);
@@ -57,6 +61,8 @@ serve(async (req) => {
           }
         }
         if (!isNaN(d.getTime())) {
+          // It's a valid parsed date, but just to be safe from UTC rollover, add an offset if needed, 
+          // or just slice it directly since it was parsed.
           finalDocDate = d.toISOString().slice(0, 10);
         }
       }
@@ -64,7 +70,7 @@ serve(async (req) => {
       console.error("Date parse error fallback:", e);
     }
     
-    const docDate = finalDocDate;
+    const docDate = finalDocDate || todayUzbStr;
     const resolvedAt = new Date().toISOString();
 
     // 1. Prepare transactions
