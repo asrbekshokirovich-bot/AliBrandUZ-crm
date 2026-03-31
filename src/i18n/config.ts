@@ -402,6 +402,13 @@ const resources = {
       statusDelivered: 'Yetkazildi',
       
       // Tasks
+      title: 'Sarlavha',
+      task_title_placeholder: 'Vazifa nomini kiriting...',
+      task_description_placeholder: 'Vazifa haqida batafsil ma\'lumot yozing...',
+      related_to: 'Nima bilan bog\'liq',
+      none: 'Hech qaysi',
+      add_comment_placeholder: 'Izoh qoldiring...',
+      save_changes: 'Saqlash',
       tasks: 'Vazifalar',
       manage_tasks_and_assignments: 'Vazifalar va topshiriqlarni boshqarish',
       search_tasks: 'Vazifalarni qidirish...',
