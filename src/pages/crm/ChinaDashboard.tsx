@@ -81,8 +81,8 @@ export default function ChinaDashboard() {
         .in('status', ['pending', 'ordered', 'in_china'])
         .neq('products.status', 'archived')
         .neq('products.source', 'marketplace_auto'),
-      // Verified boxes at China warehouse
-      supabase.from('boxes').select('id').eq('location', 'china').eq('verification_complete', true)
+      // Arrived boxes at Tashkent warehouse
+      supabase.from('boxes').select('id').in('status', ['arrived', 'in_tashkent', 'delivered'])
     ]);
       const allBoxes = allBoxesResult.data || [];
       const todayBoxes = todayBoxesResult.data || [];
@@ -94,7 +94,7 @@ export default function ChinaDashboard() {
       const arrivedPending = arrivedPendingResult.data || [];
 
       // Calculate stats
-      const pendingVerification = allBoxes.filter(b => b.status === 'packing' && !b.verification_complete && b.verification_required);
+      const pendingVerification = allBoxes.filter(b => b.status === 'packing' && !b.verification_complete);
       const readyToSeal = allBoxes.filter(b => b.status === 'packing' && b.verification_complete);
       const inProgressVerifications = verifications.filter(v => v.status === 'in_progress');
       const completedToday = verifications.filter(v => v.status === 'completed');
