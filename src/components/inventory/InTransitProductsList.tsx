@@ -103,7 +103,8 @@ export function InTransitProductsList() {
             main_image_url
           )
         `)
-        .in('status', ['in_transit', 'in_stock', 'packed', 'pending']);
+        .eq('status', 'in_transit')
+        .is('box_id', null);
       
       if (transitError) throw transitError;
 
@@ -132,9 +133,9 @@ export function InTransitProductsList() {
 
       const unboxedItemsBox: InTransitBox = {
         id: 'unboxed-virtual',
-        box_number: 'Qutisiz (Xitoy omborida)',
+        box_number: 'Qutisiz yuborilganlar',
         store_number: null,
-        status: 'pending',
+        status: 'in_transit',
         estimated_arrival: null,
         item_count: 0,
         products: [],
