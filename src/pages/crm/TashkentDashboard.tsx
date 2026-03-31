@@ -363,11 +363,13 @@ export default function TashkentDashboard() {
       let trackedItemsCount = 0;
       
       const tashkentStatuses = ['in_stock', 'received', 'arrived', 'in_tashkent', 'arrived_pending'];
+      const validProductIds = new Set(manualStockItems.map((p: any) => p.id));
       
       items.forEach((item: any) => {
         if (item.product_id) {
           trackedProductIds.add(item.product_id); // Any product_item globally means it's tracked
-          if (item.location === 'uzbekistan' && tashkentStatuses.includes(item.status)) {
+          
+          if (validProductIds.has(item.product_id) && item.location === 'uzbekistan' && tashkentStatuses.includes(item.status)) {
             trackedItemsCount++;
           }
         }
