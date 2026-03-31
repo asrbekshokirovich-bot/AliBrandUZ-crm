@@ -45,7 +45,26 @@ serve(async (req) => {
     const doc = scan_result.document ?? {};
     const cls = classification ?? scan_result.classification ?? {};
     const docType = cls.document_type || doc.document_type || "kirim";
-    const docDate = doc.date ? new Date(doc.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    
+    let finalDocDate = new Date().toISOString().slice(0, 10);
+    try {
+      if (doc.date) {
+        let d = new Date(doc.date);
+        if (isNaN(d.getTime())) {
+          const parts = doc.date.split(/[.\-/]/);
+          if (parts.length === 3) {
+            d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // assume DD.MM.YYYY
+          }
+        }
+        if (!isNaN(d.getTime())) {
+          finalDocDate = d.toISOString().slice(0, 10);
+        }
+      }
+    } catch(e) {
+      console.error("Date parse error fallback:", e);
+    }
+    
+    const docDate = finalDocDate;
     const resolvedAt = new Date().toISOString();
 
     // 1. Prepare transactions
