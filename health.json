@@ -1,0 +1,108 @@
+{
+  "success": true,
+  "summary": {
+    "total_stores": 12,
+    "connected": 10,
+    "disconnected": 2
+  },
+  "stores": [
+    {
+      "store_id": "6e13e4f0-49c8-4e9f-89f2-0ddef551c9ad",
+      "store_name": "FBY - AliBrand.Market",
+      "platform": "yandex",
+      "fulfillment_type": "fby",
+      "api_connected": true,
+      "response_time_ms": 310
+    },
+    {
+      "store_id": "ecabb659-aa9e-4182-9396-70d6eaebbde2",
+      "store_name": "FBS - BM.Store 2",
+      "platform": "yandex",
+      "fulfillment_type": "fbs",
+      "api_connected": true,
+      "response_time_ms": 249
+    },
+    {
+      "store_id": "81662ecc-154e-4357-9d0b-c9463a1f3e59",
+      "store_name": "FBY - BM.Store 3",
+      "platform": "yandex",
+      "fulfillment_type": "fby",
+      "api_connected": true,
+      "response_time_ms": 234
+    },
+    {
+      "store_id": "aa413336-9dbc-42a8-88c4-8242efd1874d",
+      "store_name": "ALI BRAND MARKET",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": true,
+      "response_time_ms": 518
+    },
+    {
+      "store_id": "b399276a-07f6-48bc-abf2-84395a595e5b",
+      "store_name": "Uzum China Market",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": true,
+      "response_time_ms": 279
+    },
+    {
+      "store_id": "828967b0-b08d-4f0a-9efc-fc0aef963bb1",
+      "store_name": "FBS - Atlas Market",
+      "platform": "yandex",
+      "fulfillment_type": "fbs",
+      "api_connected": true,
+      "response_time_ms": 216
+    },
+    {
+      "store_id": "cee08b31-48fd-4896-8676-18167377bec2",
+      "store_name": "Atlas Market",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": false,
+      "error": "API error: 403 - {\"payload\":null,\"errors\":[{\"code\":\"open-api-005\",\"message\":\"Shops ids is not available\"}],\"timestamp\":\"2026-03-31T11:00:41.929415649\",\"trace\":\"38df5c3d0c2d9a88e0763403e776db53\",\"error\":\"Shops ids is n",
+      "response_time_ms": 86
+    },
+    {
+      "store_id": "cea9cabe-2a24-4b1c-b5e0-9104d5cb5ae0",
+      "store_name": "Xit market",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": true,
+      "response_time_ms": 263
+    },
+    {
+      "store_id": "139c2d40-e2ab-409b-b75c-f1aed452ba9f",
+      "store_name": "Alibrand.Market",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": true,
+      "response_time_ms": 206
+    },
+    {
+      "store_id": "5f5e4daa-6441-43df-9e97-fe63fcfc8908",
+      "store_name": "BM Store",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": false,
+      "error": "API error: 403 - {\"payload\":null,\"errors\":[{\"code\":\"open-api-005\",\"message\":\"Shops ids is not available\"}],\"timestamp\":\"2026-03-31T11:00:44.042111582\",\"trace\":\"38df5c3d0c2d9a88e0763403e776db53\",\"error\":\"Shops ids is n",
+      "response_time_ms": 80
+    },
+    {
+      "store_id": "aea487bb-c903-49fb-a613-1a0416e04827",
+      "store_name": "Atlas.Market",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": true,
+      "response_time_ms": 213
+    },
+    {
+      "store_id": "ac7882d0-7c62-4f91-8af9-3f4c5d9d0dec",
+      "store_name": "BM_store",
+      "platform": "uzum",
+      "fulfillment_type": null,
+      "api_connected": true,
+      "response_time_ms": 220
+    }
+  ]
+}

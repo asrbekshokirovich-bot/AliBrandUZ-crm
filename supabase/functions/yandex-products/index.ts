@@ -247,6 +247,11 @@ serve(async (req) => {
       const fulfillmentTypes: string[] = [];
       if (store.fulfillment_type === 'fby_fbs') {
         fulfillmentTypes.push('fbs', 'fby');
+        if (store.dbs_campaign_id) {
+          fulfillmentTypes.push('dbs');
+        }
+      } else if (store.fulfillment_type === 'dbs') {
+        fulfillmentTypes.push('dbs');
       } else {
         fulfillmentTypes.push(store.fulfillment_type || 'fbs');
       }

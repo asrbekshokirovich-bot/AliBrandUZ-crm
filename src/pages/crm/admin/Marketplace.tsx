@@ -37,6 +37,7 @@ interface MarketplaceStore {
   campaign_id: string | null;
   fby_campaign_id: string | null;
   fbs_campaign_id: string | null;
+  dbs_campaign_id: string | null;
   fulfillment_type: string | null;
   api_key_secret_name: string;
   is_active: boolean;
@@ -401,6 +402,7 @@ export default function MarketplaceAdmin() {
               {store.campaign_id && <div>Campaign: {store.campaign_id}</div>}
               {store.fby_campaign_id && <div>FBY: {store.fby_campaign_id}</div>}
               {store.fbs_campaign_id && <div>FBS: {store.fbs_campaign_id}</div>}
+              {store.dbs_campaign_id && <div>DBS: {store.dbs_campaign_id}</div>}
             </div>
           )}
 

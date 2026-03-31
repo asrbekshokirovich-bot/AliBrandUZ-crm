@@ -54,8 +54,11 @@ serve(async (req: Request) => {
       if (store.fby_campaign_id) {
         campaignsToFetch.push({ id: store.fby_campaign_id, type: 'fby' });
       }
+      if (store.dbs_campaign_id) {
+        campaignsToFetch.push({ id: store.dbs_campaign_id, type: 'dbs' });
+      }
     } else {
-      const campaignId = store.campaign_id || store.fbs_campaign_id || store.fby_campaign_id;
+      const campaignId = store.campaign_id || store.fbs_campaign_id || store.fby_campaign_id || store.dbs_campaign_id;
       if (campaignId) {
         campaignsToFetch.push({ id: campaignId, type: store.fulfillment_type?.toLowerCase() || 'fbs' });
       }

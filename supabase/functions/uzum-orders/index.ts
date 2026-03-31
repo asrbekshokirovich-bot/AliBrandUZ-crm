@@ -604,6 +604,7 @@ function transformOrderToRecord(
     store_id,
     external_order_id: String(order.id),
     status: order.status,
+    fulfillment_type: order.scheme ? order.scheme.toLowerCase() : 'fbs',
     fulfillment_status: order.status === 'DELIVERED' || order.status === 'COMPLETED' ? 'delivered'
       : order.status?.startsWith('CANCEL') ? 'cancelled'
       : order.status === 'RETURNED' ? 'returned'

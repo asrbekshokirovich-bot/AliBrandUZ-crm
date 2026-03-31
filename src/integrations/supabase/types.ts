@@ -2698,6 +2698,7 @@ export type Database = {
           created_at: string | null
           fbs_campaign_id: string | null
           fby_campaign_id: string | null
+          dbs_campaign_id: string | null
           fulfillment_type: string | null
           id: string
           is_active: boolean | null
@@ -2719,6 +2720,7 @@ export type Database = {
           created_at?: string | null
           fbs_campaign_id?: string | null
           fby_campaign_id?: string | null
+          dbs_campaign_id?: string | null
           fulfillment_type?: string | null
           id?: string
           is_active?: boolean | null
@@ -2740,6 +2742,7 @@ export type Database = {
           created_at?: string | null
           fbs_campaign_id?: string | null
           fby_campaign_id?: string | null
+          dbs_campaign_id?: string | null
           fulfillment_type?: string | null
           id?: string
           is_active?: boolean | null

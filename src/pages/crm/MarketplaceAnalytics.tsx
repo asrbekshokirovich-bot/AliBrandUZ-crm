@@ -1013,23 +1013,25 @@ export default function MarketplaceAnalytics() {
                   </CardHeader>
                   <CardContent className="pt-6 relative flex flex-col items-center justify-center min-h-[280px]">
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="text-center">
-                        <p className="text-3xl font-black text-foreground">{hasAnyRevenue ? formatCurrency(analytics.totalRevenue).split(' ')[0] : (uzumStores.length + yandexStores.length)}</p>
-                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest mt-1">
+                      <div className="text-center px-4 w-[160px]">
+                        <p className="text-xl md:text-2xl font-black text-foreground tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                          {hasAnyRevenue ? formatCurrency(analytics.totalRevenue).split(' ')[0] : (uzumStores.length + yandexStores.length)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">
                           {hasAnyRevenue ? 'UZS JAMI' : 'DO\'KONLAR'}
                         </p>
                       </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={240}>
+                    <ResponsiveContainer width="100%" height={260}>
                       <RechartsPieChart>
                         <Pie
                           data={finalDonutData}
                           cx="50%" cy="50%"
-                          innerRadius={80} outerRadius={105}
-                          paddingAngle={5}
+                          innerRadius={90} outerRadius={115}
+                          paddingAngle={4}
                           dataKey="value"
                           stroke="none"
-                          cornerRadius={8}
+                          cornerRadius={6}
                         >
                           {finalDonutData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
