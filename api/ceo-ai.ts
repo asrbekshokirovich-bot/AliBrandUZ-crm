@@ -323,9 +323,14 @@ async function toolGetWarehouseStats(args: any) {
   // 4. China Waiting Items
   const chinaItemsCount = await getTableCount('product_items', 'status=in.(pending,ordered,in_china,packing)&box_id=is.null');
 
-  // China Verifications (Today)
-  const today = new Date().toISOString().split('T')[0];
-  const verificationsToday = await getTableCount('verification_sessions', `status=eq.completed&created_at=gte.${today}T00:00:00`);
+  // China Verifications (Today, Tashkent Time)
+  const d = new Date();
+  d.setUTCHours(d.getUTCHours() + 5);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCHours(d.getUTCHours() - 5);
+  const startOfDay = d.toISOString();
+  
+  const verificationsToday = await getTableCount('verification_sessions', `status=eq.completed&created_at=gte.${startOfDay}`);
 
   // 5. In Transit Items
   const inTransitCount = await getTableCount('product_items', 'status=eq.in_transit');
