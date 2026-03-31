@@ -243,14 +243,17 @@ export function BoxPackingDialog({ box, open, onOpenChange }: BoxPackingDialogPr
       const chunkSize = 100;
 
       // Update product_items with box_id and status in chunks
+      const newStatus = box.status === 'packing' ? 'packed' : (box.status === 'in_transit' ? 'in_transit' : (box.status === 'arrived' ? 'in_stock' : 'packed'));
+      const newLocation = box.location || 'china';
+
       for (let i = 0; i < itemIds.length; i += chunkSize) {
         const chunk = itemIds.slice(i, i + chunkSize);
         const { error: itemsError } = await supabase
           .from('product_items')
           .update({ 
             box_id: box.id, 
-            status: 'packed',
-            location: 'china' 
+            status: newStatus,
+            location: newLocation 
           })
           .in('id', chunk);
         
