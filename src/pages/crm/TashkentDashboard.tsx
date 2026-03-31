@@ -461,12 +461,14 @@ export default function TashkentDashboard() {
               try {
                 // 1. Find correct product
                 console.log("Qidirilmoqda...");
-                const { data: pData } = await supabase.from('products').select('*').ilike('name', '%atir idish%');
-                const correctP = pData?.find(p => p.name.startsWith('Atir Idish'));
-                const wrongP = pData?.find(p => p.name === 'atr idish');
+                const { data: pData1 } = await supabase.from('products').select('*').ilike('name', 'Atir Idish%');
+                const { data: pData2 } = await supabase.from('products').select('*').ilike('name', 'atr idish%');
+                
+                const correctP = pData1?.[0];
+                const wrongP = pData2?.[0];
                 
                 if (!correctP || !wrongP) {
-                  alert('Mahsulotlar topilmadi!');
+                  alert('Mahsulotlar topilmadi! ' + (correctP ? 'Atir Idish topildi. ' : 'Atir Idish yo\'q. ') + (wrongP ? 'atr idish topildi.' : 'atr idish yo\'q.'));
                   return;
                 }
                 
