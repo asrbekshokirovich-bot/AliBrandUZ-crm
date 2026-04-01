@@ -180,14 +180,15 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
     enabled: hasVariants === true,
   });
 
-  // Fetch item counts for summary (always fetch for box assignment display)
+  // Faqat PENDING itemlarni olish (Xitoyda kutilayotganlar)
   const { data: itemSummary } = useQuery({
     queryKey: ['product-items-summary', productId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('product_items')
         .select('id, status, box_id, variant_id, boxes(box_number)')
-        .eq('product_id', productId);
+        .eq('product_id', productId)
+        .eq('status', 'pending'); // Faqat Xitoyda kutilayotgan buyurtmalar
 
       if (error) throw error;
       return data;
@@ -209,52 +210,28 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
     enabled: expanded,
   });
 
-  // Group items by box for summary
+  // Faqat pending itemlarni guruhlash
   const boxSummary = useMemo(() => {
     if (!itemSummary) return { inBoxes: [], noBox: 0, total: 0, variantPending: {}, variantTracked: {}, unassignedVariantTracked: 0 };
 
-    const boxCounts: Record<string, { boxNumber: string; count: number }> = {};
     const variantPendingCounts: Record<string, number> = {};
-    const variantTrackedCounts: Record<string, number> = {};
-    let unassignedVariantTracked = 0;
-    let noBoxCount = 0;
+    let noVariantCount = 0;
 
+    // itemSummary endi FAQAT pending = bu oddiy COUNT
     itemSummary.forEach(item => {
-      // Count ALL active tracked items per variant
-      if (!['sold', 'damaged', 'cancelled'].includes(item.status || 'pending')) {
-        if (item.variant_id) {
-          variantTrackedCounts[item.variant_id] = (variantTrackedCounts[item.variant_id] || 0) + 1;
-        } else {
-          unassignedVariantTracked++;
-        }
-      }
-
-      // Count ONLY pending items per variant to avoid double-counting boxed items
-      if (item.variant_id && (item.status === 'pending' || !item.status)) {
+      if (item.variant_id) {
         variantPendingCounts[item.variant_id] = (variantPendingCounts[item.variant_id] || 0) + 1;
-      }
-
-      if (item.box_id && item.boxes) {
-        const boxNumber = (item.boxes as any).box_number;
-        if (!boxCounts[item.box_id]) {
-          boxCounts[item.box_id] = { boxNumber, count: 0 };
-        }
-        boxCounts[item.box_id].count++;
       } else {
-        // Only count as "no box" if item has progressed past pending/china stage
-        const isPendingInChina = (item.status === 'pending' || !item.status);
-        if (!isPendingInChina) {
-          noBoxCount++;
-        }
+        noVariantCount++;
       }
     });
 
     return {
-      inBoxes: Object.values(boxCounts),
+      inBoxes: [],
       variantPending: variantPendingCounts,
-      variantTracked: variantTrackedCounts,
-      unassignedVariantTracked,
-      noBox: noBoxCount,
+      variantTracked: variantPendingCounts, // pending = tracked (bir xil)
+      unassignedVariantTracked: noVariantCount,
+      noBox: 0,
       total: itemSummary.length
     };
   }, [itemSummary]);
@@ -276,19 +253,19 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
     return groupVariantsByAttribute(variants, groupBy);
   }, [variants, groupBy]);
 
-  // Pie chart data
+  // Pie chart — faqat pending count asosida
   const pieData = useMemo(() => {
     if (!variants || variants.length === 0) return [];
     return variants
-      .filter((v) => getDetailedVariantStock(v) > 0)
+      .filter((v) => (boxSummary.variantPending[v.id] || 0) > 0)
       .map((v) => {
         const attrs = v.variant_attributes as Record<string, any>;
         return {
           name: formatVariantAttributes(attrs),
-          value: getDetailedVariantStock(v),
+          value: boxSummary.variantPending[v.id] || 0,
         };
       });
-  }, [variants, getDetailedVariantStock]);
+  }, [variants, boxSummary.variantPending]);
 
   if (isLoadingData && expanded) {
     return (
@@ -356,12 +333,14 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
               )}
             </div>
           </div>
-          <Badge
-            variant={getDetailedVariantStock(variant) > 0 ? "default" : "secondary"}
-            className="text-sm"
-          >
-            {getDetailedVariantStock(variant)} dona
-          </Badge>
+          {(boxSummary.variantPending[variant.id] || 0) > 0 && (
+            <Badge
+              variant="default"
+              className="text-sm bg-orange-500/10 text-orange-600 border-orange-500/20"
+            >
+              ⏳ {boxSummary.variantPending[variant.id]} ta kutilmoqda
+            </Badge>
+          )}
         </div>
       </Card>
     );
@@ -369,27 +348,20 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
 
   return (
     <div className="mt-3">
-      {/* Variant Summary with color swatches */}
-      {hasVariants && variants && variants.length > 0 && (
+      {/* Faqat pending variantlar ko'rsatiladi */}
+      {hasVariants && variants && variants.length > 0 && boxSummary.total > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {variants.map((variant) => {
             const attrs = variant.variant_attributes as Record<string, any>;
             const colorHex = getColorFromAttrs(attrs);
-            const localStock = getDetailedVariantStock(variant);
             const pendingStock = boxSummary?.variantPending?.[variant.id] || 0;
-            const totalStock = localStock; // getDetailedVariantStock includes pending if its tracked
-            
-            // Faol buyurtmalar bor paytida, Faol qismi 0 bo'lgan eski/nol variantlarni umuman ekrandan yashiramiz
-            const hasAnyPending = Object.values(boxSummary?.variantPending || {}).some(count => count > 0);
-            if (hasAnyPending && pendingStock === 0 && totalStock === 0) {
-              return null;
-            }
+            if (pendingStock === 0) return null; // Pending yo'q bo'lsa yashir
 
             return (
               <Badge
                 key={variant.id}
                 variant="outline"
-                className={`text-xs gap-1.5 ${totalStock > 0 ? "bg-secondary/30" : "bg-muted/30 opacity-60"}`}
+                className="text-xs gap-1.5 bg-orange-500/10 text-orange-600 border-orange-500/20"
               >
                 {colorHex && (
                   <div
@@ -397,82 +369,45 @@ export function ProductItemsView({ productId, productUuid, hasVariants }: Produc
                     style={{ backgroundColor: colorHex }}
                   />
                 )}
-                {pendingStock > 0 ? (
-                  <>
-                    <Layers className="h-3 w-3" />
-                    {formatVariantAttributes(attrs)}: Faol: {pendingStock} dona
-                  </>
-                ) : (
-                  <>
-                    <Layers className="h-3 w-3" />
-                    {formatVariantAttributes(attrs)}: Jami: {localStock} dona
-                  </>
-                )}
+                <Layers className="h-3 w-3" />
+                {formatVariantAttributes(attrs)}: {pendingStock} dona
               </Badge>
             );
           })}
         </div>
       )}
-
-      {/* Box Assignment Summary */}
-      {boxSummary.total > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {boxSummary.inBoxes.map(box => (
-            <Badge
-              key={box.boxNumber}
-              variant="outline"
-              className="text-xs gap-1 bg-blue-500/10 text-blue-600 border-blue-500/20"
-            >
-              📦 {box.boxNumber}: {box.count} ta
-            </Badge>
-          ))}
-          {boxSummary.noBox > 0 && (
-            <Badge
-              variant="outline"
-              className="text-xs gap-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
-            >
-              📭 Qutisiz: {boxSummary.noBox} ta
-            </Badge>
-          )}
+      {/* Variantsiz mahsulot uchun pending count */}
+      {!hasVariants && boxSummary.unassignedVariantTracked > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          <Badge variant="outline" className="text-xs gap-1 bg-orange-500/10 text-orange-600 border-orange-500/20">
+            ⏳ Kutilmoqda: {boxSummary.unassignedVariantTracked} ta
+          </Badge>
         </div>
       )}
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setExpanded(!expanded)}
-        className="gap-2 text-muted-foreground hover:text-foreground"
-      >
-        {expanded ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-        <Package className="h-4 w-4" />
-        {hasVariants && variants ? (
-          <span>
-            {itemSummary?.some(i => i.status === 'pending' || !i.status) 
-              ? `Jami faol: ${variants.reduce((sum, v) => sum + (boxSummary?.variantPending?.[v.id] || 0), 0)} dona (${variants.length} variant)`
-              : `Jami zaxira: ${variants.reduce((sum, v) => sum + getDetailedVariantStock(v), 0)} dona (${variants.length} variant)`}
-          </span>
-        ) : (
-          <span>{itemSummary?.some(i => i.status === 'pending' || !i.status) ? `Faol: ${boxSummary?.total || items?.length || 0} ta` : `Jami: ${boxSummary?.total || items?.length || 0} ta`} individual mahsulot</span>
-        )}
-        
-        {boxSummary?.unassignedVariantTracked > 0 && (
-          <Badge variant="destructive" className="ml-2 text-xs opacity-90">
-            Variantsiz tizimda: {boxSummary.unassignedVariantTracked} ta
-          </Badge>
-        )}
-
-        {itemCounts && Object.keys(itemCounts).length > 0 && (
-          <span className="text-xs">
-            ({Object.entries(itemCounts).map(([status, count]) =>
-              `${translateStatus(status)}: ${count}`
-            ).join(', ')})
-          </span>
-        )}
-      </Button>
+      {/* Expand/Collapse tugmasi — faqat pending bo'lsa ko'rsatiladi */}
+      {boxSummary.total > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setExpanded(!expanded)}
+          className="gap-2 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+          <Package className="h-4 w-4" />
+          {hasVariants && variants ? (
+            <span>
+              Xitoyda: {variants.reduce((sum, v) => sum + (boxSummary?.variantPending?.[v.id] || 0), 0)} ta kutilmoqda ({variants.filter(v => (boxSummary?.variantPending?.[v.id] || 0) > 0).length} variant)
+            </span>
+          ) : (
+            <span>Xitoyda: {boxSummary.total} ta kutilmoqda</span>
+          )}
+        </Button>
+      )}
 
       {expanded && (
         <div className="mt-2 space-y-3 pl-6 border-l-2 border-border ml-4">
