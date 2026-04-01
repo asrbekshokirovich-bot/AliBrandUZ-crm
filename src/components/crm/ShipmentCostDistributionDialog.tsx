@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { Loader2, Ship, Package, Calculator, AlertCircle, Scale } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -239,7 +239,7 @@ export function ShipmentCostDistributionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
           {/* Total shipping cost input */}
           <Card className="p-4 border-primary/20 bg-primary/5">
             <div className="grid gap-2">
@@ -283,7 +283,7 @@ export function ShipmentCostDistributionDialog({
           </div>
 
           {/* Items list with weight inputs */}
-          <ScrollArea className="flex-1 border rounded-lg">
+          <div className="flex-1 overflow-y-auto border rounded-lg min-h-0">
             {isLoading ? (
               <div className="p-4">
                 <LoadingSkeleton count={3} compact />
@@ -337,7 +337,7 @@ export function ShipmentCostDistributionDialog({
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Distribution preview */}
           {totalShippingCost && distributionPreview.length > 0 && (
