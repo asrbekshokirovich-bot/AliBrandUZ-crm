@@ -106,10 +106,15 @@ export default function Users() {
 
       if (error) {
         let errMsg = error.message || t('usr_network_error');
-        if (error.context && typeof error.context.json === 'function') {
+        if (error.context && typeof error.context.text === 'function') {
           try {
-            const errData = await error.context.json();
-            errMsg = errData.details || errData.error || errMsg;
+            const errText = await error.context.text();
+            try {
+              const errData = JSON.parse(errText);
+              errMsg = errData.details || errData.error || errMsg;
+            } catch (e) {
+              errMsg = errText || errMsg; // Use raw text if not JSON
+            }
           } catch(e) {}
         }
         throw new Error(errMsg);

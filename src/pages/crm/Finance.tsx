@@ -147,7 +147,7 @@ function FinanceInner() {
       const monthEnd = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${new Date(selectedYear, selectedMonth + 1, 0).getDate()}`;
       return fetchAllRows(
         supabase.from('marketplace_finance_summary')
-          .select('store_id, gross_revenue, commission_total, delivery_fees, net_revenue, period_date, currency')
+          .select('store_id, gross_revenue, commission_total, delivery_fees, storage_fees, net_revenue, period_date, currency')
           .gte('period_date', monthStart)
           .lte('period_date', monthEnd)
       );
@@ -182,6 +182,7 @@ function FinanceInner() {
   const marketplaceGrossUZS = periodMarketplaceSummary?.reduce((sum, d) => sum + (Number(d.gross_revenue) || 0), 0) || 0;
   const marketplaceCommissionUZS = periodMarketplaceSummary?.reduce((sum, d) => sum + (Number(d.commission_total) || 0), 0) || 0;
   const periodDeliveryFeesUZS = periodMarketplaceSummary?.reduce((sum, d) => sum + (Number(d.delivery_fees) || 0), 0) || 0;
+  const periodStorageFeesUZS = periodMarketplaceSummary?.reduce((sum, d) => sum + (Number(d.storage_fees) || 0), 0) || 0;
 
   // Non-marketplace income from finance_transactions
   const directSalesUSD = periodTransactions?.filter(t => t.transaction_type === 'income' && t.category?.toLowerCase().includes("to'g'ridan-to'g'ri sotuv")).reduce((s, t) => s + (Number(t.amount_usd) || convertToUSD(Number(t.amount), t.currency || 'USD')), 0) || 0;
@@ -204,7 +205,7 @@ function FinanceInner() {
   const otherExpensesUZS = Math.max(0, (totalExpenseUSD - cogsUSD) * USD_TO_UZS);
 
   const grossRevenueUZS = marketplaceGrossUZS + directSalesUZS + otherIncomeUZS;
-  const netRevenueUZS = (marketplaceGrossUZS - marketplaceCommissionUZS - periodDeliveryFeesUZS) + directSalesUZS + otherIncomeUZS;
+  const netRevenueUZS = (marketplaceGrossUZS - marketplaceCommissionUZS - periodDeliveryFeesUZS - periodStorageFeesUZS) + directSalesUZS + otherIncomeUZS;
   const netProfitUZS = netRevenueUZS - totalCOGSUZS - otherExpensesUZS;
 
   // Inventory
@@ -222,7 +223,7 @@ function FinanceInner() {
   // Profit distribution
   const storeNetMap: Record<string, number> = {};
   periodMarketplaceSummary?.forEach(s => {
-    const net = (s.gross_revenue || 0) - (s.commission_total || 0) - (s.delivery_fees || 0);
+    const net = (s.gross_revenue || 0) - (s.commission_total || 0) - (s.delivery_fees || 0) - (s.storage_fees || 0);
     storeNetMap[s.store_id] = (storeNetMap[s.store_id] || 0) + net;
   });
   const totalMarketplaceNetUZS = Object.values(storeNetMap).reduce((s, v) => s + v, 0);
@@ -566,7 +567,7 @@ function FinanceInner() {
           />
           <FinancePLWaterfall
             data={{
-              marketplaceGrossUZS, marketplaceCommissionUZS, marketplaceDeliveryFeesUZS: periodDeliveryFeesUZS,
+              marketplaceGrossUZS, marketplaceCommissionUZS, marketplaceDeliveryFeesUZS: periodDeliveryFeesUZS, marketplaceStorageFeesUZS: periodStorageFeesUZS,
               directSalesUZS, otherIncomeUZS, buyingCostUZS, domesticShippingUZS, internationalShippingUZS, otherExpensesUZS,
             }}
             storeBreakdown={storeBreakdown}

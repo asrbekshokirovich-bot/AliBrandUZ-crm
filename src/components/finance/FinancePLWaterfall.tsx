@@ -10,6 +10,7 @@ interface PLData {
   marketplaceGrossUZS: number;
   marketplaceCommissionUZS: number;
   marketplaceDeliveryFeesUZS: number;
+  marketplaceStorageFeesUZS: number;
   directSalesUZS: number;
   otherIncomeUZS: number;
   buyingCostUZS: number;
@@ -81,7 +82,7 @@ export function FinancePLWaterfall({ data, storeBreakdown, showDistribution, tot
   const [storeOpen, setStoreOpen] = useState(false);
 
   const grossRevenue = data.marketplaceGrossUZS + data.directSalesUZS + data.otherIncomeUZS;
-  const marketplaceDeductions = data.marketplaceCommissionUZS + data.marketplaceDeliveryFeesUZS;
+  const marketplaceDeductions = data.marketplaceCommissionUZS + data.marketplaceDeliveryFeesUZS + data.marketplaceStorageFeesUZS;
   const netRevenue = grossRevenue - marketplaceDeductions;
   const totalCOGS = data.buyingCostUZS + data.domesticShippingUZS + data.internationalShippingUZS;
   const grossProfit = netRevenue - totalCOGS;
@@ -120,7 +121,8 @@ export function FinancePLWaterfall({ data, storeBreakdown, showDistribution, tot
                   label={`${t('fin_commission')} (${grossRevenue > 0 ? ((data.marketplaceCommissionUZS / grossRevenue) * 100).toFixed(1) : '0'}%)`}
                   amount={data.marketplaceCommissionUZS} pct={pct(data.marketplaceCommissionUZS)} isSub indent color="red"
                 />
-                <PLRow label={t('fin_fee_delivery')} amount={data.marketplaceDeliveryFeesUZS} pct={pct(data.marketplaceDeliveryFeesUZS)} isSub indent color="red" />
+                <PLRow label={t('fin_fee_delivery') || 'Logistika'} amount={data.marketplaceDeliveryFeesUZS} pct={pct(data.marketplaceDeliveryFeesUZS)} isSub indent color="red" />
+                <PLRow label={'Xraneniya / Saqlash'} amount={data.marketplaceStorageFeesUZS} pct={pct(data.marketplaceStorageFeesUZS)} isSub indent color="red" />
               </>
             )}
 

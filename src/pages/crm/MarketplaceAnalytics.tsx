@@ -201,7 +201,7 @@ export default function MarketplaceAnalytics() {
       const data = await fetchAllRows(
         () => supabase
           .from('marketplace_orders')
-          .select('store_id, ordered_at, total_amount, commission, status')
+          .select('store_id, ordered_at, total_amount, commission, delivery_fee, storage_fee, status')
           .gte('ordered_at', startDate.toISOString())
           .lte('ordered_at', endDate.toISOString())
       );
@@ -211,6 +211,7 @@ export default function MarketplaceAnalytics() {
       const map: Record<string, {
         store_id: string; period_date: string; period_type: string;
         orders_count: number; gross_revenue: number; commission_total: number;
+        delivery_total: number; storage_total: number;
         delivered_count: number; cancelled_count: number; returned_count: number;
         pending_count: number;
       }> = {};
@@ -223,6 +224,7 @@ export default function MarketplaceAnalytics() {
           map[key] = {
             store_id: order.store_id, period_date: date, period_type: 'daily',
             orders_count: 0, gross_revenue: 0, commission_total: 0,
+            delivery_total: 0, storage_total: 0,
             delivered_count: 0, cancelled_count: 0, returned_count: 0,
             pending_count: 0,
           };
@@ -231,6 +233,8 @@ export default function MarketplaceAnalytics() {
         r.orders_count++;
         r.gross_revenue += order.total_amount || 0;
         r.commission_total += order.commission || 0;
+        r.delivery_total += order.delivery_fee || 0;
+        r.storage_total += order.storage_fee || 0;
         const st = (order.status || '').toUpperCase();
         if (['DELIVERED','COMPLETED','DONE','ARRIVED','HANDED_'].some(s => st.includes(s))) r.delivered_count++;
         else if (['CANCELLED','CANCELED','REJECTED','NOT_'].some(s => st.includes(s))) r.cancelled_count++;
@@ -348,6 +352,8 @@ export default function MarketplaceAnalytics() {
   const analytics = useMemo(() => ({
     totalRevenue: platformSummary.reduce((s, r) => s + (r.gross_revenue || 0), 0),
     totalCommission: platformSummary.reduce((s, r) => s + (r.commission_total || 0), 0),
+    totalDelivery: platformSummary.reduce((s, r) => s + ((r as any).delivery_total || 0), 0),
+    totalStorage: platformSummary.reduce((s, r) => s + ((r as any).storage_total || 0), 0),
     totalOrders: platformSummary.reduce((s, r) => s + (r.orders_count || 0), 0),
     completedOrders: platformSummary.reduce((s, r) => s + (r.delivered_count || 0), 0),
     cancelledOrders: platformSummary.reduce((s, r) => s + (r.cancelled_count || 0), 0),
@@ -359,7 +365,7 @@ export default function MarketplaceAnalytics() {
     outOfStockListings: filteredOutOfStock,
   }), [platformSummary, filteredActiveListings, filteredLowStock, filteredOutOfStock]);
 
-  const netRevenue = analytics.totalRevenue - analytics.totalCommission;
+  const netRevenue = analytics.totalRevenue - analytics.totalCommission - analytics.totalDelivery - analytics.totalStorage;
 
   // === Revenue trend from filtered summary (group by period_date) ===
   const trendData = useMemo(() => {
@@ -779,9 +785,9 @@ export default function MarketplaceAnalytics() {
       )}
 
       {/* Quick Stats — KPI Cards with period label */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Period date badge shown on top of each card group */}
-        <div className="col-span-2 md:col-span-4 flex items-center gap-2">
+        <div className="col-span-2 md:col-span-3 lg:col-span-6 flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Davr ko'rsatkichlari</span>
           <div className="flex-1 h-px bg-border/40" />
           <span className="text-xs text-muted-foreground bg-muted/40 border border-border/50 rounded-lg px-2.5 py-1 font-medium">
@@ -791,72 +797,82 @@ export default function MarketplaceAnalytics() {
 
         <Card className="relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-400 to-green-500" />
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t('mpa_total_revenue')}</p>
-                <p className="text-2xl font-bold">{formatCurrency(netRevenue)}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t('mpa_total_revenue')}</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(netRevenue)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{cfg.label} • {shortLabel}</p>
               </div>
-              <DollarSign className="h-8 w-8 text-emerald-500 opacity-70" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-blue-400 to-blue-600" />
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t('mpa_total_orders')}</p>
-                <p className="text-2xl font-bold">{analytics.totalOrders}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t('mpa_total_orders')}</p>
+                <p className="text-xl font-bold">{analytics.totalOrders}</p>
                 <div className="flex gap-2 text-xs mt-0.5">
                   <span className="text-green-600">{analytics.completedOrders} ✓</span>
                   <span className="text-yellow-600">{analytics.pendingOrders} ⏳</span>
                 </div>
               </div>
-              <ShoppingCart className="h-8 w-8 text-blue-500 opacity-80" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-purple-400 to-purple-600" />
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t('mpa_active_listings')}</p>
-                <p className="text-2xl font-bold">{analytics.activeListings}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t('mpa_active_listings')}</p>
+                <p className="text-xl font-bold">{analytics.activeListings}</p>
                 <div className="flex gap-2 text-xs mt-0.5">
                   <span className="text-yellow-600">{analytics.lowStockListings} {t('mpa_low')}</span>
                   <span className="text-red-600">{analytics.outOfStockListings} {t('mpa_ended')}</span>
                 </div>
               </div>
-              <Package className="h-8 w-8 text-purple-500 opacity-80" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Expenses cards */}
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-400 to-red-500" />
+          <CardContent className="pt-4 px-4 pb-4 bg-red-50/30 dark:bg-red-950/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-red-700/70 dark:text-red-400/70 mb-0.5 flex items-center gap-1">Komissiya <Receipt className="h-3 w-3"/></p>
+                <p className="text-lg font-bold text-red-600">-{formatCurrency(analytics.totalCommission)}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-400 to-red-500" />
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 px-4 pb-4 bg-red-50/30 dark:bg-red-950/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Komissiya</p>
-                <p className="text-2xl font-bold">{formatCurrency(analytics.totalCommission)}</p>
-                <p className="text-xs text-red-600 mt-0.5">
-                  {analytics.totalRevenue > 0
-                    ? (() => {
-                      const comm = analytics.totalCommission;
-                      if (comm > analytics.totalRevenue * 0.45) {
-                        return `${(20).toFixed(1)}% daromaddan (taxminiy)*`;
-                      }
-                      return `${((comm / analytics.totalRevenue) * 100).toFixed(1)}% daromaddan`;
-                    })()
-                    : '0% daromaddan'}
-                </p>
+                <p className="text-[11px] uppercase tracking-wider text-red-700/70 dark:text-red-400/70 mb-0.5 flex items-center gap-1">Logistika <Package className="h-3 w-3"/></p>
+                <p className="text-lg font-bold text-red-600">-{formatCurrency(analytics.totalDelivery)}</p>
               </div>
-              <Receipt className="h-8 w-8 text-orange-500 opacity-80" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-400 to-red-500" />
+          <CardContent className="pt-4 px-4 pb-4 bg-red-50/30 dark:bg-red-950/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-red-700/70 dark:text-red-400/70 mb-0.5 flex items-center gap-1">Xraneniya <AlertTriangle className="h-3 w-3"/></p>
+                <p className="text-lg font-bold text-red-600">-{formatCurrency(analytics.totalStorage)}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
