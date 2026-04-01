@@ -66,7 +66,7 @@ function DashboardContent() {
           packingBoxesCount, sealedBoxesCount, inTransitBoxesCount, 
           shipmentsInTransit, marketplaceOrders
         ] = await Promise.all([
-          safeQuery(supabase.from('products').select('id', { count: 'exact', head: true }).neq('status', 'archived').neq('source', 'marketplace_auto').or('tashkent_manual_stock.is.null,tashkent_manual_stock.eq.0')),
+          safeQuery(supabase.from('products').select('id', { count: 'exact', head: true }).neq('status', 'archived').or('source.is.null,source.neq.marketplace_auto')),
           safeQuery(supabase.from('product_items').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.from('boxes').select('id', { count: 'exact', head: true })),
           safeQuery(supabase.from('shipments').select('id', { count: 'exact', head: true })),
