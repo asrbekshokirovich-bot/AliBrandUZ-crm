@@ -19,7 +19,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.manage-users]
-verify_jwt = true
+verify_jwt = false
 
 # [functions.test-gemini]
 # verify_jwt = false
