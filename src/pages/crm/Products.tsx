@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -682,8 +682,21 @@ export default function Products() {
                         {pendingItemsData?.[product.id] > 0 
                           ? ` • Faol: ${pendingItemsData[product.id]} ${t('pcs')}` 
                           : (product.quantity ? ` • Jami: ${product.quantity} ${t('pcs')}` : '')}
-                        {product.weight && ` • ${product.weight}kg`}
-                      </p>
+                         {product.weight && ((): string => {
+                           const weightG = product.weight as number;
+                           const count = (pendingItemsData?.[product.id] > 0
+                             ? pendingItemsData[product.id]
+                             : (product.quantity || 0)) as number;
+                           const totalG = weightG * count;
+                           const perUnit = weightG >= 1000
+                             ? `${(weightG / 1000).toFixed(2)}kg/dona`
+                             : `${weightG}g/dona`;
+                           const total = totalG >= 1000
+                             ? `${(totalG / 1000).toFixed(1)}kg`
+                             : `${totalG}g`;
+                           return ` • ${perUnit}${count > 0 ? ` • Jami: ${total}` : ''}`;
+                         })()}
+                       </p>
                       {(product.price || product.cost_price) && (() => {
                         const priceCNY = product.price as number | null;
                         const costCNY = product.cost_price as number | null;
@@ -918,3 +931,4 @@ export default function Products() {
     </div>
   );
 }
+
