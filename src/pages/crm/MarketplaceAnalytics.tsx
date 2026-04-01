@@ -503,7 +503,8 @@ export default function MarketplaceAnalytics() {
   }, [platformSummary]);
 
   // Product rank distribution
-  const rankDistribution = listings?.reduce((acc: Record<string, number>, l) => {
+  // Product rank distribution
+  const rankDistribution = filteredListingsForKPI.reduce((acc: Record<string, number>, l) => {
     const rank = l.product_rank || 'N';
     acc[rank] = (acc[rank] || 0) + 1;
     return acc;
@@ -515,8 +516,32 @@ export default function MarketplaceAnalytics() {
     fill: rank === 'A' ? '#22c55e' : rank === 'B' ? '#3b82f6' : rank === 'C' ? '#eab308' : rank === 'D' ? '#ef4444' : '#94a3b8',
   }));
 
-  const topProducts = listings?.filter(l => l.product_rank === 'A') || [];
-  const worstProducts = listings?.filter(l => l.product_rank === 'D' || (l.stock === 0 && l.status === 'active')) || [];
+  const { data: realTopProducts, isLoading: topProductsLoading } = useQuery({
+    queryKey: ['marketplace-top-products', startDate.toISOString(), endDate.toISOString(), platformTab, selectedStoreId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_top_marketplace_products', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+        p_platform: platformTab === 'all' ? null : platformTab,
+        p_store_id: selectedStoreId || null
+      });
+      if (error) {
+        console.error('Failed to fetch top products', error);
+        return [];
+      }
+      return data || [];
+    }
+  });
+
+  const worstProducts = useMemo(() => {
+    const arr = filteredListingsForKPI.filter(l => l.product_rank === 'D' || ((l.stock ?? 0) === 0 && l.status === 'active'));
+    const map = new Map<string, any>();
+    for (const item of arr) {
+      const key = item.title || item.external_sku || item.id;
+      if (!map.has(key)) map.set(key, item);
+    }
+    return Array.from(map.values()).slice(0, 50);
+  }, [filteredListingsForKPI]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1406,22 +1431,27 @@ export default function MarketplaceAnalytics() {
                 <CardDescription>{t('mpa_top_desc')}</CardDescription>
               </CardHeader>
               <CardContent>
-                {listingsLoading ? (
+                {topProductsLoading ? (
                   <Skeleton className="h-[200px] w-full" />
-                ) : topProducts.length === 0 ? (
+                ) : !realTopProducts || realTopProducts.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">{t('mpa_no_a_rank')}</p>
                 ) : (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                    {topProducts.map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                    {realTopProducts.map((product: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-bold text-green-600">#{index + 1}</span>
                           <div>
                             <p className="font-medium text-sm line-clamp-1">{product.title || product.external_sku}</p>
-                            <p className="text-xs text-muted-foreground">{(product.marketplace_stores as any)?.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {product.store_names ? product.store_names.join(', ') : ''} • {formatCurrency(product.total_revenue)}
+                            </p>
                           </div>
                         </div>
-                        <Badge variant="default" className="bg-green-600">A</Badge>
+                        <div className="flex flex-col items-end">
+                           <span className="text-sm font-bold text-green-600">{product.total_quantity} ta</span>
+                           <Badge variant="default" className="bg-green-600/20 text-green-700 text-[10px] mt-1 hover:bg-green-600/30">TOP</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
