@@ -50,8 +50,6 @@ const resources = {
       sidebar_analytics: 'Analitika',
       general_analytics: 'Umumiy Analitika',
       sidebar_marketplace: 'Marketpleys',
-      sidebar_work: 'Ish jarayoni',
-      sidebar_management: 'Boshqaruv',
 
       settings_texnik_xizmat: 'Texnik xizmat',
       settings_local_images: 'Rasmlarni lokal saqlash',
@@ -3064,8 +3062,6 @@ const resources = {
       sidebar_analytics: 'Аналитика',
       general_analytics: 'Общая Аналитика',
       sidebar_marketplace: 'Маркетплейс',
-      sidebar_work: 'Рабочий процесс',
-      sidebar_management: 'Управление',
 
       settings_texnik_xizmat: 'Техническое обслуживание',
       settings_local_images: 'Локальное сохранение изображений',
@@ -6068,8 +6064,6 @@ const resources = {
       sidebar_analytics: 'Analytics',
       general_analytics: 'General Analytics',
       sidebar_marketplace: 'Marketplace',
-      sidebar_work: 'Work',
-      sidebar_management: 'Management',
 
       settings_texnik_xizmat: 'Maintenance',
       settings_local_images: 'Save images locally',
@@ -8971,8 +8965,6 @@ const resources = {
       sidebar_analytics: '分析',
       general_analytics: '综合分析',
       sidebar_marketplace: '市场',
-      sidebar_work: '工作',
-      sidebar_management: '管理',
 
       settings_texnik_xizmat: '维护',
       settings_local_images: '在本地保存图像',
