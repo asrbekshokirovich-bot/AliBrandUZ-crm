@@ -114,17 +114,13 @@ export function FinancePLWaterfall({ data, storeBreakdown, showDistribution, tot
             <PLRow label={t('fin_other_income')} amount={data.otherIncomeUZS} pct={pct(data.otherIncomeUZS)} isSub indent />
 
             {/* Marketplace Deductions */}
-            {marketplaceDeductions > 0 && (
-              <>
-                <PLRow label={`(−) ${t('fin_pl_mp_deductions')}`} amount={marketplaceDeductions} pct={pct(marketplaceDeductions)} color="red" />
-                <PLRow
-                  label={`${t('fin_commission')} (${grossRevenue > 0 ? ((data.marketplaceCommissionUZS / grossRevenue) * 100).toFixed(1) : '0'}%)`}
-                  amount={data.marketplaceCommissionUZS} pct={pct(data.marketplaceCommissionUZS)} isSub indent color="red"
-                />
-                <PLRow label={t('fin_fee_delivery') || 'Logistika'} amount={data.marketplaceDeliveryFeesUZS} pct={pct(data.marketplaceDeliveryFeesUZS)} isSub indent color="red" />
-                <PLRow label={'Xraneniya / Saqlash'} amount={data.marketplaceStorageFeesUZS} pct={pct(data.marketplaceStorageFeesUZS)} isSub indent color="red" />
-              </>
-            )}
+            <PLRow label={`(−) Marketplace chegirmalari`} amount={marketplaceDeductions} pct={pct(marketplaceDeductions)} color="red" />
+            <PLRow
+              label={`${t('fin_commission')} (${grossRevenue > 0 ? ((data.marketplaceCommissionUZS / grossRevenue) * 100).toFixed(1) : '0'}%)`}
+              amount={data.marketplaceCommissionUZS} pct={pct(data.marketplaceCommissionUZS)} isSub indent color="red"
+            />
+            <PLRow label={t('fin_fee_delivery') || 'Logistika'} amount={data.marketplaceDeliveryFeesUZS} pct={pct(data.marketplaceDeliveryFeesUZS)} isSub indent color="red" />
+            <PLRow label={'Xraneniya / Saqlash'} amount={data.marketplaceStorageFeesUZS} pct={pct(data.marketplaceStorageFeesUZS)} isSub indent color="red" />
 
             {/* Net Revenue */}
             <PLRow label={`= ${t('fin_pl_net_revenue')}`} amount={netRevenue} pct={pct(netRevenue)} isTotal color="emerald" />
@@ -139,9 +135,7 @@ export function FinancePLWaterfall({ data, storeBreakdown, showDistribution, tot
             <PLRow label={`= ${t('fin_pl_gross_profit')}`} amount={grossProfit} pct={pct(grossProfit)} isTotal color={grossProfit >= 0 ? 'emerald' : 'red'} />
 
             {/* Other Expenses */}
-            {data.otherExpensesUZS > 0 && (
-              <PLRow label={`(−) ${t('fin_other_expenses')}`} amount={data.otherExpensesUZS} pct={pct(data.otherExpensesUZS)} color="red" />
-            )}
+            <PLRow label={`(−) ${t('fin_other_expenses')}`} amount={data.otherExpensesUZS} pct={pct(data.otherExpensesUZS)} color="red" />
 
             {/* Profit Distribution */}
             {showDistribution && (
