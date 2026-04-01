@@ -97,7 +97,7 @@ const menuSections: MenuSection[] = [
       { title: 'users', url: '/crm/users', icon: Users, requiresManager: true },
       { title: 'categories', url: '/crm/admin/categories', icon: Layers, requiresChiefManager: true },
 
-      { title: 'settings', url: '/crm/settings', icon: Settings },
+      { title: 'settings.title', url: '/crm/settings', icon: Settings },
     ]
   },
 ];
