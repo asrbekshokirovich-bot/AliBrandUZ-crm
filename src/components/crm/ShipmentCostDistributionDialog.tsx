@@ -177,21 +177,36 @@ export function ShipmentCostDistributionDialog({
         await Promise.all(variantPromises);
       }
 
-      // 2. Execute item updates in concurrent chunks of 50 to avoid rate limits
-      const chunkSize = 50;
-      for (let i = 0; i < itemUpdates.length; i += chunkSize) {
-        const chunk = itemUpdates.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map(update => 
-            supabase.from('product_items')
-              .update({
-                weight_grams: update.weight_grams,
-                international_shipping_cost: update.international_shipping_cost
-              })
-              .eq('id', update.id)
-          )
-        );
+      // 2. Group item updates by identical values to minimize database requests
+      // This solves browser connection hanging on 300+ concurrent requests
+      const updateGroups: Record<string, string[]> = {};
+      
+      for (const update of itemUpdates) {
+        const key = JSON.stringify({
+          weight_grams: update.weight_grams,
+          international_shipping_cost: update.international_shipping_cost
+        });
+        
+        if (!updateGroups[key]) {
+          updateGroups[key] = [];
+        }
+        updateGroups[key].push(update.id);
       }
+
+      // 3. Execute bulk updates
+      const groupPromises = Object.entries(updateGroups).map(async ([keyStr, ids]) => {
+        const payload = JSON.parse(keyStr);
+        
+        // Supabase limits .in() to somewhat around 1000 items, but we only have ~300 max usually
+        const { error } = await supabase
+          .from('product_items')
+          .update(payload)
+          .in('id', ids);
+          
+        if (error) throw new Error(error.message);
+      });
+
+      await Promise.all(groupPromises);
 
       return shippingCost;
     },
