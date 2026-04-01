@@ -133,62 +133,64 @@ export function ShipmentCostDistributionDialog({
       
       const shippingCost = parseFloat(totalShippingCost);
       
-      // First, update weights for items that have been edited
-      for (const [itemId, weight] of Object.entries(itemWeights)) {
-        if (weight) {
-          const item = boxItems?.find(i => i.id === itemId);
-          const { error: updateError } = await supabase
-            .from('product_items')
-            .update({ weight_grams: parseFloat(weight) })
-            .eq('id', itemId);
-          
-          if (updateError) throw updateError;
-          
-          // Also save weight to variant for future use
-          if (item?.variant_id) {
-            await supabase
-              .from('product_variants')
-              .update({ weight: parseFloat(weight) })
-              .eq('id', item.variant_id)
-              .is('weight', null); // Only if not already set
+      // Determine final weights for each item BEFORE hitting the DB
+      let totalW = 0;
+      const updatesToVariant: Record<string, number> = {};
+      
+      const computedItems = boxItems?.map(item => {
+        let finalWeight = item.weight_grams || 0;
+        
+        // 1. If edited in UI
+        if (itemWeights[item.id] !== undefined && itemWeights[item.id] !== '') {
+          finalWeight = parseFloat(itemWeights[item.id]) || 0;
+          if (item.variant_id && finalWeight > 0) {
+            updatesToVariant[item.variant_id] = finalWeight;
           }
+        } 
+        // 2. If no weight but variant has it
+        else if (!item.weight_grams && item.saved_variant_weight) {
+          finalWeight = item.saved_variant_weight;
         }
+
+        totalW += finalWeight;
+        return { item, finalWeight };
+      }) || [];
+
+      // Compute distribution share and build update objects
+      const itemUpdates = computedItems.map(({ item, finalWeight }) => {
+        const share = totalW > 0 
+          ? (finalWeight / totalW) * shippingCost 
+          : shippingCost / computedItems.length;
+        
+        return {
+          id: item.id,
+          weight_grams: finalWeight > 0 ? finalWeight : item.weight_grams,
+          international_shipping_cost: share
+        };
+      });
+
+      // 1. Execute variant updates concurrently
+      const variantPromises = Object.entries(updatesToVariant).map(([vId, w]) => 
+        supabase.from('product_variants').update({ weight: w }).eq('id', vId).is('weight', null)
+      );
+      if (variantPromises.length > 0) {
+        await Promise.all(variantPromises);
       }
-      
-      // For items that have variant weight but no item weight, copy it
-      for (const item of boxItems || []) {
-        if (!item.weight_grams && !itemWeights[item.id] && item.saved_variant_weight) {
-          await supabase
-            .from('product_items')
-            .update({ weight_grams: item.saved_variant_weight })
-            .eq('id', item.id);
-        }
-      }
-      
-      // Distribute international shipping cost by weight (JS side — no DB function needed)
-      // Fetch updated weights from DB after saving them above
-      const { data: updatedItems, error: fetchErr } = await supabase
-        .from('product_items')
-        .select('id, weight_grams')
-        .in('box_id', boxIds);
 
-      if (fetchErr) throw fetchErr;
-
-      const items = updatedItems || [];
-      const totalW = items.reduce((s, i) => s + (Number(i.weight_grams) || 0), 0);
-
-      for (const item of items) {
-        const weight = Number(item.weight_grams) || 0;
-        const share = totalW > 0
-          ? (weight / totalW) * shippingCost
-          : shippingCost / items.length; // equal split if no weights
-
-        const { error: updateErr } = await supabase
-          .from('product_items')
-          .update({ international_shipping_cost: share })
-          .eq('id', item.id);
-
-        if (updateErr) throw updateErr;
+      // 2. Execute item updates in concurrent chunks of 50 to avoid rate limits
+      const chunkSize = 50;
+      for (let i = 0; i < itemUpdates.length; i += chunkSize) {
+        const chunk = itemUpdates.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(update => 
+            supabase.from('product_items')
+              .update({
+                weight_grams: update.weight_grams,
+                international_shipping_cost: update.international_shipping_cost
+              })
+              .eq('id', update.id)
+          )
+        );
       }
 
       return shippingCost;
