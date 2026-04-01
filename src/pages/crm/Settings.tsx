@@ -11,6 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Settings as SettingsIcon, Bell, Globe, Info, ChevronRight, Download, MessageCircle,
   Image, Loader2, Plus, Trash2, Tag, Percent, DollarSign, RefreshCw, Database, CreditCard, Check
@@ -35,6 +45,7 @@ export default function Settings() {
   const [mirroring, setMirroring] = useState(false);
 
   // === Full Re-sync ===
+  const [resyncDialogOpen, setResyncDialogOpen] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [resyncLog, setResyncLog] = useState<string[]>([]);
   const [resyncProgress, setResyncProgress] = useState(0);
@@ -43,9 +54,8 @@ export default function Settings() {
     setResyncLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   }, []);
 
-  const handleFullResync = async () => {
+  const executeFullResync = async () => {
     if (resyncing) return;
-    if (!confirm('Bu barcha marketplace ma\'lumotlarini yanvar 2026 dan qayta sinxronlaydi. Davom etasizmi?')) return;
 
     setResyncing(true);
     setResyncLog([]);
@@ -328,7 +338,7 @@ export default function Settings() {
                 <p className="font-medium">{t('settings_full_sync_desc')}</p>
                 <p className="text-sm text-muted-foreground">{t('settings_full_sync_sub')}</p>
               </div>
-              <Button onClick={handleFullResync} disabled={resyncing} variant="destructive" size="sm">
+              <Button onClick={() => setResyncDialogOpen(true)} disabled={resyncing} variant="destructive" size="sm">
                 {resyncing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('settings_resyncing')}</> : <><RefreshCw className="w-4 h-4 mr-2" /> {t('settings_resync_btn')}</>}
               </Button>
             </div>
@@ -344,6 +354,23 @@ export default function Settings() {
             )}
           </CardContent>
         </Card>
+
+        <AlertDialog open={resyncDialogOpen} onOpenChange={setResyncDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('settings_full_sync')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                Haqiqatan ham barcha marketplace ma'lumotlari va moliya hisobotlarini 2026-yil yanvar sanasidan boshlab qayta sinxronizatsiya qilmoqchimisiz? Ushbu jarayon bir necha daqiqa vaqt olishi va barcha avvalgi statik ma'lumotlarni qayta yozib yuborishi mumkin.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('cancel', 'Bekor qilish')}</AlertDialogCancel>
+              <AlertDialogAction onClick={executeFullResync} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                {t('confirm', 'Tasdiqlash')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
 
       <Separator />
