@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -688,13 +688,10 @@ export default function Products() {
                              ? pendingItemsData[product.id]
                              : (product.quantity || 0)) as number;
                            const totalG = weightG * count;
-                           const perUnit = weightG >= 1000
-                             ? `${(weightG / 1000).toFixed(2)}kg/dona`
-                             : `${weightG}g/dona`;
                            const total = totalG >= 1000
                              ? `${(totalG / 1000).toFixed(1)}kg`
                              : `${totalG}g`;
-                           return ` • ${perUnit}${count > 0 ? ` • Jami: ${total}` : ''}`;
+                           return count > 0 ? ` • Jami: ${total}` : '';
                          })()}
                        </p>
                       {(product.price || product.cost_price) && (() => {
@@ -931,4 +928,5 @@ export default function Products() {
     </div>
   );
 }
+
 
