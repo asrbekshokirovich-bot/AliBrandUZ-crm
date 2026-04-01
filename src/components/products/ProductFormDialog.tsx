@@ -651,7 +651,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           const totalQuantityForLink = selectedVariantOrders.reduce((sum, o) => sum + (typeof o.quantity === 'number' ? o.quantity : 1), 0);
           const totalShippingForLink = parseFloat(formData.shippingCostToChina) || 0;
           
-          // Calculate total weight to enable proportional distribution
           const totalWeightForLink = selectedVariantOrders.reduce((sum, o) => {
             const qty = typeof o.quantity === 'number' ? o.quantity : 1;
             const w = o.weight ? parseFloat(o.weight) : 0;
@@ -662,64 +661,53 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             ? totalShippingForLink / totalQuantityForLink
             : 0;
 
-          for (const order of selectedVariantOrders) {
-            let variantId: string;
-
-            if (order.isNew) {
-              // Yangi variant yaratish
-              const newSku = `${selectedExistingProduct.uuid}-${(order.rang || 'X').substring(0, 3).toUpperCase()}-${(order.material || 'X').substring(0, 3).toUpperCase()}`;
-              const { data: newVariant, error: variantError } = await supabase
-                .from('product_variants')
-                .insert({
-                  product_id: productId,
-                  sku: newSku,
-                  price: order.price ? parseFloat(order.price) : priceValue,
-                  stock_quantity: 0, // Xitoyda kutilmoqda, Toshkentda 0
-                  variant_attributes: { rang: order.rang, material: order.material },
-                  is_active: true,
-                  cost_price: order.price ? parseFloat(order.price) : priceValue,
-                  cost_price_currency: 'CNY',
-                  weight: order.weight ? parseFloat(order.weight) : null,  // Og'irlikni variantga saqlash
-                })
-                .select('id')
-                .single();
-
-              if (variantError) throw variantError;
-              variantId = newVariant.id;
-            } else {
-              variantId = order.variantId;
-            }
-
-            // product_items yaratish - bo'sh quantity bo'lsa 1 ga default
-            const qty = typeof order.quantity === 'number' && order.quantity > 0 ? order.quantity : 1;
-            if (qty > 0) {
-              const unitCost = order.price ? parseFloat(order.price) : priceValue;
-              const unitCostUSD = unitCost !== null ? unitCost / currentRate : null;
-              
-              // By-weight distribution if possible
-              const itemWeight = order.weight ? parseFloat(order.weight) : 0;
-              let domesticShippingPerItem = equalShippingForLink;
-              
-              if (totalShippingForLink > 0 && totalWeightForLink > 0 && itemWeight > 0) {
-                domesticShippingPerItem = (itemWeight / totalWeightForLink) * totalShippingForLink;
-              }
-              
-              const domesticShippingPerItemUSD = domesticShippingPerItem / currentRate;
-              const finalCostUSD = (unitCostUSD || 0) + domesticShippingPerItemUSD;
-
-              // Get variant SKU for item_uuid
-              let variantSku = 'ITEM';
-              if (!order.isNew) {
-                const existingV = selectedExistingProduct.product_variants?.find(v => v.id === variantId);
-                if (existingV) variantSku = existingV.sku;
+          // OPTIM: yangi variantlarni parallel yaratamiz (Promise.all)
+          const ordersWithVariantIds = await Promise.all(
+            selectedVariantOrders.map(async (order) => {
+              if (order.isNew) {
+                const newSku = `${selectedExistingProduct.uuid}-${(order.rang || 'X').substring(0, 3).toUpperCase()}-${(order.material || 'X').substring(0, 3).toUpperCase()}`;
+                const { data: newVariant, error: variantError } = await supabase
+                  .from('product_variants')
+                  .insert({
+                    product_id: productId,
+                    sku: newSku,
+                    price: order.price ? parseFloat(order.price) : priceValue,
+                    stock_quantity: 0,
+                    variant_attributes: { rang: order.rang, material: order.material },
+                    is_active: true,
+                    cost_price: order.price ? parseFloat(order.price) : priceValue,
+                    cost_price_currency: 'CNY',
+                    weight: order.weight ? parseFloat(order.weight) : null,
+                  })
+                  .select('id')
+                  .single();
+                if (variantError) throw variantError;
+                return { ...order, resolvedVariantId: newVariant.id, resolvedSku: `${(order.rang || 'X').substring(0, 3).toUpperCase()}-${(order.material || 'X').substring(0, 3).toUpperCase()}` };
               } else {
-                variantSku = `${(order.rang || 'X').substring(0, 3).toUpperCase()}-${(order.material || 'X').substring(0, 3).toUpperCase()}`;
+                const existingV = selectedExistingProduct.product_variants?.find((v: any) => v.id === order.variantId);
+                return { ...order, resolvedVariantId: order.variantId, resolvedSku: existingV?.sku || 'ITEM' };
               }
+            })
+          );
 
-              const itemsToCreate = Array.from({ length: qty }, (_, i) => ({
-                item_uuid: makeItemUuid(productUuid, `${variantSku}-${i + 1}`),
+          // OPTIM: barcha product_items ni bitta bulk insert bilan saqlaymiz
+          const allItemsToCreate: any[] = [];
+          for (const order of ordersWithVariantIds) {
+            const qty = typeof order.quantity === 'number' && order.quantity > 0 ? order.quantity : 1;
+            if (qty <= 0) continue;
+            const unitCost = order.price ? parseFloat(order.price) : priceValue;
+            const unitCostUSD = unitCost !== null ? unitCost / currentRate : null;
+            const itemWeight = order.weight ? parseFloat(order.weight) : 0;
+            let domesticShippingPerItem = equalShippingForLink;
+            if (totalShippingForLink > 0 && totalWeightForLink > 0 && itemWeight > 0) {
+              domesticShippingPerItem = (itemWeight / totalWeightForLink) * totalShippingForLink;
+            }
+            const finalCostUSD = (unitCostUSD || 0) + domesticShippingPerItem / currentRate;
+            for (let i = 0; i < qty; i++) {
+              allItemsToCreate.push({
+                item_uuid: makeItemUuid(productUuid, `${order.resolvedSku}-${i + 1}`),
                 product_id: productId,
-                variant_id: variantId,
+                variant_id: order.resolvedVariantId,
                 status: itemStatus,
                 location: itemLocation,
                 unit_cost: unitCost,
@@ -728,20 +716,19 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                 exchange_rate_at_purchase: currentRate,
                 domestic_shipping_cost: domesticShippingPerItem,
                 final_cost_usd: finalCostUSD > 0 ? finalCostUSD : null,
-                weight_grams: order.weight ? parseFloat(order.weight) : null,  // Og'irlikni saqlash
+                weight_grams: order.weight ? parseFloat(order.weight) : null,
                 cost_breakdown: {
                   purchase_price: unitCost,
                   purchase_currency: formData.purchase_currency,
                   domestic_shipping: domesticShippingPerItem,
                   domestic_shipping_currency: 'CNY',
                 },
-              }));
-
-              const { error: itemError } = await supabase
-                .from('product_items')
-                .insert(itemsToCreate);
-              if (itemError) throw itemError;
+              });
             }
+          }
+          if (allItemsToCreate.length > 0) {
+            const { error: itemError } = await supabase.from('product_items').insert(allItemsToCreate);
+            if (itemError) throw itemError;
           }
         } else if (selectedExistingVariant) {
           // Eskcha bitta variant tanlash (backward compatibility)
@@ -1195,11 +1182,10 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         }
       }
     },
-    onSuccess: async () => {
-      // MUHIM: Avval pending-items-china ni yangilash va KUTISH
-      await queryClient.invalidateQueries({ queryKey: ["pending-items-china"] });
-      // Keyin products ni yangilash - pending-items allaqachon yangilangan
-      queryClient.invalidateQueries({ queryKey: ["products"] }); // Restored explicitly to ensure immediate UI updates
+    onSuccess: () => {
+      // Parallel invalidation - hech birini await qilmaymiz
+      queryClient.invalidateQueries({ queryKey: ["pending-items-china"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-items"] });
       queryClient.invalidateQueries({ queryKey: ["product-variants"] });
       queryClient.invalidateQueries({ queryKey: ["product-items-summary"] });
