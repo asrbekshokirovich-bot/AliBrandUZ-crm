@@ -220,17 +220,25 @@ export default function Boxes() {
 
 
 
+  const isOptimistic = (box: any) => typeof box?.id === 'string' && box.id.startsWith('optimistic-');
+
   const handlePackBox = (box: any) => {
+    if (isOptimistic(box)) {
+      toast({ title: "Yaratilmoqda", description: "Iltimos quti to'liq yaratilishini kuting", variant: "default" });
+      return;
+    }
     setSelectedBox(box);
     setPackingDialogOpen(true);
   };
 
   const handleVerifyBox = (box: any) => {
+    if (isOptimistic(box)) return;
     setSelectedBox(box);
     setVerificationDialogOpen(true);
   };
 
   const handleChinaVerifyBox = (box: any) => {
+    if (isOptimistic(box)) return;
     setSelectedBox(box);
     setChinaVerificationDialogOpen(true);
   };
