@@ -125,7 +125,7 @@ const resources = {
       china_dashboard: 'Xitoy Ombori',
       tashkent_dashboard: 'Toshkent Ombori',
       verification_reports: 'Tekshirish Hisobotlari',
-      products: 'Buyurtmalar',
+      products: 'Mahsulotlar',
       shippingCostToChina: 'Xitoyga yetkazish narxi',
       shippingCostHint: 'CNY da kiriting',
       boxes: 'Qutilar',
@@ -932,7 +932,7 @@ const resources = {
       ship_other_carrier: 'Boshqa',
 
       // Products page
-      prod_subtitle: 'Barcha buyurtmalar ro\'yxati',
+      prod_subtitle: 'Barcha mahsulotlar ro\'yxati',
       prod_all_categories: 'Barcha kategoriyalar',
       prod_category_placeholder: 'Kategoriya',
       prod_status_placeholder: 'Holat',
@@ -3139,7 +3139,7 @@ const resources = {
       china_dashboard: 'Склад Китая',
       tashkent_dashboard: 'Склад Ташкента',
       verification_reports: 'Отчеты проверки',
-      products: 'Заказы',
+      products: 'Товары',
       shippingCostToChina: 'Стоимость доставки в Китай',
       shippingCostHint: 'Введите в CNY',
       boxes: 'Коробки',
@@ -3936,7 +3936,7 @@ const resources = {
       ship_other_carrier: 'Другой',
 
       // Products page
-      prod_subtitle: 'Список всех заказов',
+      prod_subtitle: 'Список всех товаров',
       prod_all_categories: 'Все категории',
       prod_category_placeholder: 'Категория',
       prod_status_placeholder: 'Статус',
@@ -6143,7 +6143,7 @@ const resources = {
       china_dashboard: 'China Warehouse',
       tashkent_dashboard: 'Tashkent Warehouse',
       verification_reports: 'Verification Reports',
-      products: 'Orders',
+      products: 'Products',
       shippingCostToChina: 'Shipping Cost to China',
       shippingCostHint: 'Enter in CNY',
       boxes: 'Boxes',
@@ -6840,7 +6840,7 @@ const resources = {
       ship_other_carrier: 'Other',
 
       // Products page
-      prod_subtitle: 'All orders list',
+      prod_subtitle: 'All products list',
       prod_all_categories: 'All categories',
       prod_category_placeholder: 'Category',
       prod_status_placeholder: 'Status',
@@ -9045,7 +9045,7 @@ const resources = {
       dashboard: '仪表板',
       china_dashboard: '中国仓库',
       verification_reports: '验证报告',
-      products: '订单',
+      products: '产品',
       shippingCostToChina: '运往中国费用',
       shippingCostHint: '以人民币输入',
       boxes: '箱子',
@@ -9840,7 +9840,7 @@ const resources = {
       ship_other_carrier: '其他',
 
       // Products page
-      prod_subtitle: '所有订单列表',
+      prod_subtitle: '所有产品列表',
       prod_all_categories: '所有分类',
       prod_category_placeholder: '分类',
       prod_status_placeholder: '状态',
