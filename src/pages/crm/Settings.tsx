@@ -296,17 +296,17 @@ export default function Settings() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <Image className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Texnik xizmat</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('settings_texnik_xizmat')}</h2>
         </div>
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Rasmlarni lokal saqlash</p>
-                <p className="text-sm text-muted-foreground">Uzum CDN rasmlarini lokal storage'ga nusxalash</p>
+                <p className="font-medium">{t('settings_local_images')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings_local_images_desc')}</p>
               </div>
               <Button onClick={handleMirrorImages} disabled={mirroring} variant="outline" size="sm">
-                {mirroring ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Nusxalanmoqda...</> : <><Image className="w-4 h-4 mr-2" /> Mirror Images</>}
+                {mirroring ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('settings_mirroring')}</> : <><Image className="w-4 h-4 mr-2" /> {t('settings_mirror_images_btn')}</>}
               </Button>
             </div>
           </CardContent>
@@ -319,17 +319,17 @@ export default function Settings() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <Database className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">To'liq sinxronizatsiya</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('settings_full_sync')}</h2>
         </div>
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Yanvar 2026 dan qayta sinxronlash</p>
-                <p className="text-sm text-muted-foreground">Barcha buyurtmalar, komissiyalar, moliya va qaytarishlar qayta yuklanadi</p>
+                <p className="font-medium">{t('settings_full_sync_desc')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings_full_sync_sub')}</p>
               </div>
               <Button onClick={handleFullResync} disabled={resyncing} variant="destructive" size="sm">
-                {resyncing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sinxronlanmoqda...</> : <><RefreshCw className="w-4 h-4 mr-2" /> Qayta sinxronlash</>}
+                {resyncing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('settings_resyncing')}</> : <><RefreshCw className="w-4 h-4 mr-2" /> {t('settings_resync_btn')}</>}
               </Button>
             </div>
             {resyncing && <Progress value={resyncProgress} className="h-2" />}
@@ -352,21 +352,21 @@ export default function Settings() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <Tag className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Promo kodlar</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('settings_promo_codes')}</h2>
         </div>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Yangi promo kod</CardTitle>
+            <CardTitle className="text-sm">{t('settings_new_promo')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Kod</Label>
+                <Label>{t('settings_code')}</Label>
                 <Input value={newPromo.code} onChange={e => setNewPromo(p => ({ ...p, code: e.target.value }))} placeholder="SALE20" className="uppercase" />
               </div>
               <div>
-                <Label>Tur</Label>
+                <Label>{t('settings_type')}</Label>
                 <Select value={newPromo.discount_type} onValueChange={v => setNewPromo(p => ({ ...p, discount_type: v as any }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -378,20 +378,20 @@ export default function Settings() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label>Qiymat</Label>
+                <Label>{t('settings_value')}</Label>
                 <Input type="number" value={newPromo.discount_value} onChange={e => setNewPromo(p => ({ ...p, discount_value: e.target.value }))} placeholder={newPromo.discount_type === 'percent' ? '20' : '50000'} />
               </div>
               <div>
-                <Label>Min buyurtma</Label>
+                <Label>{t('settings_min_order')}</Label>
                 <Input type="number" value={newPromo.min_order_amount} onChange={e => setNewPromo(p => ({ ...p, min_order_amount: e.target.value }))} placeholder="0" />
               </div>
               <div>
-                <Label>Max ishlatish</Label>
+                <Label>{t('settings_max_uses')}</Label>
                 <Input type="number" value={newPromo.max_uses} onChange={e => setNewPromo(p => ({ ...p, max_uses: e.target.value }))} placeholder="∞" />
               </div>
             </div>
             <Button onClick={() => createPromo.mutate()} disabled={createPromo.isPending} className="w-full">
-              <Plus className="w-4 h-4 mr-2" /> Yaratish
+              <Plus className="w-4 h-4 mr-2" /> {t('settings_create')}
             </Button>
           </CardContent>
         </Card>
@@ -402,10 +402,10 @@ export default function Settings() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Kod</TableHead>
-                    <TableHead>Chegirma</TableHead>
-                    <TableHead>Ishlatilgan</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>{t('settings_code')}</TableHead>
+                    <TableHead>{t('settings_discount')}</TableHead>
+                    <TableHead>{t('settings_used')}</TableHead>
+                    <TableHead>{t('settings_status')}</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -418,7 +418,7 @@ export default function Settings() {
                       </TableCell>
                       <TableCell>{pc.used_count}{pc.max_uses ? `/${pc.max_uses}` : ''}</TableCell>
                       <TableCell>
-                        <Badge variant={pc.is_active ? 'default' : 'secondary'}>{pc.is_active ? 'Faol' : 'Nofaol'}</Badge>
+                        <Badge variant={pc.is_active ? 'default' : 'secondary'}>{pc.is_active ? t('yes') : t('no')}</Badge>
                       </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => deletePromo.mutate(pc.id)}>
@@ -441,7 +441,7 @@ export default function Settings() {
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">To'lov kartasi</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('settings_payment_card')}</h2>
           </div>
 
           {activeCard && (
@@ -460,20 +460,20 @@ export default function Settings() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{activeCard ? 'Kartani o\'zgartirish' : 'Yangi karta qo\'shish'}</CardTitle>
-              <CardDescription className="text-xs">Mijozlar checkout sahifasida shu karta raqamini ko'radi</CardDescription>
+              <CardTitle className="text-sm">{activeCard ? t('settings_change_card') : t('settings_add_card')}</CardTitle>
+              <CardDescription className="text-xs">{t('settings_card_desc')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <Label>Karta raqami</Label>
+                <Label>{t('settings_card_number')}</Label>
                 <Input value={cardForm.card_number} onChange={e => setCardForm(p => ({ ...p, card_number: e.target.value }))} placeholder="8600 1234 5678 9012" />
               </div>
               <div>
-                <Label>Karta egasi</Label>
+                <Label>{t('settings_card_holder')}</Label>
                 <Input value={cardForm.card_holder} onChange={e => setCardForm(p => ({ ...p, card_holder: e.target.value }))} placeholder="ABDUMANNON ALIYEV" className="uppercase" />
               </div>
               <div>
-                <Label>Bank / tizim</Label>
+                <Label>{t('settings_bank')}</Label>
                 <Select value={cardForm.bank_name} onValueChange={v => setCardForm(p => ({ ...p, bank_name: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -486,7 +486,7 @@ export default function Settings() {
               </div>
               <Button onClick={() => saveCard.mutate()} disabled={saveCard.isPending} className="w-full">
                 {saveCard.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                Saqlash
+                {t('save')}
               </Button>
             </CardContent>
           </Card>

@@ -62,10 +62,10 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-    label: 'Analitika',
+    label: 'sidebar_analytics',
     icon: LineChart,
     items: [
-      { title: 'Umumiy Analitika', url: '/crm/analytics', icon: LineChart },
+      { title: 'general_analytics', url: '/crm/analytics', icon: LineChart },
     ]
   },
   {
