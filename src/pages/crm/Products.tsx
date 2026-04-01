@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Edit, Trash2, Package, Layers, ShieldAlert, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, Layers, ShieldAlert, X, Calendar } from 'lucide-react';
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -662,6 +662,18 @@ export default function Products() {
                             <Package className="h-3 w-3" />
                             {t('prod_china_pending', { count: pendingItemsData[product.id] })}
                           </Badge>
+                        )}
+
+                        {/* === YARATILGAN SANA (tepa o'ng burchak) === */}
+                        {(product.created_at || product.purchased_at) && (
+                          <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(product.purchased_at || product.created_at).toLocaleDateString('uz-Latn-UZ', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })}
+                          </span>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
