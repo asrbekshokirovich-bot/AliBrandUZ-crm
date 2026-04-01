@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Edit, Trash2, Package, Layers, ShieldAlert, X, Calendar } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, Layers, ShieldAlert, X, Calendar, TrendingDown, AlertTriangle } from 'lucide-react';
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -796,6 +796,37 @@ export default function Products() {
                         );
                       })()}
                       <ProductItemsView productId={product.id} productUuid={product.uuid} hasVariants={product.has_variants} />
+
+                      {/* === SOTUV TEZLIGI (avg_daily_sales) INDIKATORI === */}
+                      {product.avg_daily_sales > 0 && (() => {
+                        const avgDaily = product.avg_daily_sales as number;
+                        // Toshkent zaxirasi: variant stocklar yig'indisi yoki manual stock
+                        const currentStock = (product.tashkent_manual_stock || 0) as number;
+                        const daysLeft = currentStock > 0 ? Math.floor(currentStock / avgDaily) : null;
+                        const isUrgent = daysLeft !== null && daysLeft <= 14;
+                        const isWarning = daysLeft !== null && daysLeft <= 30 && daysLeft > 14;
+
+                        return (
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <TrendingDown className="h-3 w-3" />
+                              O'rtacha: {avgDaily.toFixed(1)} ta/kun
+                            </span>
+                            {daysLeft !== null && (
+                              <span className={`text-xs flex items-center gap-1 font-medium px-2 py-0.5 rounded-full ${
+                                isUrgent
+                                  ? 'bg-red-500/10 text-red-600'
+                                  : isWarning
+                                  ? 'bg-amber-500/10 text-amber-600'
+                                  : 'bg-green-500/10 text-green-600'
+                              }`}>
+                                {isUrgent && <AlertTriangle className="h-3 w-3" />}
+                                {daysLeft} kunda tugaydi
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
