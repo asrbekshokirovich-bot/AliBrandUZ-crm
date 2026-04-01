@@ -104,8 +104,15 @@ export default function Users() {
         throw new Error(data.details || data.error);
       }
 
-      if (error && !data) {
-        throw new Error(t('usr_network_error'));
+      if (error) {
+        let errMsg = error.message || t('usr_network_error');
+        if (error.context && typeof error.context.json === 'function') {
+          try {
+            const errData = await error.context.json();
+            errMsg = errData.details || errData.error || errMsg;
+          } catch(e) {}
+        }
+        throw new Error(errMsg);
       }
 
       return data;
