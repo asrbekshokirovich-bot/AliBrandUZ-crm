@@ -128,50 +128,7 @@ export default function Categories() {
     gcTime: 5 * 60 * 1000, // Keep in memory for 5 minutes
   });
 
-  // Auto-seed Categories when missing
-  useEffect(() => {
-    if (categories && categories.length > 0) {
-      const marketCategories = [
-        "Elektronika",
-        "Go'zallik va parvarishlash",
-        "Uy-ro'zg'or buyumlari",
-        "Aksessuarlar",
-        "Sumka va hamyonlar",
-        "Soatlar",
-        "Sport va salomatlik",
-        "Kiyim-kechak",
-        "Avtomobil uchun",
-        "Boshqa"
-      ];
-      
-      const missingCategories = marketCategories.filter(
-        mc => !categories.some(c => c.name.toLowerCase() === mc.toLowerCase())
-      );
-      
-      if (missingCategories.length > 0) {
-        console.log('Seeding missing categories:', missingCategories);
-        toast.info(`Yangi kategoriyalar qo'shilmoqda... (${missingCategories.length} ta)`);
-        
-        const seedMissing = async () => {
-          let sortOrder = categories.length + 1;
-          for (const name of missingCategories) {
-            const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            await supabase.from('categories_hierarchy').insert({
-              name,
-              slug,
-              is_active: true,
-              sort_order: sortOrder++,
-              level: 0
-            });
-          }
-          queryClient.invalidateQueries({ queryKey: ['categories-admin-full'] });
-          toast.success("Standart kategoriyalar bazaga uzatildi!");
-        };
-        
-        seedMissing();
-      }
-    }
-  }, [categories, queryClient]);
+  // Removed auto-seeding hook to allow users to permanently delete categories
 
   // Fetch attributes for editing category
   const fetchCategoryAttributes = async (categoryId: string) => {
