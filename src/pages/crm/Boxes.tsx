@@ -79,7 +79,9 @@ export default function Boxes() {
   const [editCostsForm, setEditCostsForm] = useState({
     shippingCost: '0',
     packagingFee: '0',
-    volumeM3: '0'
+    volumeM3: '0',
+    abuSaxiyFeeUSD: '0',
+    tashkentDeliveryFeeUZS: '0'
   });
   const [formData, setFormData] = useState({
     trackCodes: [] as string[],
@@ -364,14 +366,16 @@ export default function Boxes() {
 
 
   const editBoxCostsMutation = useMutation({
-    mutationFn: async ({ boxId, shippingCost, packagingFee, volumeM3 }: { boxId: string, shippingCost: number | null, packagingFee: number | null, volumeM3: number | null }) => {
+    mutationFn: async ({ boxId, shippingCost, packagingFee, volumeM3, abuSaxiyFeeUSD, tashkentDeliveryFeeUZS }: { boxId: string, shippingCost: number | null, packagingFee: number | null, volumeM3: number | null, abuSaxiyFeeUSD: number | null, tashkentDeliveryFeeUZS: number | null }) => {
       // Direct updates to box
       const { error: updateError } = await supabase
         .from('boxes')
         .update({
           shipping_cost: shippingCost,
           packaging_fee: packagingFee,
-          volume_m3: volumeM3
+          volume_m3: volumeM3,
+          abu_saxiy_fee_usd: abuSaxiyFeeUSD,
+          tashkent_delivery_fee_uzs: tashkentDeliveryFeeUZS
         })
         .eq('id', boxId);
         
@@ -383,18 +387,20 @@ export default function Boxes() {
         
         let distError;
 
-        // Try the new signature with packaging_fee
+        // Try the new signature with packaging_fee and local fees
         const { error: newErr } = await supabase.rpc('auto_distribute_box_shipping_cost', {
           p_box_id: boxId,
           p_shipping_cost: shippingCost,
           p_volume_m3: volumeM3 || 0,
           p_usd_to_uzs: uzsRate,
           p_packaging_fee: packagingFee || 0,
+          p_abu_saxiy_fee_usd: abuSaxiyFeeUSD || 0,
+          p_tashkent_delivery_fee_uzs: tashkentDeliveryFeeUZS || 0
         });
 
         if (newErr) {
-          if (newErr.message?.includes('schema cache') || newErr.code === 'PGRST202') {
-            console.warn("Falling back to old signature because p_packaging_fee parameter was missing in DB schema cache.");
+          if (newErr.message?.includes('schema cache') || newErr.code === 'PGRST202' || newErr.message?.includes('function public.auto_distribute_box_shipping_cost')) {
+            console.warn("Falling back to old signature because DB schema cache or old function versions.");
             // Fall back to old signature
             const { error: oldErr } = await supabase.rpc('auto_distribute_box_shipping_cost', {
               p_box_id: boxId,
@@ -1461,28 +1467,54 @@ export default function Boxes() {
                   })()}
                 </div>
 
-                {/* Xitoydan Abu Sahiy omboriga yo'lkira */}
+                {/* Xitoydan Abu Sahiy omboriga va maxalliy yo'lkiralar */}
                 <div
-                  className="mb-3 flex items-center justify-between p-2 rounded-lg border border-border/50 bg-muted/30 cursor-pointer hover:bg-muted/60 transition-colors"
+                  className="mb-3 flex flex-col gap-1 p-2 rounded-lg border border-border/50 bg-muted/30 cursor-pointer hover:bg-muted/60 transition-colors"
                   onClick={() => {
+                    const isOptimistic = typeof box?.id === 'string' && box.id.startsWith('optimistic-');
+                    if (isOptimistic) return;
                     setBoxToEditCosts(box);
                     setEditCostsForm({
                       shippingCost: box.shipping_cost?.toString() || '0',
                       packagingFee: box.packaging_fee?.toString() || '0',
-                      volumeM3: box.volume_m3?.toString() || '0'
+                      volumeM3: box.volume_m3?.toString() || '0',
+                      abuSaxiyFeeUSD: box.abu_saxiy_fee_usd?.toString() || '0',
+                      tashkentDeliveryFeeUZS: box.tashkent_delivery_fee_uzs?.toString() || '0'
                     });
                     setEditCostsDialogOpen(true);
                   }}
                 >
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Package className="h-3 w-3" />
-                    Xitoy → Abu Sahiy yo'lkira:
-                  </span>
-                  <span className={`text-xs font-semibold ${box.shipping_cost > 0 ? 'text-blue-500' : 'text-muted-foreground'}`}>
-                    {box.shipping_cost > 0
-                      ? `$${Number(box.shipping_cost).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
-                      : '— Belgilang'}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Package className="h-3 w-3" />
+                      Xitoy → Abu Sahiy yo'lkira:
+                    </span>
+                    <span className={`text-xs font-semibold ${box.shipping_cost > 0 ? 'text-blue-500' : 'text-muted-foreground'}`}>
+                      {box.shipping_cost > 0
+                        ? `$${Number(box.shipping_cost).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+                        : '— Belgilang'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calculator className="h-3 w-3" />
+                      Abu Saxiy tashlab ketish:
+                    </span>
+                    <span className={`text-xs font-semibold ${box.abu_saxiy_fee_usd > 0 ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                      {box.abu_saxiy_fee_usd > 0 ? `$${Number(box.abu_saxiy_fee_usd).toLocaleString('en-US', { maximumFractionDigits: 2 })}` : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Toshkent Ombor dostavka:
+                    </span>
+                    <span className={`text-xs font-semibold ${box.tashkent_delivery_fee_uzs > 0 ? 'text-green-500' : 'text-muted-foreground'}`}>
+                      {box.tashkent_delivery_fee_uzs > 0 ? `${Number(box.tashkent_delivery_fee_uzs).toLocaleString('en-US')} so'm` : '—'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mb-3">
@@ -1619,7 +1651,9 @@ export default function Boxes() {
                       setEditCostsForm({
                         shippingCost: box.shipping_cost?.toString() || '0',
                         packagingFee: box.packaging_fee?.toString() || '0',
-                        volumeM3: box.volume_m3?.toString() || '0'
+                        volumeM3: box.volume_m3?.toString() || '0',
+                        abuSaxiyFeeUSD: box.abu_saxiy_fee_usd?.toString() || '0',
+                        tashkentDeliveryFeeUZS: box.tashkent_delivery_fee_uzs?.toString() || '0'
                       });
                       setEditCostsDialogOpen(true);
                       setQuickActionsOpen(false);
@@ -1773,7 +1807,9 @@ export default function Boxes() {
                   setEditCostsForm({
                     shippingCost: quickActionsBox.shipping_cost?.toString() || '0',
                     packagingFee: quickActionsBox.packaging_fee?.toString() || '0',
-                    volumeM3: quickActionsBox.volume_m3?.toString() || '0'
+                    volumeM3: quickActionsBox.volume_m3?.toString() || '0',
+                    abuSaxiyFeeUSD: quickActionsBox.abu_saxiy_fee_usd?.toString() || '0',
+                    tashkentDeliveryFeeUZS: quickActionsBox.tashkent_delivery_fee_uzs?.toString() || '0'
                   });
                   setEditCostsDialogOpen(true);
                   setQuickActionsOpen(false);
@@ -1847,6 +1883,26 @@ export default function Boxes() {
                 onChange={(e) => setEditCostsForm({ ...editCostsForm, volumeM3: e.target.value })}
               />
             </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Abu Saxiy xizmati (USD)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editCostsForm.abuSaxiyFeeUSD}
+                onChange={(e) => setEditCostsForm({ ...editCostsForm, abuSaxiyFeeUSD: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Omborga yetkazish / Dostavka (UZS)</label>
+              <Input
+                type="number"
+                step="1000"
+                min="0"
+                value={editCostsForm.tashkentDeliveryFeeUZS}
+                onChange={(e) => setEditCostsForm({ ...editCostsForm, tashkentDeliveryFeeUZS: e.target.value })}
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditCostsDialogOpen(false)}>Bekor qilish</Button>
@@ -1857,7 +1913,9 @@ export default function Boxes() {
                     boxId: boxToEditCosts.id,
                     shippingCost: parseFloat(editCostsForm.shippingCost) || null,
                     packagingFee: parseFloat(editCostsForm.packagingFee) || null,
-                    volumeM3: parseFloat(editCostsForm.volumeM3) || null
+                    volumeM3: parseFloat(editCostsForm.volumeM3) || null,
+                    abuSaxiyFeeUSD: parseFloat(editCostsForm.abuSaxiyFeeUSD) || null,
+                    tashkentDeliveryFeeUZS: parseFloat(editCostsForm.tashkentDeliveryFeeUZS) || null
                   });
                 }
               }}
