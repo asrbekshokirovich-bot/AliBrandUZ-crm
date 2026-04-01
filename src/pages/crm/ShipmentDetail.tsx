@@ -57,7 +57,7 @@ export default function ShipmentDetail() {
       const boxIds = links.map(l => l.box_id);
       const { data: boxes, error } = await supabase
         .from('boxes')
-        .select('*, product_items(weight_grams, product_variants(weight))')
+        .select('*, product_items(weight_grams, international_shipping_cost, product_variants(weight))')
         .in('id', boxIds)
         .order('box_number', { ascending: true });
       if (error) throw error;
@@ -182,9 +182,17 @@ export default function ShipmentDetail() {
     const totalVolume = (shipmentBoxes || []).reduce(
       (sum, b) => sum + (Number((b as any).volume_m3) || 0), 0
     );
-    const totalCost = (shipmentBoxes || []).reduce(
-      (sum, b) => sum + (Number((b as any).shipping_cost) || 0), 0
-    );
+    let totalCost = 0;
+    for (const b of (shipmentBoxes || [])) {
+      let boxCost = Number((b as any).shipping_cost) || 0;
+      if (boxCost === 0) {
+        const items = (b as any).product_items || [];
+        for (const item of items) {
+          boxCost += Number(item.international_shipping_cost) || 0;
+        }
+      }
+      totalCost += boxCost;
+    }
     const arrivedCount = (shipmentBoxes || []).filter(
       b => (b as any).status === 'arrived' || (b as any).status === 'delivered'
     ).length;
@@ -409,7 +417,16 @@ export default function ShipmentDetail() {
                             })()}
 
                             {box.volume_m3 && <span>{Number(box.volume_m3).toFixed(4)} m³</span>}
-                            {box.shipping_cost && <span>${Number(box.shipping_cost).toFixed(0)}</span>}
+                            {(() => {
+                              let c = Number(box.shipping_cost) || 0;
+                              if (c === 0 && (box as any).product_items) {
+                                for (const item of (box as any).product_items) {
+                                  c += Number(item.international_shipping_cost) || 0;
+                                }
+                              }
+                              if (c > 0) return <span>${c.toFixed(2)}</span>;
+                              return null;
+                            })()}
                             {box.product_description && (
                               <span className="truncate max-w-[200px]" title={box.product_description}>
                                 📦 {box.product_description}
