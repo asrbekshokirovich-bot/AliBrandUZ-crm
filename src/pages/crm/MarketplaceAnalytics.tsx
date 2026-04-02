@@ -1067,8 +1067,8 @@ export default function MarketplaceAnalytics() {
                       </CardTitle>
                       {/* Compact period selector */}
                       <div className="flex items-center gap-1">
-                        {(['today', '7d', '30d', '90d'] as PeriodPreset[]).map((preset) => {
-                          const label = preset === 'today' ? 'Bugun' : preset === '7d' ? '7k' : preset === '30d' ? '30k' : '90k';
+                        {(['today', '7d', '30d', '90d', 'ytd', 'all'] as PeriodPreset[]).map((preset) => {
+                          const label = preset === 'today' ? 'Bugun' : preset === '7d' ? '7k' : preset === '30d' ? '30k' : preset === '90d' ? '90k' : preset === 'ytd' ? 'Yil' : 'Barchasi';
                           return (
                             <button
                               key={preset}
@@ -1106,9 +1106,9 @@ export default function MarketplaceAnalytics() {
                       <div className="text-center w-full max-w-[170px] px-1 pointer-events-auto transition-transform hover:scale-105 duration-300">
                         <p className="text-3xl md:text-3xl font-black bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text text-transparent tracking-tight whitespace-nowrap">
                           {hasAnyRevenue 
-                            ? (analytics.totalRevenue >= 1_000_000_000 ? (analytics.totalRevenue / 1_000_000_000).toFixed(1) + ' B' 
-                                : analytics.totalRevenue >= 1_000_000 ? (analytics.totalRevenue / 1_000_000).toFixed(1) + ' M'
-                                : formatCurrency(analytics.totalRevenue).split(' ')[0])
+                            ? (analytics.deliveredRevenue >= 1_000_000_000 ? (analytics.deliveredRevenue / 1_000_000_000).toFixed(1) + ' B' 
+                                : analytics.deliveredRevenue >= 1_000_000 ? (analytics.deliveredRevenue / 1_000_000).toFixed(1) + ' M'
+                                : formatCurrency(analytics.deliveredRevenue).split(' ')[0])
                             : (uzumStores.length + yandexStores.length)}
                         </p>
                         <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">
