@@ -1,0 +1,12 @@
+[
+  {
+    "store_id": "c3628d58-a2be-48d8-b621-26ed6d792107",
+    "store_name": "Ali brand women shoes",
+    "platform": "uzum",
+    "shop_id": "88411",
+    "fulfillment_type": null,
+    "api_connected": false,
+    "error": "API error: 403 - {\"payload\":null,\"errors\":[{\"code\":\"open-api-005\",\"message\":\"Shops ids is not available\"}],\"timestamp\":\"2026-04-02T10:17:59.598873842\",\"trace\":\"a1c93ea477b6011128c2a436856656bb\",\"error\":\"Shops ids is n",
+    "response_time_ms": 73
+  }
+]

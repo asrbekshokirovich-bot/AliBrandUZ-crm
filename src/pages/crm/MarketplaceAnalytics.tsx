@@ -45,10 +45,11 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays, startOfDay, startOfYear, differenceInDays } from "date-fns";
+import { uz } from "date-fns/locale";
 import { toast } from "sonner";
 
-type PeriodPreset = 'today' | '7d' | '30d' | '90d' | 'custom';
+type PeriodPreset = 'today' | '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
 
 const COLORS = [
   'hsl(var(--chart-1))',
@@ -118,6 +119,25 @@ export default function MarketplaceAnalytics() {
           periodLabel: format(subDays(now, 90), 'dd.MM') + ' – ' + format(now, 'dd.MM.yyyy'),
           shortLabel: 'Oxirgi 90 kun',
         };
+      case 'ytd': {
+        const from = startOfYear(now);
+        return {
+          startDate: from,
+          endDate: now,
+          periodLabel: 'Yil boshi — ' + format(now, 'dd.MM.yyyy'),
+          shortLabel: 'Yil boshi',
+        };
+      }
+      case 'all': {
+        // Just use a far past date for "all time"
+        const from = new Date('2020-01-01');
+        return {
+          startDate: from,
+          endDate: now,
+          periodLabel: 'Barcha vaqt',
+          shortLabel: 'Barchasi',
+        };
+      }
       case 'custom': {
         const from = customFrom ? new Date(customFrom) : subDays(now, 30);
         const to = customTo ? new Date(customTo) : now;
@@ -176,12 +196,14 @@ export default function MarketplaceAnalytics() {
         .select('store_id, total_amount, status, marketplace_stores!inner(platform)')
         .gte('ordered_at', todayStart);
       if (error) throw error;
-      const result = { uzum: { orders: 0, revenue: 0, returns: 0 }, yandex: { orders: 0, revenue: 0, returns: 0 } };
+      const result = { uzum: { orders: 0, revenue: 0, returns: 0, cancelled: 0 }, yandex: { orders: 0, revenue: 0, returns: 0, cancelled: 0 } };
       for (const o of data || []) {
         const platform = (o.marketplace_stores as any)?.platform as 'uzum' | 'yandex';
         if (!result[platform]) continue;
         const st = (o.status || '').toUpperCase();
-        if (st.includes('RETURN')) {
+        if (['CANCELLED','CANCELED','REJECTED','NOT_','CANCEL'].some(s => st.includes(s))) {
+          result[platform].cancelled++;
+        } else if (st.includes('RETURN') || st.includes('VOSVRAT')) {
           result[platform].returns++;
         } else {
           result[platform].orders++;
@@ -210,7 +232,12 @@ export default function MarketplaceAnalytics() {
       // Aggregate by store + date
       const map: Record<string, {
         store_id: string; period_date: string; period_type: string;
-        orders_count: number; gross_revenue: number; commission_total: number;
+        orders_count: number; 
+        gross_revenue: number; // All created
+        delivered_revenue: number; // Actually delivered
+        returned_revenue: number; // Returned amount
+        cancelled_revenue: number; // Cancelled amount
+        commission_total: number;
         delivery_total: number; storage_total: number;
         delivered_count: number; cancelled_count: number; returned_count: number;
         pending_count: number;
@@ -220,10 +247,10 @@ export default function MarketplaceAnalytics() {
         const date = (order.ordered_at || '').slice(0, 10);
         if (!date) continue;
         const key = `${order.store_id}:${date}`;
-        if (!map[key]) {
+          if (!map[key]) {
           map[key] = {
             store_id: order.store_id, period_date: date, period_type: 'daily',
-            orders_count: 0, gross_revenue: 0, commission_total: 0,
+            orders_count: 0, gross_revenue: 0, delivered_revenue: 0, returned_revenue: 0, cancelled_revenue: 0, commission_total: 0,
             delivery_total: 0, storage_total: 0,
             delivered_count: 0, cancelled_count: 0, returned_count: 0,
             pending_count: 0,
@@ -232,14 +259,28 @@ export default function MarketplaceAnalytics() {
         const r = map[key];
         r.orders_count++;
         r.gross_revenue += order.total_amount || 0;
-        r.commission_total += order.commission || 0;
-        r.delivery_total += order.delivery_fee || 0;
         r.storage_total += order.storage_fee || 0;
         const st = (order.status || '').toUpperCase();
-        if (['DELIVERED','COMPLETED','DONE','ARRIVED','HANDED_'].some(s => st.includes(s))) r.delivered_count++;
-        else if (['CANCELLED','CANCELED','REJECTED','NOT_'].some(s => st.includes(s))) r.cancelled_count++;
-        else if (st.includes('RETURN') || st.includes('VOSVRAT')) r.returned_count++;
-        else r.pending_count++;
+        if (['DELIVERED','COMPLETED','DONE','ARRIVED','HANDED_'].some(s => st.includes(s))) {
+            r.delivered_count++;
+            r.delivered_revenue += order.total_amount || 0;
+            // Only add commissions for completed items typically (or those actually charged)
+            r.commission_total += order.commission || 0;
+            r.delivery_total += order.delivery_fee || 0;
+        }
+        else if (['CANCELLED','CANCELED','REJECTED','NOT_','CANCEL'].some(s => st.includes(s))) {
+            r.cancelled_count++;
+            r.cancelled_revenue += order.total_amount || 0;
+        }
+        else if (st.includes('RETURN') || st.includes('VOSVRAT')) {
+            r.returned_count++;
+            r.returned_revenue += order.total_amount || 0;
+            // Delivery fee is usually completely lost by seller on returns
+            r.delivery_total += order.delivery_fee || 0;
+        }
+        else {
+            r.pending_count++;
+        }
         // Now ALL orders are strictly binned into exactly one category!
       }
       return Object.values(map);
@@ -350,7 +391,10 @@ export default function MarketplaceAnalytics() {
 
   // === Compute KPIs from filtered summary ===
   const analytics = useMemo(() => ({
-    totalRevenue: platformSummary.reduce((s, r) => s + (r.gross_revenue || 0), 0),
+    grossRevenue: platformSummary.reduce((s, r) => s + (r.gross_revenue || 0), 0),
+    deliveredRevenue: platformSummary.reduce((s, r) => s + (r.delivered_revenue || 0), 0),
+    returnedRevenue: platformSummary.reduce((s, r) => s + (r.returned_revenue || 0), 0),
+    cancelledRevenue: platformSummary.reduce((s, r) => s + (r.cancelled_revenue || 0), 0),
     totalCommission: platformSummary.reduce((s, r) => s + (r.commission_total || 0), 0),
     totalDelivery: platformSummary.reduce((s, r) => s + ((r as any).delivery_total || 0), 0),
     totalStorage: platformSummary.reduce((s, r) => s + ((r as any).storage_total || 0), 0),
@@ -358,29 +402,42 @@ export default function MarketplaceAnalytics() {
     completedOrders: platformSummary.reduce((s, r) => s + (r.delivered_count || 0), 0),
     cancelledOrders: platformSummary.reduce((s, r) => s + (r.cancelled_count || 0), 0),
     returnedOrders: platformSummary.reduce((s, r) => s + (r.returned_count || 0), 0),
-    // pendingOrders is now date-filtered (from main aggregation, not a separate query)
     pendingOrders: platformSummary.reduce((s, r) => s + ((r as any).pending_count || 0), 0),
     activeListings: filteredActiveListings,
     lowStockListings: filteredLowStock,
     outOfStockListings: filteredOutOfStock,
   }), [platformSummary, filteredActiveListings, filteredLowStock, filteredOutOfStock]);
 
-  const netRevenue = analytics.totalRevenue - analytics.totalCommission - analytics.totalDelivery - analytics.totalStorage;
+  const netRevenue = analytics.deliveredRevenue - analytics.totalCommission - analytics.totalDelivery - analytics.totalStorage;
 
   // === Revenue trend from filtered summary (group by period_date) ===
   const trendData = useMemo(() => {
+    const isMonthly = differenceInDays(endDate, startDate) > 60;
+    
     const trendByDate: Record<string, { revenue: number; orders: number }> = {};
     for (const row of platformSummary) {
-      const date = format(new Date(row.period_date + 'T00:00:00'), 'MM-dd');
-      if (!trendByDate[date]) trendByDate[date] = { revenue: 0, orders: 0 };
-      trendByDate[date].revenue += row.gross_revenue || 0;
-      trendByDate[date].orders += row.delivered_count || 0;
+      const rowDate = new Date(row.period_date + 'T00:00:00');
+      // format as MMMM (e.g. Fevral) passing locale uz
+      const dateKey = isMonthly 
+        ? format(rowDate, 'MMMM', { locale: uz }) // 'Yanvar', 'Fevral'
+        : format(rowDate, 'MM-dd');
+
+      if (!trendByDate[dateKey]) trendByDate[dateKey] = { revenue: 0, orders: 0 };
+      trendByDate[dateKey].revenue += row.delivered_revenue || 0;
+      trendByDate[dateKey].orders += row.delivered_count || 0;
     }
-    return Object.entries(trendByDate)
-      .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    // No .slice() — show all data points for the selected period
-  }, [platformSummary]);
+    
+    // Convert to array and handle simple sorting. 
+    // Since months are localized strings, it's safer to sort by original dates or maintain the object order 
+    // Javascript standard guarantees insertion order for non-numeric keys.
+    const res = Object.entries(trendByDate)
+      .map(([date, data]) => ({ date, ...data }));
+    
+    if (!isMonthly) {
+      res.sort((a, b) => a.date.localeCompare(b.date));
+    }
+    return res;
+  }, [platformSummary, startDate, endDate]);
 
   // === Base store revenue for chips (platform filtered, NOT store filtered) ===
   const baseStoreRevenue = useMemo(() => {
@@ -393,7 +450,7 @@ export default function MarketplaceAnalytics() {
     }
     const map: Record<string, number> = {};
     for (const row of filtered) {
-      map[row.store_id] = (map[row.store_id] || 0) + (row.gross_revenue || 0);
+      map[row.store_id] = (map[row.store_id] || 0) + (row.delivered_revenue || 0);
     }
     return map;
   }, [platformTab, summary, uzumStores, yandexStores]);
@@ -419,7 +476,7 @@ export default function MarketplaceAnalytics() {
     if (platformTab === 'all') {
       const revenueByStoreId: Record<string, number> = {};
       for (const row of platformSummary) {
-        revenueByStoreId[row.store_id] = (revenueByStoreId[row.store_id] || 0) + (row.gross_revenue || 0);
+        revenueByStoreId[row.store_id] = (revenueByStoreId[row.store_id] || 0) + (row.delivered_revenue || 0);
       }
       return Object.entries(revenueByStoreId)
         .map(([storeId, value]) => ({
@@ -656,7 +713,7 @@ export default function MarketplaceAnalytics() {
         <div className="flex items-center gap-2 flex-wrap">
           <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           {(
-            [['today', 'Bugun'], ['7d', '7 kun'], ['30d', '30 kun'], ['90d', '90 kun']] as [PeriodPreset, string][]
+            [['today', 'Bugun'], ['7d', '7 kun'], ['30d', '30 kun'], ['90d', '90 kun'], ['ytd', 'Yil boshi'], ['all', 'Barchasi']] as [PeriodPreset, string][]
           ).map(([preset, label]) => (
             <button
               key={preset}
@@ -825,9 +882,9 @@ export default function MarketplaceAnalytics() {
           <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t('mpa_total_revenue')}</p>
-                <p className="text-xl font-bold truncate">{formatCurrency(netRevenue)}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{cfg.label} • {shortLabel}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground pt-1">Haqiqiy Daromad (Sotilgan)</p>
+                <p className="text-xl font-bold truncate text-emerald-600 dark:text-emerald-400">{formatCurrency(analytics.deliveredRevenue)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{analytics.completedOrders} ta yetkazilgan tovar</p>
               </div>
             </div>
           </CardContent>
@@ -838,27 +895,24 @@ export default function MarketplaceAnalytics() {
           <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t('mpa_total_orders')}</p>
-                <p className="text-xl font-bold">{analytics.totalOrders}</p>
-                <div className="flex gap-2 text-xs mt-0.5">
-                  <span className="text-green-600">{analytics.completedOrders} ✓</span>
-                  <span className="text-yellow-600">{analytics.pendingOrders} ⏳</span>
-                </div>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground pt-1">Sof Foyda (Netto)</p>
+                <p className="text-xl font-bold">{formatCurrency(netRevenue)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{cfg.label} • {shortLabel}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-purple-400 to-purple-600" />
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-400 to-red-500" />
           <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t('mpa_active_listings')}</p>
-                <p className="text-xl font-bold">{analytics.activeListings}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground pt-1">Qaytish va Bekorlar (Puli)</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(analytics.returnedRevenue + analytics.cancelledRevenue)}</p>
                 <div className="flex gap-2 text-xs mt-0.5">
-                  <span className="text-yellow-600">{analytics.lowStockListings} {t('mpa_low')}</span>
-                  <span className="text-red-600">{analytics.outOfStockListings} {t('mpa_ended')}</span>
+                  <span className="text-orange-600">↩ {analytics.returnedOrders} qaytgan</span>
+                  <span className="text-red-600">✕ {analytics.cancelledOrders} bekor</span>
                 </div>
               </div>
             </div>
