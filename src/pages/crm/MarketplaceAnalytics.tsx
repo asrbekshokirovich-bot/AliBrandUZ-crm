@@ -423,8 +423,13 @@ export default function MarketplaceAnalytics() {
         : format(rowDate, 'MM-dd');
 
       if (!trendByDate[dateKey]) trendByDate[dateKey] = { revenue: 0, orders: 0 };
-      trendByDate[dateKey].revenue += row.delivered_revenue || 0;
-      trendByDate[dateKey].orders += row.delivered_count || 0;
+      // For trend graphs by order date, we show Gross Volume minus Cancellations and Returns,
+      // so recent days show the expected sales volume even if not yet delivered.
+      const validRev = (row.gross_revenue || 0) - (row.cancelled_revenue || 0) - (row.returned_revenue || 0);
+      const validOrders = (row.orders_count || 0) - (row.cancelled_count || 0) - (row.returned_count || 0);
+      
+      trendByDate[dateKey].revenue += validRev > 0 ? validRev : 0;
+      trendByDate[dateKey].orders += validOrders > 0 ? validOrders : 0;
     }
     
     // Convert to array and handle simple sorting. 
