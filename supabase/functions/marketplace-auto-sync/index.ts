@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
         // Zanjir prioriteti muhim: Orders -> Finance -> Returns -> Stock (Shtular ayirish)
         for (const store of stores) {
            insertPayloads.push(
+               { store_id: store.id, store_name: store.name, platform: store.platform, sync_type: 'listings', status: 'pending', priority: 50, params: { lightweight: false } },
                { store_id: store.id, store_name: store.name, platform: store.platform, sync_type: 'orders', status: 'pending', priority: 40, params: { lightweight: false, days: 30 } },
                { store_id: store.id, store_name: store.name, platform: store.platform, sync_type: 'finance', status: 'pending', priority: 30, params: { lightweight: false, days: 30 } },
                { store_id: store.id, store_name: store.name, platform: store.platform, sync_type: 'returns', status: 'pending', priority: 20, params: { lightweight: false, days: 30 } },
