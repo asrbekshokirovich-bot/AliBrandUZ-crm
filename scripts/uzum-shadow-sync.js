@@ -35,23 +35,30 @@ async function runSync() {
     console.warn('Could not fetch remote secrets, relying on local .env variables.', err.message);
   }
 
-  const { data: stores, error: storesError } = await supabase
+  // Fetch ALL stores natively to debug the exact mapping state
+  const { data: allStores, error: storesError } = await supabase
     .from('v2_marketplaces')
-    .select('*')
-    .eq('is_active', true)
-    .eq('platform', 'uzum');
+    .select('*');
 
   if (storesError) {
-    console.error('FATAL: Failed to fetch Uzum stores from Supabase:', storesError);
+    console.error('FATAL: Failed to fetch stores from Supabase:', storesError);
     process.exit(1);
   }
 
+  console.log(`[DEBUG] Found ${allStores?.length || 0} total rows in 'v2_marketplaces' (Regardless of type or status).`);
+
+  // Case-Insensitive Filter for 'uzum'
+  const stores = (allStores || []).filter(s => {
+    const plat = String(s.platform || '').toLowerCase();
+    return plat.includes('uzum');
+  });
+
   if (!stores || stores.length === 0) {
-    console.log('No active Uzum stores found. Exiting.');
+    console.log('No Uzum stores found matching '.ilike(\"%uzum%\")'. Exiting.');
     return;
   }
 
-  console.log(`Found ${stores.length} active Uzum stores.`);
+  console.log(`Found ${stores.length} Uzum stores mapping candidates.`);
 
   for (const store of stores) {
     try {
