@@ -79,7 +79,7 @@ async function runSync() {
       }
 
       const dateFromMs = Date.now() - (60 * 24 * 60 * 60 * 1000); // 60 days aggressively
-      const url = `https://api.business.uzum.uz/api/v1/orders?shopIds=${shopId}&size=100&dateFrom=${dateFromMs}`;
+      const url = `https://seller.uzum.uz/api/v1/orders?shopIds=${shopId}&size=100&dateFrom=${dateFromMs}`;
 
       console.log(` Fetching Uzum API... (${url})`);
 
