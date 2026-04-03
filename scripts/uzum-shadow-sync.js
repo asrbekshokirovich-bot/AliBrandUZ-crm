@@ -59,50 +59,61 @@ async function fetchLiveRubToUzs() {
 }
 
 /**
+ * Print a startup diagnostic showing which API key env vars are available.
+ * This is critical for debugging missing secret injections.
+ */
+function printKeyDiagnostic() {
+  const keyPrefixes = ['UZUM_', 'YANDEX_'];
+  const found = Object.keys(process.env).filter(k =>
+    keyPrefixes.some(p => k.toUpperCase().startsWith(p)) && process.env[k]?.length > 10
+  );
+  console.log(`[KEYS] ${found.length} marketplace API key(s) available in environment:`);
+  found.forEach(k => console.log(`       ✓ ${k} (length: ${process.env[k].length})`));
+  if (found.length === 0) {
+    console.error('[KEYS] ⚠️  NO marketplace API keys found in environment!');
+    console.error('[KEYS]    Ensure GitHub Secrets are mapped in the workflow env: block.');
+  }
+}
+
+/**
  * Get the correct API key for a store.
- * Tries many name variants of api_key_secret_name to handle naming mismatches
- * between what's stored in the DB and what was actually registered as a GitHub Secret.
+ * Tries name variants of api_key_secret_name — NO fuzzy fallback to avoid
+ * accidentally matching system env vars like '_'.
  */
 function resolveApiKey(store) {
-  // Direct api_key column — fastest path if user stored key directly
+  // Direct api_key column — fastest path if user stored key directly in DB
   if (store.api_key && store.api_key.trim().length > 10) {
+    console.log(`  [KEY] Using api_key column directly`);
     return store.api_key.trim();
   }
 
   const secretName = store.api_key_secret_name;
-  if (secretName) {
-    // Try exact match first
-    if (process.env[secretName]?.trim().length > 10) return process.env[secretName].trim();
+  if (!secretName) return null;
 
-    // Build normalized variants: replace dots and spaces with underscores, try different casings
-    const normalized = secretName.replace(/[\.\s-]/g, '_');
-    const upper = normalized.toUpperCase();
-    const candidates = [
-      normalized,
-      upper,
-      normalized.toLowerCase(),
-      // e.g. UZUM_Atlas.Market_API_KEY -> UZUM_ATLAS_MARKET_API_KEY
-      upper.replace(/_API_KEY$/, '_API_KEY'),
-    ];
+  // Build candidate env var names (exact → normalized → uppercase variants)
+  const candidates = new Set([
+    secretName,                                          // exact match
+    secretName.replace(/[.\s-]/g, '_'),                 // dots/spaces → underscores
+    secretName.toUpperCase(),                            // full uppercase
+    secretName.replace(/[.\s-]/g, '_').toUpperCase(),   // normalized uppercase
+  ]);
 
-    for (const candidate of candidates) {
-      if (process.env[candidate]?.trim().length > 10) {
-        console.log(`  [KEY] Resolved "${secretName}" → env var "${candidate}"`);
-        return process.env[candidate].trim();
+  for (const candidate of candidates) {
+    const val = process.env[candidate];
+    // IMPORTANT: must be a real token (>10 chars, not a system/shell variable)
+    if (val && val.trim().length > 10 && candidate.length > 3) {
+      if (candidate !== secretName) {
+        console.log(`  [KEY] Resolved "${secretName}" → "${candidate}" (${val.length} chars)`);
+      } else {
+        console.log(`  [KEY] Found "${secretName}" (${val.length} chars)`);
       }
-    }
-
-    // Last-resort: scan all environment variables for a fuzzy match
-    const storeNameNorm = String(store.name || '').toUpperCase().replace(/[\.\s-]/g, '_');
-    for (const [envKey, envVal] of Object.entries(process.env)) {
-      if (!envVal || envVal.length < 10) continue;
-      const envNorm = envKey.toUpperCase().replace(/[\.\s-]/g, '_');
-      if (envNorm.includes(storeNameNorm) || storeNameNorm.includes(envNorm.replace(/^(UZUM|YANDEX)_/,'').replace(/_API_KEY$/, ''))) {
-        console.log(`  [KEY] Fuzzy-matched "${secretName}" → env var "${envKey}"`);
-        return envVal.trim();
-      }
+      return val.trim();
     }
   }
+
+  // NO fuzzy fallback — too dangerous (matches '_', 'PS1', etc.)
+  console.warn(`  [KEY] ✗ No key found for secret name: "${secretName}"`);
+  console.warn(`  [KEY]   Tried: ${[...candidates].join(', ')}`);
   return null;
 }
 
@@ -125,10 +136,11 @@ async function syncUzumStore(store, apiKey, dateFromMs) {
 
   const bearerToken = apiKey.startsWith('Bearer') ? apiKey : `Bearer ${apiKey}`;
 
-  // Uzum: try with shopIds param, fall back to sellerId param
+  // Try multiple endpoints — seller.uzum.uz is the current active endpoint
   const endpoints = [
     `https://seller.uzum.uz/api/v1/orders?shopIds=${shopId}&size=500&dateFrom=${dateFromMs}`,
-    `https://seller.uzum.uz/api/v1/orders?sellerId=${shopId}&size=500&dateFrom=${dateFromMs}`
+    `https://seller.uzum.uz/api/v1/orders?sellerId=${shopId}&size=500&dateFrom=${dateFromMs}`,
+    `https://api.business.uzum.uz/api/v1/orders?shopIds=${shopId}&size=500&dateFrom=${dateFromMs}`,
   ];
 
   let data = null;
@@ -142,20 +154,33 @@ async function syncUzumStore(store, apiKey, dateFromMs) {
         'Authorization': bearerToken,
         'Accept': 'application/json',
         'Content-Type': 'application/json'
-      }
+      },
+      redirect: 'follow'
     });
     lastStatus = resp.status;
+    const contentType = resp.headers.get('content-type') || '';
     lastBody = await resp.text();
 
+    // Detect HTML redirect (login page / marketing page)
+    if (lastBody.trim().startsWith('<') || contentType.includes('text/html')) {
+      console.warn(`  [Uzum] HTTP ${resp.status} returned HTML (auth redirect / wrong endpoint) — trying next...`);
+      console.warn(`         Title hint: ${lastBody.match(/<title>(.*?)<\/title>/i)?.[1] || 'N/A'}`);
+      continue;
+    }
+
     if (resp.ok) {
-      try { data = JSON.parse(lastBody); } catch (_) { throw new Error(`Uzum JSON parse error: ${lastBody.substring(0, 200)}`); }
+      try { data = JSON.parse(lastBody); } catch (_) {
+        throw new Error(`Uzum JSON parse error: ${lastBody.substring(0, 200)}`);
+      }
       break;
     }
-    console.warn(`  [Uzum] HTTP ${resp.status} on ${url} — trying next...`);
-    console.warn(`         Response: ${lastBody.substring(0, 200)}`);
+    console.warn(`  [Uzum] HTTP ${resp.status} — trying next...`);
+    console.warn(`         Response: ${lastBody.substring(0, 150)}`);
   }
 
-  if (!data) throw new Error(`Uzum HTTP ${lastStatus}: ${lastBody.substring(0, 300)}`);
+  if (!data) {
+    throw new Error(`All Uzum endpoints failed. Last status: ${lastStatus}. Response starts with: ${lastBody.substring(0, 150)}`);
+  }
 
   const orders = data?.payload?.orders || data?.payload || data?.orders || [];
   if (!Array.isArray(orders)) {
@@ -163,6 +188,7 @@ async function syncUzumStore(store, apiKey, dateFromMs) {
     return [];
   }
 
+  console.log(`  [Uzum] Got ${orders.length} orders from API`);
   return orders.map(o => ({
     store_id: store.id,
     external_order_id: String(o.id || o.orderId || o.order_id),
@@ -258,6 +284,9 @@ async function runSync() {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`[${new Date().toISOString()}] AliBrand Unified Marketplace Sync Starting...`);
   console.log(`${'='.repeat(60)}\n`);
+
+  // Print diagnostic of which API keys are injected into this environment
+  printKeyDiagnostic();
 
   // Fetch live exchange rate FIRST
   const rubToUzsRate = await fetchLiveRubToUzs();
