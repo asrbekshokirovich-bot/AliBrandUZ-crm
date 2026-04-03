@@ -18,6 +18,23 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 async function runSync() {
   console.log(`[${new Date().toISOString()}] Initiating Uzum SSL-Bypass Sync...`);
 
+  // Dynamically load Edge Function Secrets so GitHub Actions natively knows the API Keys
+  try {
+    console.log('Fetching encrypted environment secrets from Supabase vault...');
+    const secretResp = await fetch(`${SUPABASE_URL}/functions/v1/get-secrets`, {
+      headers: { Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (secretResp.ok) {
+      const secretData = await secretResp.json();
+      if (secretData && secretData.ENVIRONMENT) {
+        Object.assign(process.env, secretData.ENVIRONMENT);
+        console.log('Successfully injected native Edge secrets into runtime.');
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch remote secrets, relying on local .env variables.', err.message);
+  }
+
   const { data: stores, error: storesError } = await supabase
     .from('v2_marketplaces')
     .select('*')
