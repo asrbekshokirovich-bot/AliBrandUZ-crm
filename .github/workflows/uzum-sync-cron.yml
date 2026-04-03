@@ -21,6 +21,14 @@ jobs:
       - name: Install Dependencies
         run: npm install @supabase/supabase-js dotenv
 
+      - name: Fix DB Secret Names (auto-patch api_key_secret_name)
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        run: node scripts/fix-secret-names.mjs
+
       - name: Run Unified Marketplace Sync
         env:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -30,7 +38,7 @@ jobs:
 
           # Uzum stores
           UZUM_ALI_BRAND_MARKET_API_KEY: ${{ secrets.UZUM_ALI_BRAND_MARKET_API_KEY }}
-          UZUM_Atlas_Market_API_KEY: ${{ secrets.UZUM_Atlas_Market_API_KEY }}
+          UZUM_ATLAS_Market_API_KEY: ${{ secrets.UZUM_ATLAS_Market_API_KEY }}
           UZUM_CHINA_MARKET_API_KEY: ${{ secrets.UZUM_CHINA_MARKET_API_KEY }}
           UZUM_XIT_MARKET_API_KEY: ${{ secrets.UZUM_XIT_MARKET_API_KEY }}
           UZUM_BM_STORE_API_KEY: ${{ secrets.UZUM_BM_STORE_API_KEY }}
