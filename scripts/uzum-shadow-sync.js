@@ -54,7 +54,7 @@ async function runSync() {
   });
 
   if (!stores || stores.length === 0) {
-    console.log('No Uzum stores found matching '.ilike(\"%uzum%\")'. Exiting.');
+    console.log('No Uzum stores found matching case-insensitive \"uzum\". Exiting.');
     return;
   }
 
