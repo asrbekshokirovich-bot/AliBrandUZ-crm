@@ -30,7 +30,6 @@ jobs:
 
           # Uzum stores
           UZUM_ALI_BRAND_MARKET_API_KEY: ${{ secrets.UZUM_ALI_BRAND_MARKET_API_KEY }}
-          UZUM_ATLAS_Market_API_KEY: ${{ secrets.UZUM_ATLAS_Market_API_KEY }}
           UZUM_Atlas_Market_API_KEY: ${{ secrets.UZUM_Atlas_Market_API_KEY }}
           UZUM_CHINA_MARKET_API_KEY: ${{ secrets.UZUM_CHINA_MARKET_API_KEY }}
           UZUM_XIT_MARKET_API_KEY: ${{ secrets.UZUM_XIT_MARKET_API_KEY }}
