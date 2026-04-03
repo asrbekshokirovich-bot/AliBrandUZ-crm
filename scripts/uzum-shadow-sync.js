@@ -70,7 +70,7 @@ async function runSync() {
         continue;
       }
 
-      const dateFromMs = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 days
+      const dateFromMs = Date.now() - (60 * 24 * 60 * 60 * 1000); // 60 days aggressively
       const url = `https://api.business.uzum.uz/api/v1/orders?shopIds=${store.external_shop_id}&size=100&dateFrom=${dateFromMs}`;
 
       console.log(` Fetching Uzum API... (${url})`);
@@ -96,7 +96,6 @@ async function runSync() {
         data = JSON.parse(rawText);
       } catch (parseErr) {
         console.error(` [-] Failed to parse JSON for ${store.name}: ${parseErr.message}`);
-        console.error(`     Raw response snippet: ${rawText.substring(0, 300)}`);
         continue;
       }
 
@@ -106,28 +105,53 @@ async function runSync() {
       }
 
       const payload = data?.payload?.orders || data?.payload || [];
-      const ordersToUpsert = Array.isArray(payload) ? payload.map((o) => ({
-        marketplace_id: store.id,
-        external_order_id: String(o.id),
-        ordered_at: o.createTime || new Date().toISOString(),
-        normalized_status: String(o.status || '').toUpperCase() === 'DELIVERED' ? 'delivered' : 'pending',
-        gross_amount: o.totalAmount || 0,
-        currency: 'UZS'
-      })) : [];
+      console.log(` [*] Uzum API returned ${payload.length || 0} items in payload.`);
+      
+      if (Array.isArray(payload) && payload.length > 0) {
+        // Log the first item's schema to ensure mapping is correct
+        console.log(` [DEBUG] Schema of first order:`, JSON.stringify(payload[0]).substring(0, 500));
+      }
+
+      // Log DB rows before
+      const { count: countBefore } = await supabase.from('v2_unified_orders').select('*', { count: 'exact', head: true }).eq('marketplace_id', store.id);
+      console.log(` [DB] Rows in v2_unified_orders for ${store.name} BEFORE sync: ${countBefore}`);
+
+      const ordersToUpsert = Array.isArray(payload) ? payload.map((o) => {
+        // Fallback checks for different Uzum API schema versions
+        const amount = o.totalAmount || o.price || o.total_amount || o.amount || 0;
+        const oDate = o.createTime || o.created_at || o.date || new Date().toISOString();
+        const stat = String(o.status || o.state || '').toUpperCase();
+        
+        return {
+          marketplace_id: store.id,
+          external_order_id: String(o.id || o.orderId || o.order_id),
+          ordered_at: oDate,
+          normalized_status: (stat === 'DELIVERED' || stat === 'COMPLETED' || stat === 'HANDED_OVER_TO_CUSTOMER') ? 'delivered' : 'pending',
+          gross_amount: amount,
+          currency: 'UZS'
+        };
+      }) : [];
 
       if (ordersToUpsert.length > 0) {
+        // Filter out bad parses
+        const validOrders = ordersToUpsert.filter(o => o.external_order_id !== 'undefined');
+        
         const { error: upsertErr } = await supabase
           .from("v2_unified_orders")
-          .upsert(ordersToUpsert, { onConflict: "marketplace_id, external_order_id" });
+          .upsert(validOrders, { onConflict: "marketplace_id, external_order_id" });
 
         if (upsertErr) {
           console.error(` [-] Database Upsert Failed for ${store.name}:`, upsertErr);
         } else {
-          console.log(` [+] Successfully upserted ${ordersToUpsert.length} orders for ${store.name}.`);
+          console.log(` [+] Successfully upserted ${validOrders.length} orders for ${store.name}.`);
         }
       } else {
-        console.log(` [~] No new orders found for ${store.name}.`);
+        console.log(` [~] No new orders found to upsert for ${store.name}.`);
       }
+
+      // Log DB rows after
+      const { count: countAfter } = await supabase.from('v2_unified_orders').select('*', { count: 'exact', head: true }).eq('marketplace_id', store.id);
+      console.log(` [DB] Rows in v2_unified_orders for ${store.name} AFTER sync: ${countAfter}`);
 
     } catch (err) {
        console.error(` [FATAL LOOP] Critical try/catch failure for store ${store.name}:`, err);
