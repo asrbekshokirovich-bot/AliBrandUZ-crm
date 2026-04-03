@@ -165,6 +165,7 @@ const resources = {
       marketplace_admin: 'Marketplace',
       marketplace_listings: 'Listinglar',
       marketplace_analytics: 'MP Tahlil',
+      marketplace_analytics_v2: 'MP Tahlilchi v2',
       marketplace_returns: 'Vozvratlar',
       marketplace_reviews: 'Sharhlar',
       marketplace_questions: 'Savollar',
