@@ -31,7 +31,7 @@ const SECRET_MAP = [
   // Yandex stores
   { match: 'FBY - AliBrand',         secret: 'YANDEX_FBY_AliBrand_Market_API_KEY' },
   { match: 'FBS - Atlas',            secret: 'YANDEX_FBS_Atlas_Market_API_KEY' },
-  { match: 'FBS - BM',               secret: 'YANDEX_FBS_BM_Store2_API_KEY' },
+  { match: 'FBS - BM',               secret: 'YANDEX_FBS_BM_STORE2_API_KEY' },
   { match: 'FBY - BM',               secret: 'YANDEX_FBY_BM_Store3_API_KEY' },
 ];
 

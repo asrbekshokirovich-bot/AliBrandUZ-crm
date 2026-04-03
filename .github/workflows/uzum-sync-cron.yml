@@ -52,7 +52,7 @@ jobs:
           # Yandex stores
           YANDEX_FBY_AliBrand_Market_API_KEY: ${{ secrets.YANDEX_FBY_AliBrand_Market_API_KEY }}
           YANDEX_FBS_Atlas_Market_API_KEY: ${{ secrets.YANDEX_FBS_Atlas_Market_API_KEY }}
-          YANDEX_FBS_BM_Store2_API_KEY: ${{ secrets.YANDEX_FBS_BM_Store2_API_KEY }}
+          YANDEX_FBS_BM_STORE2_API_KEY: ${{ secrets.YANDEX_FBS_BM_STORE2_API_KEY }}
           YANDEX_FBY_BM_Store3_API_KEY: ${{ secrets.YANDEX_FBY_BM_Store3_API_KEY }}
           YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
 
