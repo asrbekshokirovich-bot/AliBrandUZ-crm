@@ -1,4 +1,4 @@
-name: Uzum Orders Shadow Sync
+name: Unified Marketplace Analytics Sync
 
 on:
   schedule:
@@ -23,10 +23,44 @@ jobs:
       - name: Install Dependencies
         run: npm install @supabase/supabase-js dotenv
 
-      - name: Run Uzum Sync Script
+      - name: Run Unified Marketplace Sync
         env:
+          # --- Supabase Connection ---
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # Explicitly set the environment variable again just to be safe
           NODE_TLS_REJECT_UNAUTHORIZED: "0"
+
+          # --- Uzum Store API Keys ---
+          # (covering all naming variants used in marketplace_stores.api_key_secret_name)
+          UZUM_ALI_BRAND_MARKET_API_KEY: ${{ secrets.UZUM_ALI_BRAND_MARKET_API_KEY }}
+          UZUM_ATLAS_MARKET_API_KEY: ${{ secrets.UZUM_ATLAS_Market_API_KEY }}
+          UZUM_ATLAS_Market_API_KEY: ${{ secrets.UZUM_ATLAS_Market_API_KEY }}
+          UZUM_Atlas_Market_API_KEY: ${{ secrets.UZUM_Atlas_Market_API_KEY }}
+          UZUM_CHINA_MARKET_API_KEY: ${{ secrets.UZUM_CHINA_MARKET_API_KEY }}
+          UZUM_XIT_MARKET_API_KEY: ${{ secrets.UZUM_XIT_MARKET_API_KEY }}
+          UZUM_ATLAS_MARKET_2_API_KEY: ${{ secrets.UZUM_ATLAS_MARKET_2_API_KEY }}
+          UZUM_BM_STORE_API_KEY: ${{ secrets.UZUM_BM_STORE_API_KEY }}
+          UZUM_BMSTORE_API_KEY: ${{ secrets.UZUM_BMSTORE_API_KEY }}
+          UZUM_BM_STORE_2_API_KEY: ${{ secrets.UZUM_BM_STORE_2_API_KEY }}
+          UZUM_ALIBRAND_MARKET_API_KEY: ${{ secrets.UZUM_Alibrand_Market_API_KEY }}
+          UZUM_Alibrand_Market_API_KEY: ${{ secrets.UZUM_Alibrand_Market_API_KEY }}
+          UZUM_ZAMONA_MARKET_API_KEY: ${{ secrets.UZUM_Zamona_Market_API_KEY }}
+          UZUM_Zamona_Market_API_KEY: ${{ secrets.UZUM_Zamona_Market_API_KEY }}
+          UZUM_VELINA_STORE_API_KEY: ${{ secrets.UZUM_Velina_Store_API_KEY }}
+          UZUM_Velina_Store_API_KEY: ${{ secrets.UZUM_Velina_Store_API_KEY }}
+          UZUM_VELINA_API_KEY: ${{ secrets.UZUM_VELINA_API_KEY }}
+          UZUM_API_KEY: ${{ secrets.UZUM_API_KEY }}
+
+          # --- Yandex Store API Keys ---
+          YANDEX_ALIBRAND_MARKET_API_KEY: ${{ secrets.YANDEX_FBY_AliBrand_Market_API_KEY }}
+          YANDEX_FBY_AliBrand_Market_API_KEY: ${{ secrets.YANDEX_FBY_AliBrand_Market_API_KEY }}
+          YANDEX_ATLAS_MARKET_API_KEY: ${{ secrets.YANDEX_FBS_Atlas_Market_API_KEY }}
+          YANDEX_FBS_Atlas_Market_API_KEY: ${{ secrets.YANDEX_FBS_Atlas_Market_API_KEY }}
+          YANDEX_BM_STORE_API_KEY: ${{ secrets.YANDEX_FBS_BM_Store2_API_KEY }}
+          YANDEX_FBS_BM_Store2_API_KEY: ${{ secrets.YANDEX_FBS_BM_Store2_API_KEY }}
+          YANDEX_BM_STORE_3_API_KEY: ${{ secrets.YANDEX_FBY_BM_Store3_API_KEY }}
+          YANDEX_FBY_BM_Store3_API_KEY: ${{ secrets.YANDEX_FBY_BM_Store3_API_KEY }}
+          YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
+
         run: node scripts/uzum-shadow-sync.js
