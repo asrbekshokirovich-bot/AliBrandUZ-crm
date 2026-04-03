@@ -133,10 +133,9 @@ async function runSync() {
         return {
           store_id: store.id,
           external_order_id: String(o.id || o.orderId || o.order_id),
-          ordered_at: oDate,
+          order_created_at: oDate, // DB schema uses order_created_at, not ordered_at
           status: stat, // Raw status for original MP Tahlil parsing
           total_amount: amount,
-          gross_amount: amount, // Keeping mapping just in case
           currency: 'UZS',
           items: o.items || [] // Keep original items if presented
         };
@@ -151,7 +150,8 @@ async function runSync() {
           .upsert(validOrders, { onConflict: "store_id, external_order_id" });
 
         if (upsertErr) {
-          console.error(` [-] Database Upsert Failed for ${store.name}:`, upsertErr);
+          console.error(` [-] Database Upsert Failed for ${store.name}:`);
+          console.error(JSON.stringify(upsertErr, null, 2));
         } else {
           console.log(` [+] Successfully upserted ${validOrders.length} orders for ${store.name}.`);
         }
