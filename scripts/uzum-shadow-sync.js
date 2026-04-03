@@ -37,7 +37,7 @@ async function runSync() {
 
   // Fetch ALL stores natively to debug the exact mapping state
   const { data: allStores, error: storesError } = await supabase
-    .from('v2_marketplaces')
+    .from('marketplace_stores')
     .select('*');
 
   if (storesError) {
@@ -45,7 +45,7 @@ async function runSync() {
     process.exit(1);
   }
 
-  console.log(`[DEBUG] Found ${allStores?.length || 0} total rows in 'v2_marketplaces' (Regardless of type or status).`);
+  console.log(`[DEBUG] Found ${allStores?.length || 0} total rows in 'marketplace_stores' (Regardless of type or status).`);
 
   // Case-Insensitive Filter for 'uzum'
   const stores = (allStores || []).filter(s => {
@@ -72,13 +72,14 @@ async function runSync() {
         continue;
       }
 
-      if (!store.external_shop_id) {
-        console.warn(`[!] Skipping ${store.name}: Missing external_shop_id`);
+      const shopId = store.shop_id || store.external_shop_id;
+      if (!shopId) {
+        console.warn(`[!] Skipping ${store.name}: Missing shop_id`);
         continue;
       }
 
       const dateFromMs = Date.now() - (60 * 24 * 60 * 60 * 1000); // 60 days aggressively
-      const url = `https://api.business.uzum.uz/api/v1/orders?shopIds=${store.external_shop_id}&size=100&dateFrom=${dateFromMs}`;
+      const url = `https://api.business.uzum.uz/api/v1/orders?shopIds=${shopId}&size=100&dateFrom=${dateFromMs}`;
 
       console.log(` Fetching Uzum API... (${url})`);
 
@@ -120,22 +121,24 @@ async function runSync() {
       }
 
       // Log DB rows before
-      const { count: countBefore } = await supabase.from('v2_unified_orders').select('*', { count: 'exact', head: true }).eq('marketplace_id', store.id);
-      console.log(` [DB] Rows in v2_unified_orders for ${store.name} BEFORE sync: ${countBefore}`);
+      const { count: countBefore } = await supabase.from('marketplace_orders').select('*', { count: 'exact', head: true }).eq('store_id', store.id);
+      console.log(` [DB] Rows in marketplace_orders for ${store.name} BEFORE sync: ${countBefore}`);
 
       const ordersToUpsert = Array.isArray(payload) ? payload.map((o) => {
         // Fallback checks for different Uzum API schema versions
         const amount = o.totalAmount || o.price || o.total_amount || o.amount || 0;
         const oDate = o.createTime || o.created_at || o.date || new Date().toISOString();
-        const stat = String(o.status || o.state || '').toUpperCase();
+        const stat = String(o.status || o.state || '');
         
         return {
-          marketplace_id: store.id,
+          store_id: store.id,
           external_order_id: String(o.id || o.orderId || o.order_id),
           ordered_at: oDate,
-          normalized_status: (stat === 'DELIVERED' || stat === 'COMPLETED' || stat === 'HANDED_OVER_TO_CUSTOMER') ? 'delivered' : 'pending',
-          gross_amount: amount,
-          currency: 'UZS'
+          status: stat, // Raw status for original MP Tahlil parsing
+          total_amount: amount,
+          gross_amount: amount, // Keeping mapping just in case
+          currency: 'UZS',
+          items: o.items || [] // Keep original items if presented
         };
       }) : [];
 
@@ -144,8 +147,8 @@ async function runSync() {
         const validOrders = ordersToUpsert.filter(o => o.external_order_id !== 'undefined');
         
         const { error: upsertErr } = await supabase
-          .from("v2_unified_orders")
-          .upsert(validOrders, { onConflict: "marketplace_id, external_order_id" });
+          .from("marketplace_orders")
+          .upsert(validOrders, { onConflict: "store_id, external_order_id" });
 
         if (upsertErr) {
           console.error(` [-] Database Upsert Failed for ${store.name}:`, upsertErr);
@@ -157,8 +160,8 @@ async function runSync() {
       }
 
       // Log DB rows after
-      const { count: countAfter } = await supabase.from('v2_unified_orders').select('*', { count: 'exact', head: true }).eq('marketplace_id', store.id);
-      console.log(` [DB] Rows in v2_unified_orders for ${store.name} AFTER sync: ${countAfter}`);
+      const { count: countAfter } = await supabase.from('marketplace_orders').select('*', { count: 'exact', head: true }).eq('store_id', store.id);
+      console.log(` [DB] Rows in marketplace_orders for ${store.name} AFTER sync: ${countAfter}`);
 
     } catch (err) {
        console.error(` [FATAL LOOP] Critical try/catch failure for store ${store.name}:`, err);

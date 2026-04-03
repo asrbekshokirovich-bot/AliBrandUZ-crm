@@ -75,7 +75,6 @@ const menuSections: MenuSection[] = [
       { title: 'marketplace_orders', url: '/crm/marketplace/orders', icon: ShoppingCart },
       { title: 'marketplace_listings', url: '/crm/marketplace/listings', icon: Package },
       { title: 'marketplace_analytics', url: '/crm/marketplace/analytics', icon: Brain },
-      { title: 'marketplace_analytics_v2', url: '/crm/marketplace/analytics/v2', icon: LineChart },
       { title: 'marketplace_admin', url: '/crm/admin/marketplace', icon: Settings, requiresManager: true },
     ]
   },
@@ -176,7 +175,6 @@ export function CRMSidebar() {
         '/crm/ali-ai',
         '/crm/analytics',
         '/crm/marketplace/analytics',
-        '/crm/marketplace/analytics/v2',
         '/crm/finance',
         '/crm/investor-dashboard',
         '/crm/users',
