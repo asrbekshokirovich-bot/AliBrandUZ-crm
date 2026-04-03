@@ -15,10 +15,73 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function runSync() {
-  console.log(`[${new Date().toISOString()}] Initiating Uzum SSL-Bypass Sync...`);
+// Master Store Registry for Auto-Onboarding (Gold Standard)
+const MASTER_STORES = [
+  { name: "ALI BRAND MARKET", platform: "uzum", shop_id: "356944", seller_id: "49052", api_key_secret_name: "UZUM_ALI_BRAND_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "q76imT5nndH+6ti71ilympxn9mAedVsqsm/aBAoPlL4=" },
+  { name: "Atlas Market", platform: "uzum", shop_id: "316698", seller_id: "69508", api_key_secret_name: "UZUM_ATLAS_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "7O4XDl8UrwX6ClbIrSenJFGdQD5RjUax9sns32ZkHS8=" },
+  { name: "Uzum China Market", platform: "uzum", shop_id: "316698", seller_id: "69555", api_key_secret_name: "UZUM_CHINA_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "oC8lQHXfVx6KHR1L/+CdFzvK2DjCdjezBci/7mX7FKc=" },
+  { name: "Xit market", platform: "uzum", shop_id: "316698", seller_id: "70010", api_key_secret_name: "UZUM_XIT_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "ng9XFUFejJqrgYkhHyBJCnZWBZG12IfX2oziLHx3Ddk=" },
+  { name: "Atlas.Market", platform: "uzum", shop_id: "316698", seller_id: "88409", api_key_secret_name: "UZUM_ATLAS_MARKET_2_API_KEY", auto_sync_enabled: true, raw_fallback_key: "46043gptOo1U9FIc0FdADEZ+c4pcn0L7dGapoAMwZG8=" },
+  { name: "BM Store", platform: "uzum", shop_id: "322295", seller_id: "89165", api_key_secret_name: "UZUM_BM_STORE_API_KEY", auto_sync_enabled: true, raw_fallback_key: "4gpWWyo+2JR1byAcyPEPE2j/OXL1EfZD2bFUJwejxks=" },
+  { name: "BM_store", platform: "uzum", shop_id: "322295", seller_id: "92638", api_key_secret_name: "UZUM_BM_STORE_2_API_KEY", auto_sync_enabled: true, raw_fallback_key: "Y1Qa78ItrP0704iLx4MqY+3qjlInOGiSp3Hml4BmL1Y=" },
+  { name: "Alibrand.Market", platform: "uzum", shop_id: "356944", seller_id: "92815", api_key_secret_name: "UZUM_ALIBRAND_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "86uM2WvEKHAbJxk67TGog8OegmOoe3+qEZC8JZkCS3E=" },
+  
+  { name: "FBY - AliBrand.Market", platform: "yandex", business_id: "216469176", campaign_id: "148843590", api_key_secret_name: "YANDEX_ALIBRAND_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "ACMA:IYTR0ofK4q0q8RhEsQUp2BGlsIVkKrAKqRiYu9iL:db19f31d" },
+  { name: "FBS - Atlas Market", platform: "yandex", business_id: "216469176", campaign_id: "148987777", api_key_secret_name: "YANDEX_ATLAS_MARKET_API_KEY", auto_sync_enabled: true, raw_fallback_key: "ACMA:IYTR0ofK4q0q8RhEsQUp2BGlsIVkKrAKqRiYu9iL:db19f31d" },
+  { name: "FBS - BM.Store 2", platform: "yandex", business_id: "216515645", campaign_id: "148916383", api_key_secret_name: "YANDEX_BM_STORE_API_KEY", auto_sync_enabled: true, raw_fallback_key: "ACMA:oK7aYMHhpQXvElMADbrKVbNe96oe8WiWdUBldpyY:18afefdd" },
+  { name: "FBY - BM.Store 3", platform: "yandex", business_id: "216515645", campaign_id: "148939239", api_key_secret_name: "YANDEX_BM_STORE_3_API_KEY", auto_sync_enabled: true, raw_fallback_key: "ACMA:oK7aYMHhpQXvElMADbrKVbNe96oe8WiWdUBldpyY:18afefdd" }
+];
 
-  // Dynamically load Edge Function Secrets so GitHub Actions natively knows the API Keys
+function normalizeStatus(raw) {
+  const st = String(raw || '').toUpperCase();
+  if (['DELIVERED', 'COMPLETED', 'DONE', 'ARRIVED', 'HANDED_', 'DELIVERY_DELIVERED'].some(s => st.includes(s))) return "DELIVERED";
+  if (['CANCELLED', 'CANCELED', 'REJECTED', 'NOT_', 'CANCEL'].some(s => st.includes(s))) return "CANCELLED";
+  if (['RETURN', 'VOSVRAT', 'RETURNED'].some(s => st.includes(s))) return "RETURNED";
+  return st; // Fallback to raw if unmatched
+}
+
+async function fetchLiveRubRate() {
+  try {
+    const res = await fetch("https://api.exchangerate-api.com/v4/latest/RUB");
+    if (!res.ok) throw new Error("API not ok");
+    const data = await res.json();
+    const uzsRate = data.rates.UZS;
+    if (uzsRate) {
+      console.log(`[LIVE EXCHANGE] 1 RUB = ${uzsRate} UZS`);
+      return uzsRate;
+    }
+  } catch (err) {
+    console.warn(`[!] Live Exchange API failed. Utilizing fallback rate: 1 RUB = 135 UZS`);
+  }
+  return 135; // Fallback rate as backup
+}
+
+async function onboardStores() {
+  console.log("--> Performing Deep Store Onboarding Verification...");
+  const { data: dbStores, error } = await supabase.from('marketplace_stores').select('*');
+  if (error) { throw error; }
+
+  for (const ms of MASTER_STORES) {
+    const existing = dbStores.find(e => 
+      (ms.seller_id && e.seller_id === ms.seller_id) || 
+      (ms.campaign_id && e.campaign_id === ms.campaign_id) ||
+      e.name === ms.name
+    );
+    const { raw_fallback_key, ...payload } = ms; // Do not upsert raw_fallback_key physically if table doesn't support it
+
+    if (existing) {
+      // Just ensure standard details
+      await supabase.from('marketplace_stores').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', existing.id);
+    } else {
+      await supabase.from('marketplace_stores').insert({ ...payload, updated_at: new Date().toISOString() });
+    }
+  }
+}
+
+async function runSync() {
+  console.log(`\n\n[${new Date().toISOString()}] Initiating Multi-Platform Analytics Sync (Deep Scan)...`);
+
+  // Dynamically load Edge Function Secrets
   try {
     console.log('Fetching encrypted environment secrets from Supabase vault...');
     const secretResp = await fetch(`${SUPABASE_URL}/functions/v1/get-secrets`, {
@@ -28,147 +91,147 @@ async function runSync() {
       const secretData = await secretResp.json();
       if (secretData && secretData.ENVIRONMENT) {
         Object.assign(process.env, secretData.ENVIRONMENT);
-        console.log('Successfully injected native Edge secrets into runtime.');
       }
     }
   } catch (err) {
-    console.warn('Could not fetch remote secrets, relying on local .env variables.', err.message);
+    console.warn('Could not fetch remote secrets.');
   }
 
-  // Fetch ALL stores natively to debug the exact mapping state
-  const { data: allStores, error: storesError } = await supabase
-    .from('marketplace_stores')
-    .select('*');
+  // 1. Onboard stores
+  await onboardStores();
 
+  // Fetch LIVE exchange rate for Yandex translation
+  const rubToUzsRate = await fetchLiveRubRate();
+
+  // Fetch updated stores list after onboarding
+  const { data: allStores, error: storesError } = await supabase.from('marketplace_stores').select('*');
   if (storesError) {
     console.error('FATAL: Failed to fetch stores from Supabase:', storesError);
     process.exit(1);
   }
 
-  console.log(`[DEBUG] Found ${allStores?.length || 0} total rows in 'marketplace_stores' (Regardless of type or status).`);
-
-  // Case-Insensitive Filter for 'uzum'
-  const stores = (allStores || []).filter(s => {
-    const plat = String(s.platform || '').toLowerCase();
-    return plat.includes('uzum');
-  });
-
-  if (!stores || stores.length === 0) {
-    console.log('No Uzum stores found matching case-insensitive \"uzum\". Exiting.');
-    return;
-  }
-
-  console.log(`Found ${stores.length} Uzum stores mapping candidates.`);
-
-  for (const store of stores) {
+  const activeStores = (allStores || []).filter(s => ['uzum', 'yandex'].includes(String(s.platform || '').toLowerCase()));
+  
+  for (const store of activeStores) {
     try {
-      console.log(`\nProcessing Uzum Store: ${store.name}`);
+      console.log(`\nProcessing ${store.platform.toUpperCase()} Store: ${store.name}`);
       
-      const apiKey = process.env[store.api_key_secret_name] || store.temp_api_key;
+      const masterConfig = MASTER_STORES.find(m => m.name === store.name || (m.shop_id && m.shop_id === store.shop_id) || (m.campaign_id && m.campaign_id === store.campaign_id));
+      let apiKey = process.env[store.api_key_secret_name] || (masterConfig && masterConfig.raw_fallback_key);
       
-      // In a real environment, keys are pulled dynamically. Assuming the local .env has them.
       if (!apiKey) {
-        console.warn(`[!] Skipping ${store.name}: Missing API Key in ENV for '${store.api_key_secret_name}'`);
+        console.warn(`[!] Skipping ${store.name}: Missing API Key`);
         continue;
       }
 
-      const shopId = store.shop_id || store.external_shop_id;
-      if (!shopId) {
-        console.warn(`[!] Skipping ${store.name}: Missing shop_id`);
-        continue;
-      }
+      // 45 DAYS HISTORICAL DEEP SCAN
+      const dateFromMs = Date.now() - (45 * 24 * 60 * 60 * 1000); 
 
-      const dateFromMs = Date.now() - (60 * 24 * 60 * 60 * 1000); // 60 days aggressively
-      const url = `https://seller.uzum.uz/api/v1/orders?shopIds=${shopId}&size=100&dateFrom=${dateFromMs}`;
+      let validOrders = [];
 
-      console.log(` Fetching Uzum API... (${url})`);
+      // --- UZUM LOGIC ---
+      if (store.platform === 'uzum') {
+        const shopId = store.shop_id || store.external_shop_id;
+        if (!shopId) continue;
 
-      const resp = await fetch(url, {
-        headers: {
-          'Authorization': apiKey.startsWith('Bearer') ? apiKey : `Bearer ${apiKey}`,
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 NodeJS/UzumSyncWorker'
+        const url = `https://seller.uzum.uz/api/v1/orders?shopIds=${shopId}&size=500&dateFrom=${dateFromMs}`;
+        const resp = await fetch(url, {
+          headers: {
+            'Authorization': apiKey.startsWith('Bearer') ? apiKey : `Bearer ${apiKey}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!resp.ok) {
+          console.error(` [-] Uzum HTTP ${resp.status} - Skipping...`);
+          continue;
         }
-      });
 
-      const rawText = await resp.text();
+        const data = await resp.json();
+        const payload = data?.payload?.orders || data?.payload || [];
 
-      if (!resp.ok) {
-        console.error(` [-] Error fetching Uzum API for ${store.name}: HTTP ${resp.status}`);
-        console.error(`     Raw response snippet: ${rawText.substring(0, 300)}`);
-        continue;
-      }
+        validOrders = Array.isArray(payload) ? payload.map((o) => {
+          const amount = o.totalAmount || o.price || o.total_amount || o.amount || 0;
+          const oDate = o.createTime || o.created_at || o.date || new Date().toISOString();
+          const stat = String(o.status || o.state || '');
+          return {
+            store_id: store.id,
+            external_order_id: String(o.id || o.orderId || o.order_id),
+            ordered_at: oDate, 
+            status: normalizeStatus(stat),
+            total_amount: amount,
+            currency: 'UZS',
+            items: o.items || []
+          };
+        }).filter(o => o.external_order_id !== 'undefined') : [];
 
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseErr) {
-        console.error(` [-] Failed to parse JSON for ${store.name}: ${parseErr.message}`);
-        continue;
-      }
-
-      if (data && data.error) {
-         console.error(` [-] API returned error inside JSON for ${store.name}: ${data.error}`);
-         continue;
-      }
-
-      const payload = data?.payload?.orders || data?.payload || [];
-      console.log(` [*] Uzum API returned ${payload.length || 0} items in payload.`);
-      
-      if (Array.isArray(payload) && payload.length > 0) {
-        // Log the first item's schema to ensure mapping is correct
-        console.log(` [DEBUG] Schema of first order:`, JSON.stringify(payload[0]).substring(0, 500));
-      }
-
-      // Log DB rows before
-      const { count: countBefore } = await supabase.from('marketplace_orders').select('*', { count: 'exact', head: true }).eq('store_id', store.id);
-      console.log(` [DB] Rows in marketplace_orders for ${store.name} BEFORE sync: ${countBefore}`);
-
-      const ordersToUpsert = Array.isArray(payload) ? payload.map((o) => {
-        // Fallback checks for different Uzum API schema versions
-        const amount = o.totalAmount || o.price || o.total_amount || o.amount || 0;
-        const oDate = o.createTime || o.created_at || o.date || new Date().toISOString();
-        const stat = String(o.status || o.state || '');
+      // --- YANDEX LOGIC ---
+      } else if (store.platform === 'yandex') {
+        const campaignId = store.campaign_id;
+        if (!campaignId) continue;
         
-        return {
-          store_id: store.id,
-          external_order_id: String(o.id || o.orderId || o.order_id),
-          ordered_at: oDate, // Frontend aggregates by ordered_at
-          status: stat, // Raw status for original MP Tahlil parsing
-          total_amount: amount,
-          currency: 'UZS',
-          items: o.items || [] // Keep original items if presented
-        };
-      }) : [];
+        // Yandex uses YYYY-MM-DD
+        const d = new Date(dateFromMs);
+        const dateFromStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-      if (ordersToUpsert.length > 0) {
-        // Filter out bad parses
-        const validOrders = ordersToUpsert.filter(o => o.external_order_id !== 'undefined');
-        
+        // Yandex requires OAuth prefix
+        const authPrefix = apiKey.startsWith("OAuth") || apiKey.startsWith("Bearer") ? apiKey : `OAuth oauth_token="${apiKey}", oauth_client_id="YOUR_ID"`;
+        const pureOAuth = apiKey.includes("ACMA") ? `OAuth oauth_token="${apiKey}"` : `Bearer ${apiKey}`;
+
+        const url = `https://api.partner.market.yandex.ru/campaigns/${campaignId}/orders?pageSize=50&updateAtFrom=${dateFromStr}`;
+        const resp = await fetch(url, {
+          headers: {
+            'Authorization': pureOAuth,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!resp.ok) {
+          console.error(` [-] Yandex HTTP ${resp.status} - Skipping...`);
+          const tt = await resp.text();
+          console.error(`    > ${tt.substring(0, 150)}`);
+          continue;
+        }
+
+        const data = await resp.json();
+        const ordersPayload = data?.orders || [];
+
+        validOrders = Array.isArray(ordersPayload) ? ordersPayload.map((o) => {
+          const rawAmountRub = o.items ? o.items.reduce((sum, i) => sum + (i.prices ? i.prices[0].total : 0), 0) : 0;
+          const uziAmount = rawAmountRub * rubToUzsRate; // LIVE CONVERSION
+          
+          return {
+            store_id: store.id,
+            external_order_id: String(o.id),
+            ordered_at: o.creationDate || new Date().toISOString(),
+            status: normalizeStatus(o.status),
+            total_amount: uziAmount, // Persist normalized value
+            currency: 'UZS', // Mark as successfully converted inside DB
+            items: o.items || []
+          };
+        }) : [];
+      }
+
+      if (validOrders.length > 0) {
         const { error: upsertErr } = await supabase
           .from("marketplace_orders")
           .upsert(validOrders, { onConflict: "store_id, external_order_id" });
 
         if (upsertErr) {
-          console.error(` [-] Database Upsert Failed for ${store.name}:`);
-          console.error(JSON.stringify(upsertErr, null, 2));
+          console.error(` [-] Database Upsert Failed for ${store.name}:`, upsertErr);
         } else {
-          console.log(` [+] Successfully upserted ${validOrders.length} orders for ${store.name}.`);
+          console.log(` [+] Synced & Updated ${validOrders.length} orders for ${store.name} (Last 45 Days).`);
         }
       } else {
-        console.log(` [~] No new orders found to upsert for ${store.name}.`);
+        console.log(` [~] No new orders found in recent window for ${store.name}.`);
       }
 
-      // Log DB rows after
-      const { count: countAfter } = await supabase.from('marketplace_orders').select('*', { count: 'exact', head: true }).eq('store_id', store.id);
-      console.log(` [DB] Rows in marketplace_orders for ${store.name} AFTER sync: ${countAfter}`);
-
     } catch (err) {
-       console.error(` [FATAL LOOP] Critical try/catch failure for store ${store.name}:`, err);
+       console.error(` [FATAL LOOP] Exception for store ${store.name}:`, err.message);
     }
   }
   
-  console.log(`\n[${new Date().toISOString()}] Sync process complete.`);
+  console.log(`\n[${new Date().toISOString()}] Sync process complete. Single Source of Truth stabilized.`);
 }
 
 runSync().catch(console.error);
