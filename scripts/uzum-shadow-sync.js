@@ -133,7 +133,7 @@ async function runSync() {
         return {
           store_id: store.id,
           external_order_id: String(o.id || o.orderId || o.order_id),
-          order_created_at: oDate, // DB schema uses order_created_at, not ordered_at
+          ordered_at: oDate, // Frontend aggregates by ordered_at
           status: stat, // Raw status for original MP Tahlil parsing
           total_amount: amount,
           currency: 'UZS',
