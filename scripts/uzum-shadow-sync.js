@@ -205,13 +205,32 @@ async function syncYandexStore(store, apiKey, dateFromMs, rubToUzsRate) {
   const campaignId = store.campaign_id || store.fbs_campaign_id || store.fby_campaign_id;
   if (!campaignId) throw new Error('No campaign_id defined in marketplace_stores row');
 
-  // Yandex OAuth format: the token stored in DB is already the raw ACMA:... token
-  // Yandex API expects: "OAuth <token>" without quotes inside the header value
+  // Clean the token — strip invisible characters and whitespace from copy-paste
+  const cleanToken = apiKey.trim().replace(/[\r\n\t]/g, '');
+
+  // Yandex API expects: "OAuth <token>" in the Authorization header
   let authHeader;
-  if (apiKey.startsWith('OAuth ') || apiKey.startsWith('Bearer ')) {
-    authHeader = apiKey;
+  if (cleanToken.startsWith('OAuth ') || cleanToken.startsWith('Bearer ')) {
+    authHeader = cleanToken;
   } else {
-    authHeader = `OAuth ${apiKey}`;
+    authHeader = `OAuth ${cleanToken}`;
+  }
+
+  // business_id is stored in seller_id or business_id column.
+  // Sending it as X-Market-Partner-Id fixes "OAuth client id is not specified" error.
+  const businessId = store.business_id || store.seller_id || null;
+
+  console.log(`  [Yandex] Campaign: ${campaignId} | BusinessId: ${businessId || 'N/A'} | Token: ${cleanToken.substring(0, 20)}...`);
+
+  const headers = {
+    'Authorization': authHeader,
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+  };
+
+  // Include business ID header if available — required by some Yandex Market API endpoints
+  if (businessId) {
+    headers['X-Market-Partner-Id'] = String(businessId);
   }
 
   const d = new Date(dateFromMs);
@@ -226,13 +245,7 @@ async function syncYandexStore(store, apiKey, dateFromMs, rubToUzsRate) {
     const url = `https://api.partner.market.yandex.ru/campaigns/${campaignId}/orders?pageSize=50&page=${page}&fromDate=${fromDate}`;
     console.log(`  [Yandex] GET ${url}`);
 
-    const resp = await fetch(url, {
-      headers: {
-        'Authorization': authHeader,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    });
+    const resp = await fetch(url, { headers });
 
     if (!resp.ok) {
       const body = await resp.text();

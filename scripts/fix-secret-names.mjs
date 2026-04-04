@@ -28,11 +28,11 @@ const SECRET_MAP = [
   { match: 'Velina',              secret: 'UZUM_Velina_Store_API_KEY' },
   { match: 'Ali brand women',     secret: 'UZUM_Velina_Store_API_KEY' },
 
-  // Yandex stores — campaign_id verified from user's credential sheet
-  { match: 'FBY - AliBrand',      secret: 'YANDEX_FBY_AliBrand_Market_API_KEY', campaign_id: '148843590' },
-  { match: 'FBS - Atlas',         secret: 'YANDEX_FBS_Atlas_Market_API_KEY',    campaign_id: '148987777' },
-  { match: 'FBS - BM',            secret: 'YANDEX_FBS_BM_STORE2_API_KEY',       campaign_id: '148916383' },
-  { match: 'FBY - BM',            secret: 'YANDEX_FBY_BM_Store3_API_KEY',       campaign_id: '148939239' },
+  // Yandex stores — campaign_id and business_id verified from user's credential sheet
+  { match: 'FBY - AliBrand',      secret: 'YANDEX_FBY_AliBrand_Market_API_KEY', campaign_id: '148843590', business_id: '216469176' },
+  { match: 'FBS - Atlas',         secret: 'YANDEX_FBS_Atlas_Market_API_KEY',    campaign_id: '148987777', business_id: '216469176' },
+  { match: 'FBS - BM',            secret: 'YANDEX_FBS_BM_STORE2_API_KEY',       campaign_id: '148916383', business_id: '216515645' },
+  { match: 'FBY - BM',            secret: 'YANDEX_FBY_BM_Store3_API_KEY',       campaign_id: '148939239', business_id: '216515645' },
 ];
 
 async function fixSecretNames() {
@@ -66,6 +66,11 @@ async function fixSecretNames() {
     if (mapping.campaign_id && store.campaign_id !== mapping.campaign_id) {
       updates.campaign_id = mapping.campaign_id;
       changes.push(`campaign_id: ${store.campaign_id || 'NULL'} → ${mapping.campaign_id}`);
+    }
+
+    if (mapping.business_id && store.business_id !== mapping.business_id) {
+      updates.business_id = mapping.business_id;
+      changes.push(`business_id: ${store.business_id || 'NULL'} → ${mapping.business_id}`);
     }
 
     if (Object.keys(updates).length === 0) {
